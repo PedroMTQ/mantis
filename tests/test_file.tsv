@@ -1,0 +1,5 @@
+Query name	Absolute sample path	Organism details
+query1	/scratch/users/pqueiros/mantis/tests/test_sample.faa	
+query2	/scratch/users/pqueiros/mantis/tests/test_sample.faa	562
+query3	/scratch/users/pqueiros/mantis/tests/test_sample.faa	Escherichia coli
+query4	/scratch/users/pqueiros/mantis/tests/test_sample.faa	Proteobacteria
