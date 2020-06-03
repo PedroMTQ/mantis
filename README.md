@@ -26,16 +26,22 @@ If you have only loose reads, you need to assemble them first; when you have ass
 # Straight to the point
 ### Requirements
 
-- Python>=v3   
-- Conda  
-- HMMER>=v3
+- **Python**, tested with v3.7.3 but anything above v3 should be fine
+- **requests**, tested with v2.22.0
+- **numpy**, tested with v1.18.1
+- **nltk**, tested with v3.4.4
+- **sqlite**, tested with v3.30.1
+- **psutil**, tested with 5.6.7
+- [HMMER](#10-references-and-acknowledgements), tested with v3.2.1
+
 
 ### Quick configuration
 1. `git clone ssh://git@git-r3lab-server.uni.lu:8022/pedro.queiros/mantis.git`  
-2. Run `conda env create -f mantis_env.yml`
+2. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
 3. Run `conda activate mantis_env`
-4. Run `python mantis setup_databases`
+4. Go up one folder and run `python mantis setup_databases`
 5. Run `python mantis run_mantis -t target_faa`
+
 
 **Custom hmms**  
 
