@@ -57,24 +57,47 @@ class MANTIS_Processor():
 
     ########To merge domtblout
 
-    def group_domtblout_chunks(self, domtblout_path, all_domtblout_with_chunks):
+    def group_output_chunks(self, domtblout_path, all_domtblout_with_chunks,chunk_suffix):
         # grouping the domtblout into the corresponding original 'hmm'
         res = {}
         for domtblout in all_domtblout_with_chunks:
             if 'chunk' in domtblout:
                 hmm_name = domtblout.split('_chunk_')[0]
-                hmm_domtblout = hmm_name + '.domtblout'
+                hmm_domtblout = hmm_name + chunk_suffix
                 if hmm_domtblout not in res: res[hmm_domtblout] = []
                 res[hmm_domtblout].append(domtblout_path + domtblout)
         return res
 
-    def merge_domtblout_chunks(self, domtblout_path, all_domtblout_with_chunks, stdout_file=None):
-        grouped_domtblout = self.group_domtblout_chunks(domtblout_path, all_domtblout_with_chunks)
+    def merge_output_chunks(self, domtblout_path, all_domtblout_with_chunks, chunk_suffix, stdout_file=None):
+        grouped_domtblout = self.group_output_chunks(domtblout_path, all_domtblout_with_chunks,chunk_suffix)
         for domtblout in grouped_domtblout:
             concat_files(output_file=domtblout_path + domtblout, list_file_paths=grouped_domtblout[domtblout],
                          stdout_file=stdout_file)
             for to_delete in grouped_domtblout[domtblout]:
                 os.remove(to_delete)
+
+    def split_hits(self,domtblout_path,worker_count):
+        #split the hits into different chunk allows for memory saving during hit processing
+        list_of_files=[domtblout_path+'_chunk_'+str(i) for i in range(worker_count)]
+        hit_to_file={}
+        file_yielder = yield_file(list_of_files)
+        with open(domtblout_path) as file:
+            original_line = file.readline()
+            line = str(original_line).strip('\n')
+            while line:
+                if line[0] != '#':
+                    line = line.split()[0:22]
+                    if len(line) == 22:
+                        query_name = line[0]
+                        if query_name not in hit_to_file:
+                            file_name = next(file_yielder)
+                            hit_to_file[query_name]=file_name
+                        opened_file= open(hit_to_file[query_name],'a+')
+                        opened_file.write(original_line)
+
+                original_line=file.readline()
+                line = str(original_line).strip('\n')
+        os.remove(domtblout_path)
 
     ########To calculate new evalue
 
@@ -299,11 +322,11 @@ class MANTIS_Processor():
         For 200-250 bp read lengths, 1e-25 was most accurate (Additional file 1, Figure S3).
         In general, the optimal e-value threshold increases with increasing read length."
         '''
-        if self.evalue_threshold: return self.evalue_threshold
-        if query_len<=150: return 1e-10
-        if query_len>=250: return 1e-25
-        else: return 1e-15
-
+        if self.evalue_threshold =='dynamic':
+            if query_len<=150:      return 1e-10
+            elif query_len>=250:    return 1e-25
+            else:                   return float('1e-'+str(ceil(query_len/10)))
+        else: return self.evalue_threshold
 
 
     def recalculate_evalue(self,i_evalue,count_seqs_chunk,count_seqs_original_file):
@@ -388,22 +411,22 @@ class MANTIS_Processor():
         print('Processing hits for:\n' + output_path, flush=True, file=stdout_file)
         queries_domtblout,hit_counter=self.read_domtblout(output_path,count_seqs_chunk,count_seqs_original_file)
         # processing the hits and getting the best hit/non-overlapping hits
-        print('Found '+str(hit_counter)+' hits in:\n'+output_path+'.\nWill now get best hits!',flush=True,file=stdout_file)
+        print('Found '+str(hit_counter)+' hits in:\n'+output_path+'\nWill now get best hits!',flush=True,file=stdout_file)
         approximated_hits=[]
         hmm=get_path_level(output_path,remove_extension=True)
         res_annotation = {}
         for query in queries_domtblout:
             if query not in res_annotation: res_annotation[query] = {}
             list_hits=queries_domtblout[query].pop('hits')
-            #self.domain_algorithm defines which algorithm to use, exact for get_best_hits, approximation for get_best_hits_approximation, and lowest for get_lowest_hit
-            if self.domain_algorithm=='approximation':
+            #self.domain_algorithm defines which algorithm to use, exhaustive for get_best_hits, heuristic for get_best_hits_approximation, and lowest for get_lowest_hit
+            if self.domain_algorithm=='heuristic':
                 best_hit = self.get_best_hits_approximation(list(list_hits))
             elif self.domain_algorithm=='lowest':
                 best_hit = self.get_lowest_hit(list(list_hits))
             else:
                 try:
                     best_hit = self.get_best_hits(list(list_hits),queries_domtblout[query]['query_len'],time_limit=60)
-                except TimeoutError:
+                except (TimeoutError,RecursionError):
                     approximated_hits.append(query)
                     best_hit = self.get_best_hits_approximation(list(list_hits))
             queries_domtblout[query]['best_hit']=best_hit
@@ -415,17 +438,6 @@ class MANTIS_Processor():
         print('------------------------------------------', flush=True, file=stdout_file)
         if isinstance(stdout_path,str): stdout_file.close()
         return res_annotation
-
-    def merge_processed_hits(self,res_annotations):
-        res={}
-        for query in res_annotations:
-            if query not in res: res[query]={}
-            hmms=res_annotations[query].keys()
-            for hmm in hmms:
-                res[query][hmm.replace('.hmm','')] = res_annotations[query][hmm]
-        return res
-
-
 
 
 
@@ -452,10 +464,12 @@ class MANTIS_Processor():
             for query in annotation_output:
                 for hmm_file in annotation_output[query]:
                     #some hmm hits won't pass the i-evalue threshold, so we dont consider them
+                    if '_chunk_' in hmm_file: str_hmm_file=hmm_file.split('_chunk_')[0]
+                    else: str_hmm_file=hmm_file
                     if annotation_output[query][hmm_file]['best_hit']:
                         for hit in annotation_output[query][hmm_file]['best_hit']:
                             line = [str(query),
-                                    str(hmm_file),
+                                    str(str_hmm_file),
                                     str(hit['hmm_name']),
                                     str(hit['hmm_accession']),
                                     #all calculations with evalues are done, so just making it more readable

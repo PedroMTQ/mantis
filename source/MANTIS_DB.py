@@ -27,9 +27,10 @@ class MANTIS_DB(MANTIS_NLP):
             'ncbi'      if self.mantis_paths['ncbi'][0:2] !='NA' else None,
             'pfam'      if self.mantis_paths['pfam'][0:2] !='NA' else None,
             'kofam'     if self.mantis_paths['kofam'][0:2] !='NA' else None,
-            'dbcan'     if self.mantis_paths['dbcan'][0:2] !='NA' else None,
+            #'dbcan'     if self.mantis_paths['dbcan'][0:2] !='NA' else None,
             'tigrfam'   if self.mantis_paths['tigrfam'][0:2] !='NA' else None,
             'resfams'   if self.mantis_paths['resfams'][0:2] !='NA' else None,
+            #'hamap'     if self.mantis_paths['hamap'][0:2] !='NA' else None,
             'NOGG'      if self.mantis_paths['NOGG'][0:2] !='NA' else None,
         ]
         self.prepare_queue_setup_databases_NOG_sql(force_download)
@@ -120,7 +121,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     ###Executing queue jobs
 
-    def worker_setup_databases(self, queue):
+    def worker_setup_databases(self, queue,master_pid):
         while True:
             record = queue.pop(0)
             if record is None: break
@@ -130,20 +131,20 @@ class MANTIS_DB(MANTIS_NLP):
             else:
                 database,force_download,taxon_id,stdout_path = record
             self.run_download_and_unzip(database,force_download,taxon_id,stdout_path)
-            if not self.check_hmm_exists(database,taxon_id):
+            if not self.check_reference_exists(database,taxon_id):
                 stdout_file=open(stdout_path,'a+')
                 print('Setup failed on ',database,taxon_id,flush=True,file=stdout_file)
                 stdout_file.close()
                 queue.insert(0,record)
 
-    def worker_split_hmms(self,queue):
+    def worker_split_hmms(self,queue,master_pid):
         while True:
             record = queue.pop(0)
             if record is None: break
             hmm_path,stdout_path = record
             self.split_hmm_into_chunks(hmm_path,stdout_path)
 
-    def worker_extract_NOG_metadata(self,queue):
+    def worker_extract_NOG_metadata(self,queue,master_pid):
         while True:
             record = queue.pop(0)
             if record is None: break
@@ -162,6 +163,7 @@ class MANTIS_DB(MANTIS_NLP):
         elif database=='dbcan':     self.download_and_unzip_dbcan_hmm(force_download=force_download,stdout_file=stdout_file)
         elif database=='tigrfam':   self.download_and_unzip_tigrfam_hmm(force_download=force_download,stdout_file=stdout_file)
         elif database=='resfams':   self.download_and_unzip_resfams_hmm(force_download=force_download,stdout_file=stdout_file)
+        #elif database=='hamap':     self.download_and_unzip_hamap_hmm(force_download=force_download,stdout_file=stdout_file)
         elif database=='NOGT':      self.download_and_unzip_NOGT(taxon_id=taxon_id,stdout_file=stdout_file)
         elif database=='NOGG':      self.download_and_unzip_NOGG(force_download=force_download,stdout_file=stdout_file)
         elif database=='NOGSQL':    self.download_and_unzip_NOGSQL(force_download=force_download,stdout_file=stdout_file)
@@ -230,7 +232,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_pfam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['pfam']).mkdir(parents=True, exist_ok=True)
-        if self.check_hmm_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm',force_download) and\
+        if self.check_reference_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm',force_download) and\
             self.file_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat', force_download):
             print('Pfam hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
@@ -250,7 +252,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_kofam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['kofam']).mkdir(parents=True, exist_ok=True)
-        if self.check_hmm_exists('kofam',force_download) and\
+        if self.check_reference_exists('kofam',force_download) and\
             self.file_exists(self.mantis_paths['kofam'] + 'ko_list', force_download) and\
             self.file_exists(self.mantis_paths['kofam'] + 'ko2cog.xl', force_download) and\
             self.file_exists(self.mantis_paths['kofam'] + 'ko2go.xl', force_download) and\
@@ -285,7 +287,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_dbcan_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['dbcan']).mkdir(parents=True, exist_ok=True)
-        if self.check_hmm_exists('dbcan',force_download) and\
+        if self.check_reference_exists('dbcan',force_download) and\
             self.file_exists(self.mantis_paths['dbcan'] + 'CAZyDB.07312019.fam.subfam.ec.txt', force_download):
             print('dbCAN hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
@@ -304,7 +306,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_tigrfam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['tigrfam']).mkdir(parents=True, exist_ok=True)
-        if self.check_hmm_exists('tigrfam',force_download) and\
+        if self.check_reference_exists('tigrfam',force_download) and\
             self.file_exists(self.mantis_paths['tigrfam'] + 'gpl.html', force_download) and\
             self.file_exists(self.mantis_paths['tigrfam'] + 'COPYRIGHT', force_download) and\
             self.file_exists(self.mantis_paths['tigrfam'] + 'TIGRFAMS_GO_LINK', force_download) and\
@@ -342,7 +344,7 @@ class MANTIS_DB(MANTIS_NLP):
         if not self.file_exists(self.mantis_paths['resfams'] + '180102_resfams_metadata_updated_v122.tsv', force_download):
             print('Resfams metadata tsv missing, it should be in the github repo!',flush=True,file=stdout_file)
             return
-        if self.check_hmm_exists('resfams',force_download):
+        if self.check_reference_exists('resfams',force_download):
             print('Resfams hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         resfams_hmm = 'http://dantaslab.wustl.edu/resfams/Resfams-full.hmm.gz'
@@ -361,7 +363,7 @@ class MANTIS_DB(MANTIS_NLP):
         target_annotation_file = self.mantis_paths['NOGG'] + 'NOG.annotations.tsv'
         target_merged_hmm = self.mantis_paths['NOGG'] + 'NOGG_merged.hmm'
         # this will download all organisms nog hmms (not specific to taxa)
-        if self.check_hmm_exists('NOGG',force_download) and self.file_exists(target_annotation_file,force_download):
+        if self.check_reference_exists('NOGG',force_download) and self.file_exists(target_annotation_file,force_download):
             profile_count = get_hmm_profile_count(target_merged_hmm)
             annotations_count = len(self.get_hmms_annotation_file(target_annotation_file, 1))
             # should be the same but some HMMs dont have an annotation (probably an error from NOG)
@@ -456,7 +458,7 @@ class MANTIS_DB(MANTIS_NLP):
         for taxon_id in taxon_ids:
             if taxon_id!='1':
                 target_annotation_file = self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id + '_annotations.tsv'
-                if self.check_hmm_exists('NOGT',taxon_id,force_download) and self.file_exists(target_annotation_file,force_download):
+                if self.check_reference_exists('NOGT',taxon_id,force_download) and self.file_exists(target_annotation_file,force_download):
                     hmm_path = get_hmm_in_folder(self.mantis_paths['NOGT'] + taxon_id + splitter)
                     profile_count=get_hmm_profile_count(hmm_path)
                     annotations_count=len(self.get_hmms_annotation_file(target_annotation_file, 1))
@@ -676,4 +678,147 @@ class MANTIS_DB(MANTIS_NLP):
         print('Finished exporting metadata for NOG', taxon_id,flush=True,file=stdout_file)
         stdout_file.close()
 
+
+    #LEGACY
+    def remove_pattern_hamap(self, string_to_search, pattern, part_to_remove=''):
+        patterns_removed = set()
+        search = re.search(pattern, string_to_search)
+        while search:
+            patterns_removed.add(search.group().replace(part_to_remove, ''))
+            start = search.span()[0]
+            end = search.span()[1]
+            if string_to_search[start + 1] == '(': start += 2
+            if string_to_search[end - 1] == ')': end -= 1
+            string_to_search = list(string_to_search)
+            string_to_search[start:end] = ''
+            string_to_search = ''.join(string_to_search)
+            search = re.search(pattern, string_to_search)
+        return patterns_removed
+
+    def parse_metadata_hamap(self, rules_file):
+        res = {}
+        function_str = ''
+        catalytic_str = ''
+        with open(rules_file) as file:
+            line = file.readline()
+            while line:
+                line = line.strip('\n')
+                line = line.strip(';')
+                if 'AC   ' in line:
+                    line = line.replace('AC   ', '')
+                    hamap_id = line
+                    if res:
+                        yield res
+                    res = {'pfam': set(), 'tigrfam': set(), 'prosite': set(), 'prints': set(), 'pirsf': set(),
+                           'smart': set(), 'description': set(), 'go': set(), 'rhea': set(), 'chebi': set(),
+                           'enzyme_ec': set()}
+                    res['hamap'] = hamap_id
+                elif 'GO   ' in line:
+                    line = line.replace('GO   ', '')
+                    line = line.split(';')[0]
+                    line = line.replace('GO:', '')
+                    res['go'].add(line)
+                elif 'DR   ' in line:
+                    line = line.replace('DR   ', '')
+                    line = line.split(';')
+                    if line[0] == 'Pfam':
+                        res['pfam'].add(line[1])
+                    elif line[0] == 'TIGRFAMs':
+                        res['tigrfam'].add(line[1])
+                    elif line[0] == 'PROSITE':
+                        res['prosite'].add(line[1])
+                    elif line[0] == 'PRINTS':
+                        res['prints'].add(line[1])
+                    elif line[0] == 'PIRSF':
+                        res['pirsf'].add(line[1])
+                    elif line[0] == 'SMART':
+                        res['smart'].add(line[1])
+                elif 'CC   ' in line:
+                    line = line.replace('CC   ', '')
+                    if '-!- FUNCTION:' in line:
+                        line = line.replace('-!- FUNCTION:', '')
+                        record_function = True
+                        function_str = ''
+                    elif '-!-' in line and '-!- FUNCTION:' not in line:
+                        if function_str:
+                            res['description'].add(function_str)
+                        function_str = ''
+                        record_function = False
+                    if record_function:
+                        function_str += ' ' + line.strip()
+
+                    if '-!- CATALYTIC ACTIVITY:' in line:
+                        line = line.replace('-!- CATALYTIC ACTIVITY:', '')
+                        record_catalyic = True
+                        catalytic_str = ''
+                    elif '-!-' in line and '-!- CATALYTIC ACTIVITY:' not in line:
+                        if catalytic_str:
+                            ec_pattern = re.compile('EC=\d(\.(-|\d{1,3}|([a-zA-Z]\d{1,3}))){2,3}')
+                            chebi_pattern = re.compile('CHEBI:\d+')
+                            rhea_pattern = re.compile('RHEA-COMP:\d+')
+                            removed_ids = self.remove_pattern_hamap(catalytic_str, ec_pattern, part_to_remove='EC=')
+                            res['enzyme_ec'].update(removed_ids)
+                            removed_ids = self.remove_pattern_hamap(catalytic_str, chebi_pattern, part_to_remove='CHEBI:')
+                            res['chebi'].update(removed_ids)
+                            removed_ids = self.remove_pattern_hamap(catalytic_str, rhea_pattern, part_to_remove='RHEA-COMP:')
+                            res['rhea'].update(removed_ids)
+                        catalytic_str = ''
+                        record_catalyic = False
+                    if record_catalyic:
+                        catalytic_str += ' ' + line.strip()
+                line = file.readline()
+        if res: yield res
+
+    def compile_line_hamap(self, metadata):
+        headers = ['enzyme_ec', 'pfam', 'tigrfam', 'prosite', 'prints', 'pirsf', 'smart', 'go', 'rhea', 'chebi']
+        line = [metadata['hamap']]
+        for header in headers:
+            line.append(';'.join([i.strip() for i in metadata[header]]))
+        line.append(' '.join(metadata['description']))
+        return '\t'.join(line)
+
+    def compile_metadata_hamap(self,stdout_file=None):
+        hamap_metadata='ftp://ftp.expasy.org/databases/hamap/hamap_rules.dat'
+        download_file(hamap_metadata, output_folder=self.mantis_paths['hamap'],stdout_file=stdout_file)
+        metadata_file=self.mantis_paths['hamap']+'hamap.tsv'
+        with open(metadata_file, 'w+') as file:
+            metadata_generator = self.parse_metadata_hamap(self.mantis_paths['hamap']+'hamap_rules.dat')
+            headers = ['hamap', 'enzyme_ec', 'pfam', 'tigrfam', 'prosite', 'prints', 'pirsf', 'smart', 'go', 'rhea',
+                       'chebi', 'description']
+            headers = '\t'.join(headers)
+            file.write(headers + '\n')
+            for profile in metadata_generator:
+                line = self.compile_line_hamap(profile)
+                file.write(line + '\n')
+
+    def download_and_unzip_hamap_hmm(self,force_download=False,stdout_file=None):
+        Path(self.mantis_paths['hamap']).mkdir(parents=True, exist_ok=True)
+        target_merged_hmm=self.mantis_paths['hamap']+'hamap.hmm'
+        if not self.file_exists(self.mantis_paths['hamap'] + 'hamap.tsv', force_download):
+            print('HAMAP metadata tsv missing!',flush=True,file=stdout_file)
+            self.compile_metadata_hamap(stdout_file=stdout_file)
+        if self.check_reference_exists('hamap',force_download):
+            print('HAMAP hmm already exists! Skipping...',flush=True,file=stdout_file)
+            return
+        hamap_alignments='ftp://ftp.expasy.org/databases/hamap/hamap_alignments.tar.gz'
+        with open(self.mantis_paths['hamap']+'readme.md','w+') as file:
+            datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            file.write('This hmm was downloaded on '+datetime_str+' from:')
+            file.write(hamap_alignments)
+        print_cyan('Downloading and unzipping HAMAP alignments hmms ',flush=True,file=stdout_file)
+        #getting the multiple alignments
+        download_file(hamap_alignments, output_folder=self.mantis_paths['hamap'],stdout_file=stdout_file)
+        alignments_dir=add_slash(self.mantis_paths['hamap'] + 'hamap_alignments')
+        if os.path.exists(alignments_dir):      shutil.rmtree(alignments_dir)
+        uncompress_archive(source_filepath=self.mantis_paths['hamap'] + 'hamap_alignments.tar.gz',stdout_file=stdout_file,remove_source=True)
+        #building profiles out of multiple alignments
+        msa_files = os.listdir(alignments_dir)
+        for msa in msa_files:
+            profile_name=msa.replace('.msa','')
+            self.run_command('hmmbuild '+alignments_dir+profile_name+'.hmm ' + alignments_dir+msa , stdout_file=stdout_file)
+            os.remove(alignments_dir+msa)
+        hmm_files = os.listdir(alignments_dir)
+        merge_profiles(alignments_dir,target_merged_hmm,stdout_file=stdout_file)
+        #pressing merged profiles
+        self.run_command('hmmpress ' +target_merged_hmm,stdout_file=stdout_file)
 

@@ -403,6 +403,7 @@ class NLP_Pre_Processer():
                 else:
                     res.append(string_list[i])
         c = 0
+        res=[word for word in res if word]
         for i in range(len(res)):
             if res[i][0] == '-':
                 res[i] = res[i].lstrip('-')
@@ -521,7 +522,7 @@ class NLP_Pre_Processer():
                     go_obo_ids_res[go_obo_type].add(go_obo_id)
         return res, go_obo_ids_res
 
-    def remove_common_identifiers(self,sentence):
+    def remove_common_identifiers(self, sentence):
         res = ' ' + str(sentence) + ' '
         dict_ids = {'enzyme_ec': set(),
                     'tcdb': set(),
@@ -530,9 +531,10 @@ class NLP_Pre_Processer():
                     'pfam': set(),
                     'cog': set(),
                     'go': set(),
-                    'others':set()
+                    'others': set()
                     }
         res, removed_ecs = self.remove_ecs(res, required_level=1)
+        res = res.replace(' enzyme_ec:', '')
         dict_ids['enzyme_ec'].update(removed_ecs)
         tcdb_pattern = re.compile('\(TC\s\d\.[A-Z\-](\.(\d+|\-)){1,2}\)')
         ko_pattern = re.compile('K\d{4,}')
@@ -542,19 +544,25 @@ class NLP_Pre_Processer():
         cog_pattern = re.compile('(COG|cog)\d+')
         go_pattern = re.compile('GO:?\d+')
         res, removed_ids = self.remove_pattern(res, tcdb_pattern)
+        res = res.replace(' tcdb:', '')
         dict_ids['tcdb'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, tigrfam_pattern)
+        res = res.replace(' tigrfam:', '')
         dict_ids['tigrfam'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, ko_pattern)
+        res = res.replace(' kegg_ko:', '')
         dict_ids['kegg_ko'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, duf_pattern)
+        res = res.replace(' pfam:', '')
         dict_ids['pfam'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, pfam_pattern)
         dict_ids['pfam'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, cog_pattern)
+        res = res.replace(' cog:', '')
         dict_ids['cog'].update(removed_ids)
         res, removed_ids = self.remove_pattern(res, go_pattern)
-        removed_ids={re.search('\d+',i).group() for i in removed_ids}
+        res = res.replace(' go:', '')
+        removed_ids = {re.search('\d+', i).group() for i in removed_ids}
         dict_ids['go'].update(removed_ids)
         res, go_obo_identifiers = self.remove_go_obo_identifiers(res)
         for go_obo_type in go_obo_identifiers:
@@ -562,7 +570,7 @@ class NLP_Pre_Processer():
                 dict_ids['enzyme_ec'].update(go_obo_identifiers[go_obo_type])
             else:
                 dict_ids[go_obo_type] = go_obo_identifiers[go_obo_type]
-        return res,dict_ids
+        return res, dict_ids
 
     def pre_process_string(self, sentence):
         if not sentence: return [], []
@@ -649,6 +657,7 @@ class MANTIS_NLP(NLP_Pre_Processer,Word_Weighter):
         self.word_counter={}
         self.document_counter=0
 
+        self.good_identifiers={'enzyme_ec','tcdb','kegg_ko','tigrfam','pfam','cog','go','viralzone','seq_onto'}
 
         self.words_to_remove = ['mainrole','sub1role','protein','proteins',
                                 'enzyme','enzymes','putative','activity',
@@ -972,6 +981,10 @@ class MANTIS_NLP(NLP_Pre_Processer,Word_Weighter):
                 text_score+=current_score
                 #if current_score:
                     #print('#####',vector_1,'#####',vector_2,'#####',current_score,'#####', flush=True, file=stdout_file)
+        good_identifiers_1 = {i for i in ids_removed_1 if i.split(':')[0] in self.good_identifiers}
+        good_identifiers_2 = {i for i in ids_removed_2 if i.split(':')[0] in self.good_identifiers}
+        if good_identifiers_1.intersection(good_identifiers_2): return 1
+
         ids_removed_score= 1-self.jaccard_distance(set(ids_removed_1),set(ids_removed_2))
         #print('text_score',text_score,vector_1,vector_2)
         #print('string_1',temp_string_1)

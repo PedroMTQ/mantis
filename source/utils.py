@@ -36,15 +36,15 @@ def check_environment_cores():
     environment_cores=get_slurm_value('AllocCPUS',re.compile('\d+'))
     if environment_cores:
         if int(environment_cores):
-            print('Cores allocated by slurm:', environment_cores)
+            #print('Cores allocated by slurm:', environment_cores)
             return int(environment_cores)
         else:
             environment_cores=cpu_count()
-            print('Cores allocated:', environment_cores)
+            #print('Cores allocated:', environment_cores)
             return int(environment_cores)
     else:
         environment_cores = cpu_count()
-        print('Cores allocated:', environment_cores)
+        #print('Cores allocated:', environment_cores)
         return int(environment_cores)
 
 def check_process_overhead():
@@ -63,11 +63,11 @@ def check_available_ram():
         if 'Gn' in required_ram:
             required_ram = required_ram.replace('Gn','')
             available_ram = int(required_ram)
-        print('RAM allocated by slurm:',available_ram,'GB')
+        #print('RAM allocated by slurm:',available_ram,'GB')
     else:
         #im not sure if this is the best implementation
         available_ram= psutil.virtual_memory().available/(1024*1024*1024)
-        print('RAM allocated:',available_ram,'GB')
+        #print('RAM allocated:',available_ram,'GB')
     return available_ram
 
 #this is the ovehead generated per each python process. Multiprocessing generates new python processes per Process
@@ -109,22 +109,24 @@ def estimate_number_workers_annotation(n_chunks=0,
 def estimate_chunk_size(total_n_seqs,
                         annotation_workers,
                         chunk_size=None,
-                        minimum_chunk_size=500,
-                        maximum_chunk_size=20000,
+                        minimum_chunk_size=200,
                         ):
     '''
     this is a double edged sword, splitting into too many small chunks generates too much overhead
     not splitting into enough chunks leads to idle processes
     '''
     if chunk_size: return chunk_size
+    #maximize chunk size taken into account the amount of workers and number of seqs
     potential_chunk_size= round_to_digit(total_n_seqs/annotation_workers)
-    #when sample is too small there's no point in splitting it
-    if potential_chunk_size<minimum_chunk_size: return minimum_chunk_size
-    #mantis generates more overhead time when using bigger chunks
-    elif potential_chunk_size>maximum_chunk_size: return maximum_chunk_size
-    else: return potential_chunk_size
-
-
+    if available_ram<=4: maximum_chunk_size=500
+    elif available_ram>4 and available_ram<=10: maximum_chunk_size=1000
+    elif available_ram>10 and available_ram<=30: maximum_chunk_size=2000
+    elif available_ram>30 and available_ram<=50: maximum_chunk_size=5000
+    elif available_ram>50 and available_ram<=70: maximum_chunk_size=10000
+    else: maximum_chunk_size=20000
+    if potential_chunk_size<minimum_chunk_size:     return minimum_chunk_size
+    elif potential_chunk_size>maximum_chunk_size:   return maximum_chunk_size
+    else:                                           return potential_chunk_size
 
 def estimate_number_workers_split_sample(minimum_worker_load,
                                          len_protein_seqs,
@@ -367,29 +369,6 @@ def chunk_generator_load_balanced(list_ordered,chunk_size,time_limit=60):
         else: chunk_index+=1
     return res
 
-def chunk_generator_load_balanced_test(list_ordered,n_chunks):
-    '''
-    :param list_chunks: list of keys which will correpond to sequences IDs . list should have been ordered by sequence length
-    :param chunk_size:
-    :return:
-    '''
-    res=[]
-    direction_chunks={}
-    for i in range(n_chunks):
-        res.append([])
-        direction_chunks[i]=True
-    chunk_index=0
-    while list_ordered:
-        if direction_chunks[chunk_index]:
-            chunk_val=list_ordered.pop(0)
-            direction_chunks[chunk_index]=False
-        else:
-            chunk_val=list_ordered.pop(-1)
-            direction_chunks[chunk_index]=True
-        res[chunk_index].append(chunk_val)
-        if chunk_index==n_chunks-1: chunk_index=0
-        else: chunk_index+=1
-    return res
 
 def is_fasta(fasta_file):
     with open(fasta_file, 'r') as f:
@@ -440,13 +419,15 @@ def timeit_class(f):
 
 def uncompress_archive(source_filepath, extract_path=None,block_size=65536, remove_source=False, stdout_file=None):
     file_name=source_filepath.split(splitter)[-1]
+    dir_path=splitter.join(source_filepath.split(splitter)[0:-1])
+    if not extract_path: extract_path=dir_path
     if '.tar' in file_name:
-        unpack_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=False, stdout_file=None)
+        unpack_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=remove_source, stdout_file=None)
     #only for files
     elif '.gz' in file_name:
         gunzip(source_filepath=source_filepath,dest_filepath=extract_path,block_size=block_size,remove_source=remove_source,stdout_file=stdout_file)
     elif '.zip' in file_name:
-        unzip_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=False, stdout_file=None)
+        unzip_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=remove_source, stdout_file=None)
     else:
         print('Incorrect format! ',source_filepath,flush=True,file=stdout_file)
 
@@ -558,21 +539,177 @@ def move_file(source_file,dest_file):
 def remove_file(source_file):
     if os.path.exists(source_file): os.remove(source_file)
 
-def is_broken_setup(error_output,database,taxon_id):
-    with open(error_output, 'rb') as file:
-        line = file.readline()
-        while line:
-            if database in str(line):
-                if 'Finished setting up' in str(line):
-                    if taxon_id:
-                        if str(taxon_id) in str(line):
-                            return False
-                    else:
-                        return False
-            line = file.readline()
-        return True
+
+
+
+def run_command_simple(command, get_output=False,stdout_file=None):
+    if get_output:
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    elif stdout_file:
+        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file)
+    else:
+        process = subprocess.run(command)
+    return process
+
+def get_available_ram_percentage(worker_status,user_memory=None):
+    workers_ram = 0
+    worker_ids = list(worker_status.keys())
+    for worker_id in worker_ids:
+        try:
+            workers_ram += psutil.Process(worker_id).memory_info().rss
+        except psutil.NoSuchProcess:
+            worker_status.pop(worker_id)
+
+    workers_ram/=1024**3
+    if user_memory:
+        workers_ram_percent=100*workers_ram/user_memory
+    else:
+        workers_ram_percent=100*workers_ram/available_ram
+    return 100-workers_ram_percent
+
+def get_child_workers(master_pid,wanted_name=None):
+    '''
+    master_pid is the main mantis process (lvl0) which spawns all other multiprocessing processes (lvl1)
+    these processes (lvl1) will then run a X command which in turn are themselves processes (lvl2)
+    so what we want are not the lvl1 processes but the lvl2 processes. We can know these by their process_name / wanted_name
+    '''
+    res=set()
+    #if not psutil.pid_exists(master_pid): return res
+    master_process=psutil.Process(pid=master_pid)
+    children = master_process.children(recursive=True)
+    for process in children:
+        try:
+            if wanted_name:
+                if wanted_name==process.name():
+                    res.add(process.pid)
+            else:
+                res.add(process.pid)
+        except (psutil.NoSuchProcess,AttributeError,FileNotFoundError):
+            pass
+    return sorted(res)
+
+def count_running_workers(worker_status):
+    res=0
+    for w in worker_status:
+        if worker_status[w]: res+=1
+    return res
+
+def get_workers_status(workers_ids):
+    res={}
+    for worker_pid in workers_ids:
+        try:
+            process=psutil.Process(pid=worker_pid)
+            if process.status()=='running':
+                res[worker_pid]=True
+            else:
+                res[worker_pid]=False
+        except psutil.NoSuchProcess: pass
+    return res
+
+def kill_workers(master_pid,worker,worker_pid):
+    sleep(5)
+    try:
+        if psutil.pid_exists(master_pid):
+            psProcess = psutil.Process(pid=master_pid)
+            print('###### Ran out of memory, either increase available memory or try to manually decrease chunk size. Quitting now! ######',flush=True)
+            psProcess.kill()
+            os.waitpid(master_pid, os.WEXITED)
+    except psutil.NoSuchProcess: pass
+    try:
+        worker.kill()
+        os.waitpid(worker_pid, os.WEXITED)
+    except psutil.NoSuchProcess: pass
+
+def resume_workers(child_status,n_workers):
+    ordered_ids=sorted(child_status.keys())
+    if count_running_workers(child_status)==n_workers: return
+    for worker_pid in ordered_ids:
+        try:
+            process = psutil.Process(pid=worker_pid)
+            if n_workers>0:
+                process.resume()
+                child_status[worker_pid]=True
+                n_workers-=1
+            else:
+                process.suspend()
+                child_status[worker_pid]=False
+        except psutil.NoSuchProcess:
+            child_status.pop(worker_pid)
+
+
+def suspend_workers(child_status,n_workers):
+    ordered_ids=sorted(child_status.keys(),reverse=True)
+    if not n_workers: return
+    if len(child_status)-count_running_workers(child_status)==n_workers: return
+    for worker_pid in ordered_ids:
+        try:
+            process = psutil.Process(pid=worker_pid)
+            if n_workers>0:
+                process.suspend()
+                child_status[worker_pid]=False
+                n_workers-=1
+            else:
+                process.resume()
+                child_status[worker_pid]=True
+        except psutil.NoSuchProcess:
+            child_status.pop(worker_pid)
+
+#in order to not run out of memory when running HMMER we control how the processes are running, suspending them if needed
+def run_command_managed(command,master_pid, get_output=False,stdout_file=None,wanted_child=None,user_memory=None):
+    if get_output:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    elif stdout_file:
+        process = subprocess.Popen(command, stdout=stdout_file, stderr=stdout_file)
+    else:
+        process = subprocess.Popen(command)
+    process_pid=process.pid
+    psProcess = psutil.Process(pid=process_pid)
+    while psutil.pid_exists(process_pid):
+        if not psutil.pid_exists(master_pid):
+            kill_workers(master_pid,process,process_pid)
+        if psProcess.status()=='zombie':
+            process.communicate()
+            return process
+        child_workers = get_child_workers(master_pid=master_pid, wanted_name=wanted_child)
+        child_status = get_workers_status(child_workers)
+        available_ram_percentage=get_available_ram_percentage(child_status,user_memory)
+        #if we have more than 20% ram available we let it run
+        if available_ram_percentage>=20:
+            resume_workers(child_status,n_workers=len(child_status))
+        #if we have only 10-20% ram available, we suspend half the processes
+        elif available_ram_percentage>=10 and available_ram_percentage<20:
+            workers_to_resume=ceil(len(child_status)/2)
+            if len(child_status)%2:workers_to_suspend=workers_to_resume-1
+            else:workers_to_suspend=workers_to_resume
+            resume_workers(child_status,n_workers=workers_to_resume)
+            if count_running_workers(child_status)>1:
+                suspend_workers(child_status,n_workers=workers_to_suspend)
+        #if there's not enough memory to run even a single process, we crash execution
+        elif available_ram_percentage < 5:
+            kill_workers(master_pid,process,process_pid)
+        #if we have less than 10% we suspend all but 1
+        else:
+            #if we have only 1 running worker we let it run
+            if count_running_workers(child_status)<1:
+                resume_workers(child_status, n_workers=1)
+            #if we have more than one we suspend all but one
+            elif count_running_workers(child_status) >1:
+                workers_to_suspend = len(child_status)-1
+                suspend_workers(child_status,workers_to_suspend)
+                resume_workers(child_status, n_workers=1)
+        sleep(1)
+    return process
+
+def yield_file(list_of_files):
+    #infine generator
+    c=0
+    while True:
+        if c==len(list_of_files): c=0
+        yield list_of_files[c]
+        c+=1
+
+
 
 
 if __name__ == '__main__':
-    a='this is a UPF0029 and this is PF0029 and a DUF0029'
-    print(find_pfam(a))
+    pass

@@ -18,7 +18,9 @@ class MANTIS_Interpreter():
         for i in list_to_add:
             if 'unknown' not in i.lower():
                 if i not in target_hmm_dict['link'][dict_key]:
-                    target_hmm_dict['link'][dict_key].append(i)
+                    i=i.strip()
+                    if i:
+                        target_hmm_dict['link'][dict_key].append(i)
 
     #This is the default interpreter since we should always have NOG annotations, the others interpreters are built according to the available hmms
     def get_link_NOG(self,dict_hmms,hmm_file_path):
@@ -75,14 +77,6 @@ class MANTIS_Interpreter():
                         stop = False
                 line=file.readline()
 
-    def get_link_hamap(self,dict_hmms):
-        '''
-        article:
-        https://www.ncbi.nlm.nih.gov/pubmed/24642063
-        Data:
-        https://github.com/tseemann/prokka/tree/master/db/hmm
-        '''
-        self.get_direct_link(dict_hmms,'hamap')
 
     def get_link_cas(self,dict_hmms):
         '''
@@ -126,7 +120,7 @@ class MANTIS_Interpreter():
                         for annot_i in range(len(line[1:])):
                             annot_i+=1
                             if annot_i in headers:
-                                self.add_to_dict(dict_hmms[hmm_id],headers[annot_i],line[annot_i])
+                                self.add_to_dict(dict_hmms[hmm_id],headers[annot_i],line[annot_i].split(';'))
                             else:
                                 self.get_common_links(line[annot_i],dict_hmms[hmm_id])
                                 self.add_to_dict(dict_hmms[hmm_id], 'description', line[annot_i])
@@ -357,19 +351,6 @@ class MANTIS_Interpreter():
         self.add_tigrfam_role_names(dict_hmms)
 
 
-    def get_link_transportdb(self,dict_hmms):
-        hmm_path=self.get_target_custom_hmms_paths('transportdb',folder=True)
-        folder_path=get_folder(hmm_path)
-        folder_path=splitter.join(folder_path)
-        if not os.path.exists(add_slash(folder_path)+'transportdb_metadata'):
-            return
-        with open(add_slash(folder_path)+'transportdb_metadata') as file:
-            line=file.readline()
-            while line:
-                family,tcdb_id=line.split()
-                if family in dict_hmms:
-                    self.add_to_dict(dict_hmms[family], 'tcdb', tcdb_id)
-                line=file.readline()
 
     def get_essential_genes_list(self):
         essential_genes=self.mantis_paths['default']+'essential_genes/essential_genes.txt'
@@ -401,8 +382,6 @@ class MANTIS_Interpreter():
             self.get_link_pfam(dict_hmms)
             self.is_essential(dict_hmms)
         #direct linking:
-        elif 'HAMAP' in hmm_file:
-            self.get_link_hamap(dict_hmms)
         elif 'metacyc' in hmm_file:
             self.get_link_metacyc(dict_hmms)
         elif 'Burstein2016' in hmm_file:
@@ -410,13 +389,15 @@ class MANTIS_Interpreter():
         #indirect linking
         elif 'Resfams' in hmm_file:
             self.get_link_resfams(dict_hmms)
-        elif 'dbCAN' in hmm_file:
-            self.get_link_dbcan(dict_hmms)
+        #elif 'dbCAN' in hmm_file:
+        #    self.get_link_dbcan(dict_hmms)
         elif 'kofam' in hmm_file:
             self.get_link_kofam(dict_hmms)
         elif 'tigrfam' in hmm_file:
             self.get_link_tigrfam(dict_hmms)
             self.is_essential(dict_hmms)
+        #elif 'hamap' in hmm_file:
+        #    self.get_link_custom_hmm(dict_hmms,self.get_path_default_hmm('hamap'))
         else:
             self.get_link_custom_hmm(dict_hmms,self.get_target_custom_hmms_paths(hmm_file,folder=False))
         for hmm in dict_hmms:
@@ -433,6 +414,9 @@ class MANTIS_Interpreter():
         row_start = [query, hmm_file, hmm, hmm_accession, evalue,query_len,query_start,query_end,hmm_start,hmm_end, '|']
         res = list(row_start)
         sorted_keys = sorted(temp_link.keys())
+        if 'enzyme_ec' in sorted_keys:
+            sorted_keys.remove('enzyme_ec')
+            sorted_keys.insert(0,'enzyme_ec')
         # so that description always comes in the end
         if 'kegg_map_lineage' in sorted_keys:
             sorted_keys.remove('kegg_map_lineage')
@@ -512,7 +496,7 @@ class MANTIS_Interpreter():
 if __name__ == '__main__':
 
     f='/home/pedroq/Desktop/test_inter/output_annotation.tsv'
-    f2='/home/pedroq/Desktop/test_inter/interpreted_annotation.tsv'
+    f2='/home/pedroq/Desktop/test_inter/integrated_annotation.tsv'
     custom_hmm='/home/pedroq/Desktop/test_inter/custom.hmm'
 
     m=MANTIS_Interpreter()

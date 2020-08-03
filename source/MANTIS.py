@@ -27,22 +27,25 @@ def run_mantis(  target_path,
                  organism_details=None,
                  domain_algorithm=None,
                  keep_files=False,
+                 skip_consensus=False,
                  target_hmm=None,
                  verbose=True,
                  default_workers=None,
                  chunk_size=None,
                  hmmer_threads=None,
                  cores=None,
+                 memory=None,
                  ):
     if not acceptable_range:        acceptable_range=0.05
     if not overlap_value:           overlap_value=0.1
-    if not domain_algorithm:           domain_algorithm='exact'
+    if not domain_algorithm:        domain_algorithm='exhaustive'
     if evalue_threshold:    evalue_threshold=float(evalue_threshold)
     if overlap_value:       overlap_value=float(overlap_value)
     if default_workers:     default_workers=int(default_workers)
     if chunk_size:          chunk_size=int(chunk_size)
     if hmmer_threads:       hmmer_threads=int(hmmer_threads)
     if cores:               cores=int(cores)
+    if memory:              memory=int(memory)
     mantis = MANTIS(
                         target_path=target_path,
                         output_folder=output_folder,
@@ -53,12 +56,14 @@ def run_mantis(  target_path,
                         organism_details=organism_details,
                         domain_algorithm=domain_algorithm,
                         keep_files=keep_files,
+                        skip_consensus=skip_consensus,
                         target_hmm=target_hmm,
                         verbose=verbose,
                         default_workers=default_workers,
                         chunk_size=chunk_size,
                         hmmer_threads=hmmer_threads,
                         user_cores=cores,
+                        user_memory=memory,
     )
     mantis.run_mantis()
 
@@ -71,15 +76,17 @@ class MANTIS(MANTIS_MP):
                  acceptable_range=0.05,
                  overlap_value=0.1,
                  organism_details={},
-                 domain_algorithm='exact',
+                 domain_algorithm='exhaustive',
                  redirect_verbose=None,
                  keep_files=False,
+                 skip_consensus=False,
                  target_hmm=None,
                  verbose=True,
                  default_workers=None,
                  chunk_size=None,
                  hmmer_threads=None,
                  user_cores=None,
+                 user_memory=None,
                  ):
         self.output_folder = add_slash(output_folder)
         self.redirect_verbose=redirect_verbose
@@ -91,15 +98,18 @@ class MANTIS(MANTIS_MP):
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
         self.target_path = target_path
         self.mantis_config = mantis_config
-        self.evalue_threshold = evalue_threshold
+        if evalue_threshold:    self.evalue_threshold = evalue_threshold
+        else:                   self.evalue_threshold = 1e-3
         self.acceptable_range = acceptable_range
         self.overlap_value = overlap_value
         self.organism_details = organism_details
         self.domain_algorithm = domain_algorithm
         self.keep_files = keep_files
+        self.skip_consensus = skip_consensus
         self.target_hmm = target_hmm
         self.default_workers=default_workers
         self.user_cores=user_cores
+        self.user_memory=user_memory
         #chunk size is highly relevant in the execution time
         self.chunk_size=chunk_size
         MANTIS_Assembler.__init__(self,verbose=verbose,hmmer_threads=hmmer_threads,redirect_verbose=redirect_verbose,mantis_config=mantis_config)
@@ -109,9 +119,20 @@ class MANTIS(MANTIS_MP):
         self.chunks_to_annotate=[]
         self.chunks_to_fasta={}
         self.fastas_to_annotate=[]
+        self.print_available_hardware()
 
 
 
+    def print_available_hardware(self):
+        if self.user_cores:
+            print('Cores allocated:', self.user_cores)
+        else:
+            print('Cores allocated:', environment_cores)
+        if self.user_memory:
+            print('Memory allocated:', self.user_memory)
+        else:
+            print('Memory allocated:', round(available_ram,2))
+        print('Workers per core:',worker_per_core)
 
 
     def __str__(self):
@@ -163,7 +184,7 @@ class MANTIS(MANTIS_MP):
                         self.fastas_to_annotate.append([line_path,add_slash(self.output_folder+query_name),organism_details,count_seqs_original_file])
                     line = file.readline()
         except:
-            print('If you want to annotate multiple samples, make sure your file is correctly format. Please see the examples in the <tests> folder.', flush=True, file=self.redirect_verbose)
+            print('If you want to annotate multiple samples, make sure your file is correctly formatted. Please see the examples in the <tests> folder.', flush=True, file=self.redirect_verbose)
             raise InvalidTargetFile
 
     def annotate_directory(self):
@@ -313,21 +334,23 @@ class MANTIS(MANTIS_MP):
         start_time=time()
         self.run_hmmer()
         print('HMMER took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
+        processing_start_time=time()
         start_time=time()
         self.process_output()
         print('Output processing took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
         start_time=time()
         self.interpret_output()
         print('Output interpretation took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
-        start_time=time()
-        self.get_consensus_output()
-        print('Consensus generation took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
+        if not self.skip_consensus:
+            start_time = time()
+            self.get_consensus_output()
+            print('Consensus generation took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
         start_time=time()
         self.merge_mantis_output()
         print('Output merge took',int(time()-start_time),'seconds to run',flush=True,file=self.redirect_verbose)
         start_time=time()
         self.remove_uncompressed_files()
-        print('Mantis took',int(time()-start_time),'seconds to process HMMER\'s output',flush=True,file=self.redirect_verbose)
+        print('In total, Mantis took',int(time()-processing_start_time),'seconds to process HMMER\'s output',flush=True,file=self.redirect_verbose)
         if not self.keep_files:
             print_cyan('Removing temporary files', flush=True, file=self.redirect_verbose)
             self.remove_non_essential_files()
