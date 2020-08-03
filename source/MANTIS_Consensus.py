@@ -6,7 +6,7 @@ except:
     from MANTIS_Assembler import *
 
 '''
-This class creates a consensus for the interpreted annotations. 
+This class creates a consensus for the integrated annotations. 
 
 It uses NLP to vectorize and score the free text in the annotations and compares IDs between data sources, if above a certain threshold, the different sources are considered to be in consensus
 
@@ -94,24 +94,25 @@ class MANTIS_Consensus(MANTIS_NLP):
             for hmm_file in hmm_files:
                 for hmm_hit in hmm_files[hmm_file]:
                     hits.append([hmm_file, hmm_hit, hmm_files[hmm_file][hmm_hit]])
-            if self.domain_algorithm=='approximation':
+            if self.domain_algorithm=='heuristic':
                 best_hits = self.get_best_hits_approximation_Consensus(list(hits))
             elif self.domain_algorithm=='lowest':
                 best_hits = self.get_lowest_hit_Consensus(list(hits))
             else:
                 best_hits=self.get_best_cython_consensus(list(hits),query_len,query,stdout_file_path=stdout_file_path)
-            coverage_consensus,hmm_files_consensus,hmm_names_consensus=self.add_to_best_hits(best_hits,dict_annotations[query]['hmm_files'])
+            consensus_hits,total_hits,hmm_files_consensus,hmm_names_consensus=self.add_to_best_hits(best_hits,dict_annotations[query]['hmm_files'])
             if 'is_essential_gene' in dict_annotations[query]:  is_essential=True
             else:                                               is_essential=False
-            consensus_line=self.generate_consensus_line(query,dict_annotations[query]['hmm_files'],is_essential,coverage_consensus,hmm_files_consensus,hmm_names_consensus)
+            consensus_line=self.generate_consensus_line(query,dict_annotations[query]['hmm_files'],is_essential,consensus_hits,total_hits,hmm_files_consensus,hmm_names_consensus)
             yield consensus_line
 
 
     #same method as non_overlapping hits from MANTIS_Processor , with some minor alterations to account for consensus
+    #@timeit_function
     def get_best_cython_consensus(self,hits,query_len,query,stdout_file_path=None):
         try:
             best_hits = self.get_best_hits_Consensus(list(hits),query_len,time_limit=60)
-        except TimeoutError:
+        except (TimeoutError,RecursionError):
             best_hits = self.get_best_hits_approximation_Consensus(list(hits))
             stdout_file=open(stdout_file_path,'a+')
             print('Query '+query+' was approximated during consensus generation', flush=True, file=stdout_file)
@@ -272,6 +273,7 @@ class MANTIS_Consensus(MANTIS_NLP):
                 combo.append(next_hit)
         return combo
 
+    #@timeit_function
     def add_to_best_hits(self,best_hits,query_dict):
         hits_merged=set()
         hmm_files_consensus=set()
@@ -299,7 +301,7 @@ class MANTIS_Consensus(MANTIS_NLP):
         for hmm_file in query_dict:
             for _ in query_dict[hmm_file]:
                 total_hits+=1
-        return str(len(hits_merged))+'/'+str(total_hits),hmm_files_consensus,hmm_names_consensus
+        return str(len(hits_merged)),str(total_hits),hmm_files_consensus,hmm_names_consensus
 
     def is_nlp_match(self,hit1_info_description,hit2_info_description):
         for hit1_d in hit1_info_description:
@@ -335,7 +337,7 @@ class MANTIS_Consensus(MANTIS_NLP):
                 res.add(i)
         return res
 
-    #this makes mantis more efficient since it saves mathes in memory, however it also makes it more ram intensive
+    #this makes mantis more efficient since it saves matches in memory, however it also makes it more ram intensive
     def is_hit_match(self,hit1_info,hit1_name,hit1_source,hit2_info,hit2_name,hit2_source):
         #cleaning up memory
         if float(psutil.virtual_memory().percent)>95:self.query_match_hits={}
@@ -384,12 +386,11 @@ class MANTIS_Consensus(MANTIS_NLP):
         best_hit_info['identifiers'].update(hit_to_test_info['identifiers'])
         best_hit_info['description'].update(hit_to_test_info['description'])
 
-
-    def generate_consensus_line(self,query,query_dict,is_essential,consensus_coverage,hmm_files_consensus,hmm_names_consensus):
+    def generate_consensus_line(self,query,query_dict,is_essential,consensus_hits,total_hits,hmm_files_consensus,hmm_names_consensus):
         hmm_hits=';'.join(hmm_names_consensus)
         hmm_files=';'.join(hmm_files_consensus)
         #consensus_coverage is a str with consensus sources/all sources, better as a str instead of float as its easier to understand
-        row_start = [query,hmm_files,hmm_hits,consensus_coverage, '|']
+        row_start = [query,hmm_files,hmm_hits,consensus_hits,total_hits, '|']
         row_start=[str(i) for i in row_start]
         all_descriptions=set()
         all_identifiers=set()
@@ -402,6 +403,10 @@ class MANTIS_Consensus(MANTIS_NLP):
                     all_descriptions.update(description)
         res = list(row_start)
         sorted_identifiers = sorted(all_identifiers)
+        for link in sorted_identifiers:
+            if 'enzyme_ec' in link:
+                if link not in res:
+                    res.append(link)
         # so that description always comes in the end
         for link in sorted_identifiers:
             if 'kegg_map_lineage' not in link:
@@ -422,7 +427,8 @@ class MANTIS_Consensus(MANTIS_NLP):
         first_line=['Query',
                     'HMM_Files',
                     'HMM_Hits',
-                    'Consensus_Coverage',
+                    'Consensus_hits',
+                    'Total_hits',
                     #'Ratio_difference_to_maximum_hit_evalue',
                     #'Maximum_group_evalue',
                     #'Group_Coverage',
@@ -453,7 +459,7 @@ if __name__ == '__main__':
     m.pickled_go_dict = m.go_terms_path + '.pickle_dict'
     #m.parse_go_terms()
     m.nlp_threshold=0.8
-    m.domain_algorithm='exact'
+    m.domain_algorithm='exhaustive'
     m.mantis_hmm_weights={'else':0.7,'tigrfam_merged':1}
     m.n_grams_range=[1]
     m.words_to_remove = ['mainrole','sub1role','protein','proteins',

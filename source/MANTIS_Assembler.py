@@ -20,11 +20,11 @@ grep "Disk quota exceeded" *
 
 
 
-def setup_databases(force_download=False,chunk_size=None):
+def setup_databases(force_download=False,chunk_size=None,mantis_config=None):
     print_cyan('Setting up databases')
     if force_download=='None': force_download=None
     if chunk_size: chunk_size=int(chunk_size)
-    mantis = MANTIS_Assembler(hmm_chunk_size=chunk_size)
+    mantis = MANTIS_Assembler(hmm_chunk_size=chunk_size,mantis_config=mantis_config)
     mantis.setup_databases(force_download)
 
 
@@ -89,15 +89,23 @@ class MANTIS_Assembler(MANTIS_DB):
         'Global NOG hmms folder:\n'+self.mantis_paths['NOGG']+'\n'+\
         'Pfam hmms folder:\n'+self.mantis_paths['pfam']+'\n'+\
         'KOfam hmms folder:\n'+self.mantis_paths['kofam']+'\n'+\
-        'dbCAN hmms folder:\n'+self.mantis_paths['dbcan']+'\n'+\
         'TIGRFAM hmms folder:\n'+self.mantis_paths['tigrfam']+'\n'+\
         'Resfams hmms folder:\n'+self.mantis_paths['resfams']+'\n'+res+\
         '------------------------------------------'
+        #'dbCAN hmms folder:\n'+self.mantis_paths['dbcan']+'\n'+\
 
 
     def print_citation(self):
 
         return
+
+    def run_command(self, command, get_output=False,stdout_file=None,master_pid=None,wanted_child=None,user_memory=None):
+        command_list=command.split()
+        if master_pid:
+            return run_command_managed(command=command_list,get_output=get_output,stdout_file=stdout_file,master_pid=master_pid,wanted_child=wanted_child,user_memory=user_memory)
+        else:
+            return run_command_simple(command=command_list,get_output=get_output,stdout_file=stdout_file)
+
 
     def requirements_met(self):
         for f in [self.is_conda_available(), self.is_hmmer_available()]:
@@ -138,9 +146,10 @@ class MANTIS_Assembler(MANTIS_DB):
                            'NOGG':add_slash(default_hmm_path+'NOGG'),
                            'pfam':add_slash(default_hmm_path + 'pfam'),
                            'kofam':add_slash(default_hmm_path + 'kofam'),
-                           'dbcan':add_slash(default_hmm_path + 'dbcan'),
+                           #'dbcan':add_slash(default_hmm_path + 'dbcan'),
                            'tigrfam':add_slash(default_hmm_path + 'tigrfam'),
                            'resfams':add_slash(default_hmm_path + 'resfams'),
+                           #'hamap':add_slash(default_hmm_path + 'hamap'),
                            }
         self.mantis_hmm_weights={'else':0.7}
         if self.mantis_config:
@@ -180,12 +189,14 @@ class MANTIS_Assembler(MANTIS_DB):
                     self.mantis_paths['pfam'] = add_slash(line.replace('pfam_hmm_folder=', ''))
                 elif 'kofam_hmm_folder=' in line:
                     self.mantis_paths['kofam'] = add_slash(line.replace('kofam_hmm_folder=', ''))
-                elif 'dbcan_hmm_folder=' in line:
-                    self.mantis_paths['dbcan'] = add_slash(line.replace('dbcan_hmm_folder=', ''))
+                #elif 'dbcan_hmm_folder=' in line:
+                #    self.mantis_paths['dbcan'] = add_slash(line.replace('dbcan_hmm_folder=', ''))
                 elif 'tigrfam_hmm_folder=' in line[:len('tigrfam_hmm_folder=')]:
                     self.mantis_paths['tigrfam'] = add_slash(line.replace('tigrfam_hmm_folder=', ''))
                 elif 'resfams_hmm_folder=' in line:
                     self.mantis_paths['resfams'] = add_slash(line.replace('resfams_hmm_folder=', ''))
+                #elif 'hamap_hmm_folder=' in line:
+                #    self.mantis_paths['hamap'] = add_slash(line.replace('hamap_hmm_folder=', ''))
                 elif '_weight=' in line:
                     hmm_source,weight=line.split('_weight=')
                     self.mantis_hmm_weights[hmm_source]=float(weight)
@@ -218,7 +229,18 @@ class MANTIS_Assembler(MANTIS_DB):
         res={}
         for hmm in hmms_list:
             res[hmm]=os.stat(hmm).st_size
-        return sorted(res, key=res.get,reverse=True),res
+        #mixing big and low size HMMs so that we try not to run out of memory, might lead to more idle time.
+        sorted_res=sorted(res, key=res.get,reverse=True)
+        resorted_res=[]
+        c=1
+        while sorted_res:
+            if c==1:
+                resorted_res.append(sorted_res.pop(0))
+                c=-1
+            elif c==-1:
+                resorted_res.append(sorted_res.pop(-1))
+                c=1
+        return resorted_res,res
 
 
     def compile_hmms_list(self,folder=False):
@@ -227,9 +249,11 @@ class MANTIS_Assembler(MANTIS_DB):
         default_list = [
             get_hmm_in_folder(self.mantis_paths['pfam']) if not folder else self.mantis_paths['pfam'],
             get_hmm_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
-            get_hmm_in_folder(self.mantis_paths['dbcan']) if not folder else self.mantis_paths['dbcan'],
+            #get_hmm_in_folder(self.mantis_paths['dbcan']) if not folder else self.mantis_paths['dbcan'],
             get_hmm_in_folder(self.mantis_paths['tigrfam']) if not folder else self.mantis_paths['tigrfam'],
-            get_hmm_in_folder(self.mantis_paths['resfams']) if not folder else self.mantis_paths['resfams']]
+            get_hmm_in_folder(self.mantis_paths['resfams']) if not folder else self.mantis_paths['resfams'],
+            #get_hmm_in_folder(self.mantis_paths['hamap']) if not folder else self.mantis_paths['hamap'],
+        ]
         for hmm_path in self.get_custom_hmms_paths(folder):
             if hmm_path[0:2] !='NA':
                 hmms_list.append(hmm_path)
@@ -238,19 +262,6 @@ class MANTIS_Assembler(MANTIS_DB):
                 hmms_list.append(hmm_path)
         return hmms_list
 
-
-
-
-    # for executing simple commands in the hpc we run this
-    def run_command(self, command, get_output=False,stdout_file=None):
-        if get_output:
-            process = subprocess.run(command, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        elif stdout_file:
-            process = subprocess.run(command, shell=True, stdout=stdout_file,stderr=stdout_file)
-        else:
-            process = subprocess.run(command, shell=True)
-
-        return process
 
 
     #####SETTING UP DATABASE#####
@@ -269,18 +280,20 @@ class MANTIS_Assembler(MANTIS_DB):
             return True
         return False
 
-    def get_path_default_hmm(self,database,taxon_id):
+    def get_path_default_hmm(self,database,taxon_id=None):
         target_file=None
         if 'kofam' in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['kofam'])
-        elif 'dbcan'  in database.lower():
-            target_file = get_hmm_in_folder(self.mantis_paths['dbcan'])
+        #elif 'dbcan'  in database.lower():
+        #    target_file = get_hmm_in_folder(self.mantis_paths['dbcan'])
         elif 'pfam'  in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['pfam'])
         elif 'tigrfam'  in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['tigrfam'])
         elif 'resfams'  in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['resfams'])
+        #elif 'hamap'  in database.lower():
+        #    target_file = get_hmm_in_folder(self.mantis_paths['hamap'])
         elif 'NOGG'.lower()  in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['NOGG'])
         elif 'NOGT'.lower()  in database.lower():
@@ -289,12 +302,23 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
 
-    def check_hmm_exists(self,database,taxon_id=None,force_download=False):
+    def check_reference_exists(self,database,taxon_id=None,force_download=False):
+        if database=='go_obo_nlp':
+            if self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo', force_download):
+                return True
+        elif database=='uniprot_nlp':
+            if os.listdir(self.mantis_paths['uniprot_nlp']):
+                return True
+        elif database=='ncbi':
+            if self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp', force_download):
+                return True
         target_file=self.get_path_default_hmm(database,taxon_id)
         if target_file:
             for extension in ['','.h3f','.h3i','.h3m','.h3p']:
                 if not self.file_exists(target_file+extension,force_download=force_download):
                     return False
+        else:
+            return False
         return True
 
     #####LISTING HMMS DATABASE#####
@@ -310,7 +334,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
         if not self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp'):
-            if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['ncbi'], flush=True, file=self.redirect_verbose)
+            if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['ncbi']+'taxidlineage.dmp', flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['ncbi'])
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi'], flush=True, file=self.redirect_verbose)
@@ -322,7 +346,7 @@ class MANTIS_Assembler(MANTIS_DB):
             if verbose: green('Passed installation check on: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
 
         if not self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo'):
-            if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['go_obo_nlp'], flush=True, file=self.redirect_verbose)
+            if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['go_obo_nlp']+'go.obo', flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['go_obo_nlp'])
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['go_obo_nlp'], flush=True, file=self.redirect_verbose)
@@ -332,6 +356,8 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def check_installation_folder(self,hmm_folder_path,res,verbose=True,extra_requirements=[]):
         check = 5+len(extra_requirements)
+        missing_files=set(extra_requirements)
+        missing_files.update(['.hmm','.h3f','.h3i','.h3m','.h3p'])
         try:
             files_dir = os.listdir(hmm_folder_path)
         except:
@@ -342,18 +368,26 @@ class MANTIS_Assembler(MANTIS_DB):
         for file in files_dir:
             if '.hmm' == file[-4:]:
                 check -= 1
+                missing_files.remove('.hmm')
             elif '.h3f' == file[-4:]:
                 check -= 1
+                missing_files.remove('.h3f')
             elif '.h3i' == file[-4:]:
                 check -= 1
+                missing_files.remove('.h3i')
             elif '.h3m' == file[-4:]:
                 check -= 1
+                missing_files.remove('.h3m')
             elif '.h3p' == file[-4:]:
                 check -= 1
+                missing_files.remove('.h3p')
             elif file in extra_requirements:
                 check-=1
+                missing_files.remove(file)
+
         if check != 0:
-            red('Failed installation check on [files missing]: ' + hmm_folder_path,flush=True,file=self.redirect_verbose)
+            missing_files_str='; '.join(missing_files)
+            red('Failed installation check on [files missing]: ' + hmm_folder_path+'\n'+missing_files_str,flush=True,file=self.redirect_verbose)
             res.append(hmm_folder_path)
         else:
             if verbose: green('Passed installation check on: '+hmm_folder_path,flush=True,file=self.redirect_verbose)
@@ -369,9 +403,10 @@ class MANTIS_Assembler(MANTIS_DB):
             self.mantis_paths['NOGG']:['NOGG_sql_annotations.tsv'],
             self.mantis_paths['pfam']:['Pfam-A.hmm.dat'],
             self.mantis_paths['kofam']:['ko_list','ko2cog.xl','ko2go.xl','ko2tc.xl','ko2cazy.xl','ko_to_path','map_description'],
-            self.mantis_paths['dbcan']:['CAZyDB.07312019.fam.subfam.ec.txt'],
+            #self.mantis_paths['dbcan']:['CAZyDB.07312019.fam.subfam.ec.txt'],
             self.mantis_paths['tigrfam']:['gpl.html','COPYRIGHT','TIGRFAMS_GO_LINK','TIGRFAMS_ROLE_LINK','TIGR_ROLE_NAMES'],
             self.mantis_paths['resfams']:['180102_resfams_metadata_updated_v122.tsv'],
+            #self.mantis_paths['hamap']:['hamap.tsv'],
 
         }
         if self.target_hmm:
@@ -481,14 +516,23 @@ class MANTIS_Assembler(MANTIS_DB):
             return self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id+'_merged.hmm'
         else: return None
 
+
     def processes_handler(self,target_worker_function,worker_count,add_sentinels=True):
-        processes = [Process(target=target_worker_function, args=(self.queue,)) for _ in range(worker_count)]
+        #os.getpid to add the master_pid
+        processes = [Process(target=target_worker_function, args=(self.queue,os.getpid(),)) for _ in range(worker_count)]
         #adding sentinel record since queue can be signaled as empty when its really not
         if add_sentinels:
             for _ in range(worker_count):   self.queue.append(None)
-        for process in processes:   process.start()
-        for process in processes:   process.join()
-
+        for process in processes:
+            process.start()
+        #we could manage the processes memory here with a while cycle
+        for process in processes:
+            process.join()
+            #exitcode 0 for sucessful exists
+            if process.exitcode!=0:
+                sleep(5)
+                print('Ran out of memory while running HMMER. Exitting!')
+                os._exit(1)
 
 
 if __name__ == '__main__':
