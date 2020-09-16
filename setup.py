@@ -12,7 +12,7 @@ setup(
     description='A package to annotate protein sequences.',
     install_requires=[
         'hmmer == 3.2.1',
-        'nltk == 3.4.4',
+        'nltk == 3.4.5',
         'numpy == 1.18.1',
         'pip',
         'psutil == 5.6.7',
