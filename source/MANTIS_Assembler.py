@@ -46,8 +46,8 @@ def check_installation(mantis_config=None):
 #http://www.hicomb.org/papers/HICOMB2018-04.pdf
 
 class MANTIS_Assembler(MANTIS_DB):
-    def __init__(self,hmmer_threads=None,verbose=True,redirect_verbose=None,job_tracker=None,limit_jobs=None,mantis_config=None,hmm_chunk_size=None):
-        self.target_hmm=None
+    def __init__(self,hmmer_threads=None,verbose=True,redirect_verbose=None,mantis_config=None,hmm_chunk_size=None,target_hmm=None):
+        self.target_hmm=target_hmm
         if hmmer_threads: self.hmmer_threads=hmmer_threads
         else: self.hmmer_threads=5
         self.redirect_verbose=redirect_verbose
@@ -63,6 +63,7 @@ class MANTIS_Assembler(MANTIS_DB):
         self.read_config_file()
         #self.requirements_met()
         #I use manager instead of queue since I need to be able to add records to the end and start of the 'queue' (actually a list) which is not possible with the multiprocessing.Queue
+        #we need manager.list because a normal list cant communicate during multiprocessing
         self.manager=Manager()
         self.queue = self.manager.list()
 
@@ -99,12 +100,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
         return
 
-    def run_command(self, command, get_output=False,stdout_file=None,master_pid=None,wanted_child=None,user_memory=None):
-        command_list=command.split()
-        if master_pid:
-            return run_command_managed(command=command_list,get_output=get_output,stdout_file=stdout_file,master_pid=master_pid,wanted_child=wanted_child,user_memory=user_memory)
-        else:
-            return run_command_simple(command=command_list,get_output=get_output,stdout_file=stdout_file)
+
 
 
     def requirements_met(self):
@@ -112,7 +108,7 @@ class MANTIS_Assembler(MANTIS_DB):
             if not f: raise RequirementsNotMet
 
     def is_conda_available(self):
-        process= self.run_command('conda -V',get_output=True)
+        process= run_command('conda -V',get_output=True)
         check = re.search('conda', str(process.stdout))
         if not check:
             print_cyan('Conda dependency not met!')
@@ -121,7 +117,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def is_hmmer_available(self):
         check_command=' conda list hmmer '
-        process=self.run_command(check_command ,get_output=True)
+        process=run_command(check_command ,get_output=True)
         check = re.search('hmmer', str(process.stdout))
         if not check:
             print_cyan('HMMER dependency not met!')
@@ -172,29 +168,50 @@ class MANTIS_Assembler(MANTIS_DB):
             if '#' not in line:
                 #data sources configuration
                 if 'default_hmms_folder=' in line:
-                    self.mantis_paths['default'] = add_slash(line.replace('default_hmms_folder=', ''))
+                    line_path = add_slash(line.replace('default_hmms_folder=', ''))
+                    if line_path: self.mantis_paths['default']=line_path
                 elif 'custom_hmms_folder=' in line:
-                    self.mantis_paths['custom'] = add_slash(line.replace('custom_hmms_folder=', ''))
+                    line_path = add_slash(line.replace('custom_hmms_folder=', ''))
+                    if line_path: self.mantis_paths['custom']=line_path
+
                 elif 'ncbi_dmp_path_folder=' in line:
-                    self.mantis_paths['ncbi']= add_slash(line.replace('ncbi_dmp_path_folder=', ''))
+                    line_path= add_slash(line.replace('ncbi_dmp_path_folder=', ''))
+                    if line_path: self.mantis_paths['ncbi']=line_path
+
                 elif 'go_obo_nlp_folder=' in line:
-                    self.mantis_paths['go_obo_nlp']= add_slash(line.replace('go_obo_nlp_folder=', ''))
+                    line_path= add_slash(line.replace('go_obo_nlp_folder=', ''))
+                    if line_path: self.mantis_paths['go_obo_nlp']=line_path
+
                 elif 'uniprot_nlp_folder=' in line:
-                    self.mantis_paths['uniprot_nlp']= add_slash(line.replace('uniprot_nlp_folder=', ''))
+                    line_path= add_slash(line.replace('uniprot_nlp_folder=', ''))
+                    if line_path: self.mantis_paths['uniprot_nlp']=line_path
+
                 elif 'NOGT_hmm_folder=' in line:
-                    self.mantis_paths['NOGT'] = add_slash(line.replace('NOGT_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('NOGT_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['NOGT']=line_path
+
                 elif 'NOGG_hmm_folder=' in line:
-                    self.mantis_paths['NOGG'] = add_slash(line.replace('NOGG_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('NOGG_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['NOGG']=line_path
+
                 elif 'pfam_hmm_folder=' in line:
-                    self.mantis_paths['pfam'] = add_slash(line.replace('pfam_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('pfam_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['pfam']=line_path
+
                 elif 'kofam_hmm_folder=' in line:
-                    self.mantis_paths['kofam'] = add_slash(line.replace('kofam_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('kofam_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['kofam']=line_path
+
                 #elif 'dbcan_hmm_folder=' in line:
                 #    self.mantis_paths['dbcan'] = add_slash(line.replace('dbcan_hmm_folder=', ''))
                 elif 'tigrfam_hmm_folder=' in line[:len('tigrfam_hmm_folder=')]:
-                    self.mantis_paths['tigrfam'] = add_slash(line.replace('tigrfam_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('tigrfam_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['tigrfam']=line_path
+
                 elif 'resfams_hmm_folder=' in line:
-                    self.mantis_paths['resfams'] = add_slash(line.replace('resfams_hmm_folder=', ''))
+                    line_path = add_slash(line.replace('resfams_hmm_folder=', ''))
+                    if line_path: self.mantis_paths['resfams']=line_path
+
                 #elif 'hamap_hmm_folder=' in line:
                 #    self.mantis_paths['hamap'] = add_slash(line.replace('hamap_hmm_folder=', ''))
                 elif '_weight=' in line:
@@ -209,6 +226,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def set_path_uniprot_proteins_nlp(self):
         uniprot_folder = self.mantis_paths['uniprot_nlp']
+        if not os.path.exists(uniprot_folder): return False
         files_dir=os.listdir(uniprot_folder)
         passed_check=False
         for file in files_dir:
@@ -244,6 +262,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
     def compile_hmms_list(self,folder=False):
+        if self.target_hmm:  return [self.target_hmm]
         #doesnt include NOG
         hmms_list=[]
         default_list = [
@@ -271,9 +290,9 @@ class MANTIS_Assembler(MANTIS_DB):
         print_cyan('Merging hmm folder:\n' + target_folder,flush=True,file=self.redirect_verbose)
         output_file = get_path_level(target_folder)
         print('Merging hmm folder: '+target_folder,flush=True,file=self.redirect_verbose)
-        self.run_command('[ -f ' + target_folder + output_file + '_merged.hmm' + ' ] && rm ' + target_folder + output_file + '_merged.hmm*',stdout_file=self.redirect_verbose)
-        self.run_command('for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',stdout_file=self.redirect_verbose)
-        self.run_command('hmmpress '+target_folder + output_file + '_merged.hmm',stdout_file=self.redirect_verbose)
+        run_command('[ -f ' + target_folder + output_file + '_merged.hmm' + ' ] && rm ' + target_folder + output_file + '_merged.hmm*',stdout_file=self.redirect_verbose)
+        run_command('for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',stdout_file=self.redirect_verbose)
+        run_command('hmmpress '+target_folder + output_file + '_merged.hmm',stdout_file=self.redirect_verbose)
 
     def file_exists(self,target_file,force_download=False):
         if os.path.exists(target_file) or force_download:
@@ -339,11 +358,15 @@ class MANTIS_Assembler(MANTIS_DB):
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi'], flush=True, file=self.redirect_verbose)
 
-        if not os.listdir(self.mantis_paths['uniprot_nlp']) or not self.set_path_uniprot_proteins_nlp():
+        if not os.path.exists(self.mantis_paths['uniprot_nlp']):
             if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['uniprot_nlp'])
         else:
-            if verbose: green('Passed installation check on: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
+            if not os.listdir(self.mantis_paths['uniprot_nlp']) or not self.set_path_uniprot_proteins_nlp():
+                if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
+                res.append(self.mantis_paths['uniprot_nlp'])
+            else:
+                if verbose: green('Passed installation check on: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
 
         if not self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo'):
             if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['go_obo_nlp']+'go.obo', flush=True, file=self.redirect_verbose)
@@ -395,6 +418,12 @@ class MANTIS_Assembler(MANTIS_DB):
     def check_installation(self,verbose=True):
         #we use the verbose mode when running the check_installation directly
         self.passed_check=True
+        if not cython_compiled():
+            self.passed_check = False
+            if verbose: red('Cython needs to be compiled!', flush=True,
+                        file=self.redirect_verbose)
+        else:
+            if verbose: green('Cython correctly compiled!',flush=True,file=self.redirect_verbose)
         res=[]
         res=self.check_installation_extras(res,verbose)
 
@@ -411,7 +440,6 @@ class MANTIS_Assembler(MANTIS_DB):
         }
         if self.target_hmm:
             target_hmm_folder=get_folder(self.target_hmm)
-            target_hmm_folder=splitter.join(target_hmm_folder)+splitter
             if self.target_hmm in requirements:
                 self.check_installation_folder(target_hmm_folder, res, verbose, extra_requirements=requirements[target_hmm_folder])
             else:
@@ -520,6 +548,7 @@ class MANTIS_Assembler(MANTIS_DB):
     def processes_handler(self,target_worker_function,worker_count,add_sentinels=True):
         #os.getpid to add the master_pid
         processes = [Process(target=target_worker_function, args=(self.queue,os.getpid(),)) for _ in range(worker_count)]
+        print(is_picklable(self.queue,os.getpid()))
         #adding sentinel record since queue can be signaled as empty when its really not
         if add_sentinels:
             for _ in range(worker_count):   self.queue.append(None)
@@ -531,7 +560,7 @@ class MANTIS_Assembler(MANTIS_DB):
             #exitcode 0 for sucessful exists
             if process.exitcode!=0:
                 sleep(5)
-                print('Ran out of memory while running HMMER. Exitting!')
+                print('Ran into an issue, check the log for details. Exitting!')
                 os._exit(1)
 
 

@@ -20,10 +20,10 @@ The way this class works is:
 
 def run_mantis(  target_path,
                  output_folder,
-                 mantis_config,
-                 evalue_threshold,
-                 acceptable_range,
-                 overlap_value,
+                 mantis_config=None,
+                 evalue_threshold=None,
+                 acceptable_range=None,
+                 overlap_value=None,
                  organism_details=None,
                  domain_algorithm=None,
                  keep_files=False,
@@ -38,7 +38,7 @@ def run_mantis(  target_path,
                  ):
     if not acceptable_range:        acceptable_range=0.05
     if not overlap_value:           overlap_value=0.1
-    if not domain_algorithm:        domain_algorithm='exhaustive'
+    if not domain_algorithm:        domain_algorithm='dfs'
     if evalue_threshold:    evalue_threshold=float(evalue_threshold)
     if overlap_value:       overlap_value=float(overlap_value)
     if default_workers:     default_workers=int(default_workers)
@@ -76,7 +76,7 @@ class MANTIS(MANTIS_MP):
                  acceptable_range=0.05,
                  overlap_value=0.1,
                  organism_details={},
-                 domain_algorithm='exhaustive',
+                 domain_algorithm='dfs',
                  redirect_verbose=None,
                  keep_files=False,
                  skip_consensus=False,
@@ -90,8 +90,6 @@ class MANTIS(MANTIS_MP):
                  ):
         self.output_folder = add_slash(output_folder)
         self.redirect_verbose=redirect_verbose
-        #when we run several annotations, we need to keep in mind that previous jobs may be running
-        #if we dont, the jobs may not start if we reach the job submission limit, thats why we use job_tracker
         print('------------------------------------------', flush=True, file=self.redirect_verbose)
         print_cyan('Setting up Mantis!', flush=True, file=self.redirect_verbose)
         print('------------------------------------------', flush=True, file=self.redirect_verbose)
@@ -106,13 +104,13 @@ class MANTIS(MANTIS_MP):
         self.domain_algorithm = domain_algorithm
         self.keep_files = keep_files
         self.skip_consensus = skip_consensus
-        self.target_hmm = target_hmm
         self.default_workers=default_workers
         self.user_cores=user_cores
         self.user_memory=user_memory
         #chunk size is highly relevant in the execution time
         self.chunk_size=chunk_size
         MANTIS_Assembler.__init__(self,verbose=verbose,hmmer_threads=hmmer_threads,redirect_verbose=redirect_verbose,mantis_config=mantis_config)
+        self.target_hmm = target_hmm
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.target_path:
             print_cyan('This MANTIS process started running at '+ datetime_str, flush=True, file=self.redirect_verbose)
@@ -143,7 +141,7 @@ class MANTIS(MANTIS_MP):
         'E-value threshold:\t\t'+str(self.evalue_threshold)+'\n' if self.evalue_threshold else '',
         'Acceptable range:\t\t'+str(self.acceptable_range)+'\n' if self.acceptable_range else '',
         'Overlap value:\t\t\t'+str(self.overlap_value)+'\n' if self.overlap_value else '',
-        'Target HMM:\t\t\t\t'+str(self.target_hmm)+'\n' if self.target_hmm else '',
+        'Target HMM:\t\t\t'+str(self.target_hmm)+'\n' if self.target_hmm else '',
         'Default workers:\t\t'+str(self.default_workers)+'\n' if self.default_workers else '',
         'User cores:\t\t\t\t'+str(self.user_cores)+'\n' if self.user_cores else '',
         'Chunk size:\t\t\t'+str(self.chunk_size)+'\n' if self.chunk_size else '',

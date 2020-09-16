@@ -27,3 +27,7 @@ class InstallationCheckNotPassed(Exception):
     def __str__(self):
         return 'Installation check not passed! Make sure you\'ve setup the databases and your system meets all the requirements!'
 
+class CythonNotCompiled(Exception):
+    def __str__(self):
+        return 'Cython has not been correctly compiled! Please go to mantis/source/cython_src/ and run <python setup_get_non_overlapping_hits.py build_ext --inplace>'
+
