@@ -1,5 +1,7 @@
 # MANTIS
-![mantis_icon](Images/mantis_icon_small.png)
+<a>
+<img src="https://github.com/PedroMTQ/mantis/wiki/Images/mantis_icon.png" height="750" width="725" >
+</a>
 
 
 This tool can be used for protein function annotation, it is a standalone tool that uses HMMER to match sequences against multiple reference datasets. It accepts as input an aminoacids sequence fasta.  
@@ -21,6 +23,15 @@ If you have only loose reads, you need to assemble them first; when you have ass
 - [Functions](#functions)
 - [Further details](#further-details)
 
+
+### Paper data
+[[Resources/mantis_data.7z]]
+
+# Workflow overview
+
+<a>
+<img src="https://github.com/PedroMTQ/mantis/wiki/Images/overview.png" height="750" width="725" >
+</a>
 
 
 
