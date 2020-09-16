@@ -1,6 +1,6 @@
 # MANTIS
 
-![mantis_icon](Images/mantis_icon_small.png)
+![mantis_icon](Images/mantis_icon.png)
 
 This tool can be used for protein function annotation, it is a standalone tool that uses HMMER to match sequences against multiple reference datasets. It accepts as input an aminoacids sequence fasta.  
 The main goals of this tool are to:
