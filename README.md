@@ -24,7 +24,7 @@ If you have only loose reads, you need to assemble them first; when you have ass
 
 
 ### Paper data
-[Click here!][https://github.com/PedroMTQ/mantis/blob/master/mantis.wiki/Resources/mantis_data.7z]
+[Click here!](https://github.com/PedroMTQ/mantis/wiki/Resources/mantis_data.7z)
 
 # Workflow overview
 
