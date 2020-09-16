@@ -1,9 +1,25 @@
 try:
-    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
     from source.MANTIS_Assembler import *
 except:
-    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
     from MANTIS_Assembler import *
+
+try:
+    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+except:
+    try:
+        from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+    except:
+        if not cython_compiled():
+            compile_cython()
+            try:
+                from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+            except:
+                try:
+                    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+                except:
+                    raise CythonNotCompiled
+        else:
+            raise CythonNotCompiled
 
 #This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
@@ -418,10 +434,10 @@ class MANTIS_Processor():
         for query in queries_domtblout:
             if query not in res_annotation: res_annotation[query] = {}
             list_hits=queries_domtblout[query].pop('hits')
-            #self.domain_algorithm defines which algorithm to use, exhaustive for get_best_hits, heuristic for get_best_hits_approximation, and lowest for get_lowest_hit
+            #self.domain_algorithm defines which algorithm to use, dfs for get_best_hits, heuristic for get_best_hits_approximation, and lowest for get_lowest_hit
             if self.domain_algorithm=='heuristic':
                 best_hit = self.get_best_hits_approximation(list(list_hits))
-            elif self.domain_algorithm=='lowest':
+            elif self.domain_algorithm=='bpo':
                 best_hit = self.get_lowest_hit(list(list_hits))
             else:
                 try:

@@ -13,7 +13,6 @@ except:
 
 class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Consensus):
 
-
     def prepare_queue_split_sample(self,protein_seqs,seq_chunks,chunk_dir):
         c=0
         for chunk in seq_chunks:
@@ -199,7 +198,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
         stdout_file = open(stdout_path, 'a+')
         print('Running HMMER command:\n', hmmer_command, flush=True, file=stdout_file)
         start_time = time()
-        self.run_command(hmmer_command, stdout_file=hmmer_stdout_file,master_pid=master_pid,wanted_child='hmmsearch',user_memory=self.user_memory)
+        run_command(hmmer_command, stdout_file=hmmer_stdout_file,master_pid=master_pid,wanted_child='hmmsearch',user_memory=self.user_memory)
         print('Finished running HMMER (' + str(round(time() - start_time,3)) + ' seconds):\n', hmmer_command, flush=True,file=stdout_file)
         hmmer_stdout_file.close()
         stdout_file.close()
@@ -250,10 +249,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
 
 
     def prepare_queue_hmmer(self):
-        if self.target_hmm:
-            hmms_list=[self.target_hmm]
-        else:
-            hmms_list=self.compile_hmms_list()
+        hmms_list=self.compile_hmms_list()
         chunked_hmms_list=[]
         for hmm_path in hmms_list:
             chunked_hmms_list.extend(compile_hmm_chunks_path(hmm_path))
@@ -458,6 +454,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
         for chunk_name,chunk_path,current_chunk_dir,organism_lineage,count_seqs_chunk,count_seqs_original_file,output_path in self.chunks_to_annotate:
             output_annotation_tsv= current_chunk_dir+'output_annotation.tsv'
             self.queue.append([output_annotation_tsv,current_chunk_dir])
+
 
     def worker_interpret_output(self, queue,master_pid):
         while True:

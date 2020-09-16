@@ -9,8 +9,8 @@ import sys
 from datetime import datetime
 from time import sleep,time
 from math import ceil,log10
-if 'win' in platform.lower():   splitter = '\\'
-else:                           splitter = '/'
+if platform.startswith('win'):    splitter = '\\'
+else:                                splitter = '/'
 from pathlib import Path
 import shutil
 import urllib.request as request
@@ -21,6 +21,9 @@ import sqlite3
 from multiprocessing import Process, current_process,cpu_count, Manager,Pool
 from multiprocessing.dummy import Pool as IO_Pool
 from zipfile import ZipFile
+
+manager=Manager()
+global_queue=manager.list()
 
 def get_slurm_value(wanted_val,regex_pattern):
     res=None
@@ -540,8 +543,6 @@ def remove_file(source_file):
     if os.path.exists(source_file): os.remove(source_file)
 
 
-
-
 def run_command_simple(command, get_output=False,stdout_file=None):
     if get_output:
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -700,6 +701,15 @@ def run_command_managed(command,master_pid, get_output=False,stdout_file=None,wa
         sleep(1)
     return process
 
+
+
+def run_command( command, get_output=False,stdout_file=None,master_pid=None,wanted_child=None,user_memory=None):
+    command_list=command.split()
+    if master_pid:
+        return run_command_managed(command=command_list,get_output=get_output,stdout_file=stdout_file,master_pid=master_pid,wanted_child=wanted_child,user_memory=user_memory)
+    else:
+        return run_command_simple(command=command_list,get_output=get_output,stdout_file=stdout_file)
+
 def yield_file(list_of_files):
     #infine generator
     c=0
@@ -708,8 +718,23 @@ def yield_file(list_of_files):
         yield list_of_files[c]
         c+=1
 
+def compile_cython():
+    cython_folder=mantis_folder+'source'+splitter+'cython_src'+splitter
+    run_command('python '+cython_folder+ 'setup_get_non_overlapping_hits.py build_ext '+
+                '--build-lib '+cython_folder)
 
+def cython_compiled():
+    cython_folder=mantis_folder+'source'+splitter+'cython_src'+splitter
+    if not os.path.exists(cython_folder+'get_non_overlapping_hits.c'): return False
+    return True
 
+def is_picklable(obj):
+    import pickle
+    try:
+        pickle.dumps(obj)
+    except pickle.PicklingError:
+        return False
+    return True
 
 if __name__ == '__main__':
-    pass
+    print(global_queue)

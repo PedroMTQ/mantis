@@ -1,3 +1,4 @@
+#cython: language_level=3
 from time import time
 
 def add_possible_combo(dict possible_combos,set temp_combo):

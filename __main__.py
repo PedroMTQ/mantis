@@ -10,6 +10,7 @@ from source.MANTIS_Assembler import add_slash,\
                                     check_installation,\
                                     setup_databases,\
                                     merge_hmm_folder
+from source.utils import mantis_folder
 
 
 if __name__ == '__main__':
@@ -19,7 +20,7 @@ if __name__ == '__main__':
                                                  'After running, the hits (HMMER\'s domtblout) will be analyzed and processed. The processing of hits ensures linking of hits with an HMM\'s metadata; ensuring the results are more easily integrated and interpreted by the end user (human or machine).\n'+
                                                  'This tool takes as input an aminoacids sequences fasta; if you are starting out with a genome, you can use gene prediction tools (e.g. prodigal) to "convert" it into a protein fasta.'
                                      ,formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('execution_type',help='Please choose from :\n\trun_mantis\n\tsetup_databases\n\tmerge_hmm_folder\n\tcheck_installation\n\n'+
+    parser.add_argument('execution_type',help='Please choose from :\n\trun_mantis\n\tsetup_databases\n\tmerge_hmm_folder\n\tcheck_installation\n\trun_test\n\n'+
                              'If this is your first time running this software, please run <setup_databases> to download and unzip the necessary files.\n'
                              'If you have custom hmms, please include them in the <custom_hmms> folder.\n'+
                              'If your custom hmms are split 1 file/1 hmm please use <merge_hmm_folder> followed by the hmm folder path. These will be automatically pressed\n'+
@@ -34,14 +35,14 @@ if __name__ == '__main__':
                              '\tquery_name_2\ttarget_path_2\tProteobacteria\n'+
                              '\tquery_name_3\ttarget_path_3\t\n'+
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
-                        choices=['run_mantis','setup_databases','merge_hmm_folder','check_installation'])
+                        choices=['run_mantis','setup_databases','merge_hmm_folder','check_installation','run_test'])
     parser.add_argument('-t','--target',help='Please provide the target file path')
     parser.add_argument('-o','--output_folder',help='Please provide the output folder path')
     parser.add_argument('-mc','--mantis_config',help='If you would like to provide your own custom MANTIS.config file.')
     parser.add_argument('-et','--evalue_threshold',help='Please define the e-value threshold! Default is 1e-3. You can use <dynamic> to take into account sequence length.')
     parser.add_argument('-ar','--acceptable_range',help='Please define the acceptable range when getting the best hits! Default is 0.05')
     parser.add_argument('-ov','--overlap_value',help='Please define the allowed overlap between hits! Default is 0.1, maximum is 0.3')
-    parser.add_argument('-da','--domain_algorithm',choices=['exhaustive','heuristic','lowest'],help='Please choose one how multiple domains should be processed. Default is exhaustive')
+    parser.add_argument('-da','--domain_algorithm',choices=['dfs','heuristic','bpo'],help='Please choose one how multiple domains should be processed. Default is dfs')
     parser.add_argument('-od','--organism_details',help='If your target fasta has been taxonimically classified please introduce details.\nTwo formats are allowed:\n'
                                                         '\ttaxon name, e.g. "Proteobacteria" or "Escherichia coli"\n'
                                                         '\tNCBI taxon ID, e.g.: 561 for Escherichia coli\n')
@@ -117,3 +118,14 @@ if __name__ == '__main__':
     elif args.execution_type=='check_installation':
         mantis_config = args.mantis_config
         check_installation(mantis_config=mantis_config)
+    elif args.execution_type=='run_test':
+        output_folder = args.output_folder
+        if not output_folder:
+            output_folder = add_slash(os.getcwd())+'test_run'
+            print('No output folder provided! Saving data to: ' + output_folder)
+        output_folder = add_slash(output_folder)
+        run_mantis( target_path=mantis_folder+'tests'+splitter+'test_sample.faa',
+                    output_folder=output_folder,
+                    target_hmm=mantis_folder+'tests'+splitter+'test_hmm'+splitter+'test.hmm',
+                    mantis_config=mantis_folder+'tests'+splitter+'test_MANTIS.config',
+                                )

@@ -1,9 +1,25 @@
 try:
-    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
     from source.MANTIS_Assembler import *
 except:
-    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
     from MANTIS_Assembler import *
+
+try:
+    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+except:
+    try:
+        from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+    except:
+        if not cython_compiled():
+            compile_cython()
+            try:
+                from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+            except:
+                try:
+                    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+                except:
+                    raise CythonNotCompiled
+        else:
+            raise CythonNotCompiled
 
 '''
 This class creates a consensus for the integrated annotations. 
@@ -96,7 +112,7 @@ class MANTIS_Consensus(MANTIS_NLP):
                     hits.append([hmm_file, hmm_hit, hmm_files[hmm_file][hmm_hit]])
             if self.domain_algorithm=='heuristic':
                 best_hits = self.get_best_hits_approximation_Consensus(list(hits))
-            elif self.domain_algorithm=='lowest':
+            elif self.domain_algorithm=='bpo':
                 best_hits = self.get_lowest_hit_Consensus(list(hits))
             else:
                 best_hits=self.get_best_cython_consensus(list(hits),query_len,query,stdout_file_path=stdout_file_path)
@@ -459,7 +475,7 @@ if __name__ == '__main__':
     m.pickled_go_dict = m.go_terms_path + '.pickle_dict'
     #m.parse_go_terms()
     m.nlp_threshold=0.8
-    m.domain_algorithm='exhaustive'
+    m.domain_algorithm='dfs'
     m.mantis_hmm_weights={'else':0.7,'tigrfam_merged':1}
     m.n_grams_range=[1]
     m.words_to_remove = ['mainrole','sub1role','protein','proteins',

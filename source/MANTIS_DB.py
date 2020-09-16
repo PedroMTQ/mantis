@@ -15,6 +15,8 @@ class MANTIS_DB(MANTIS_NLP):
     ###Main function
     @timeit_class
     def setup_databases(self,force_download=False):
+        if not cython_compiled():
+            compile_cython()
         self.output_folder= mantis_folder+'setup_databases/'
         self.mantis_out=self.output_folder + 'Mantis.out'
         if os.path.exists(self.output_folder):
@@ -248,7 +250,7 @@ class MANTIS_DB(MANTIS_NLP):
             download_file(url,output_folder=self.mantis_paths['pfam'],stdout_file=stdout_file)
         for file_to_unzip in ['Pfam-A.hmm.gz','Pfam-A.hmm.dat.gz']:
             uncompress_archive(source_filepath=self.mantis_paths['pfam'] + file_to_unzip,stdout_file=stdout_file,remove_source=True)
-        self.run_command( 'hmmpress ' + self.mantis_paths['pfam'] + 'Pfam-A.hmm',stdout_file=stdout_file)
+        run_command( 'hmmpress ' + self.mantis_paths['pfam'] + 'Pfam-A.hmm',stdout_file=stdout_file)
 
     def download_and_unzip_kofam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['kofam']).mkdir(parents=True, exist_ok=True)
@@ -283,7 +285,7 @@ class MANTIS_DB(MANTIS_NLP):
         move_file(self.mantis_paths['kofam']+'ko',self.mantis_paths['kofam']+'ko_to_path')
         move_file(self.mantis_paths['kofam']+'pathway.html',self.mantis_paths['kofam']+'map_description')
         merge_profiles(self.mantis_paths['kofam']+'profiles/',self.mantis_paths['kofam']+'kofam_merged.hmm',stdout_file=stdout_file)
-        self.run_command('hmmpress ' + self.mantis_paths['kofam'] + 'kofam_merged.hmm', stdout_file=stdout_file)
+        run_command('hmmpress ' + self.mantis_paths['kofam'] + 'kofam_merged.hmm', stdout_file=stdout_file)
 
     def download_and_unzip_dbcan_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['dbcan']).mkdir(parents=True, exist_ok=True)
@@ -302,7 +304,7 @@ class MANTIS_DB(MANTIS_NLP):
         for url in [dbcan_metadata,dbcan_hmm]:
             download_file(url, output_folder=self.mantis_paths['dbcan'],stdout_file=stdout_file)
         move_file(self.mantis_paths['dbcan']+'dbCAN-HMMdb-V8.txt',self.mantis_paths['dbcan']+'dbCAN-HMMdb-V8.hmm')
-        self.run_command('hmmpress ' + self.mantis_paths['dbcan'] + 'dbCAN-HMMdb-V8.hmm ',stdout_file=stdout_file)
+        run_command('hmmpress ' + self.mantis_paths['dbcan'] + 'dbCAN-HMMdb-V8.hmm ',stdout_file=stdout_file)
 
     def download_and_unzip_tigrfam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['tigrfam']).mkdir(parents=True, exist_ok=True)
@@ -337,13 +339,13 @@ class MANTIS_DB(MANTIS_NLP):
             download_file(link,output_folder=self.mantis_paths['tigrfam'],stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['tigrfam'] + 'TIGRFAMs_15.0_HMM.tar.gz',extract_path=self.mantis_paths['tigrfam'] + 'profiles',stdout_file=stdout_file,remove_source=True)
         merge_profiles(self.mantis_paths['tigrfam']+'profiles/',self.mantis_paths['tigrfam']+'tigrfam_merged.hmm',stdout_file=stdout_file)
-        self.run_command('hmmpress ' + self.mantis_paths['tigrfam'] + 'tigrfam_merged.hmm ',stdout_file=stdout_file)
+        run_command('hmmpress ' + self.mantis_paths['tigrfam'] + 'tigrfam_merged.hmm ',stdout_file=stdout_file)
 
     def download_and_unzip_resfams_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['resfams']).mkdir(parents=True, exist_ok=True)
         if not self.file_exists(self.mantis_paths['resfams'] + '180102_resfams_metadata_updated_v122.tsv', force_download):
             print('Resfams metadata tsv missing, it should be in the github repo!',flush=True,file=stdout_file)
-            return
+            raise RequirementsNotMet('180102_resfams_metadata_updated_v122.tsv')
         if self.check_reference_exists('resfams',force_download):
             print('Resfams hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
@@ -356,7 +358,7 @@ class MANTIS_DB(MANTIS_NLP):
         print_cyan('Downloading and unzipping Resfams hmms ',flush=True,file=stdout_file)
         download_file(resfams_hmm, output_folder=self.mantis_paths['resfams'],stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['resfams'] + 'Resfams-full.hmm.gz',stdout_file=stdout_file,remove_source=True)
-        self.run_command('hmmpress ' + self.mantis_paths['resfams'] + 'Resfams-full.hmm ',stdout_file=stdout_file)
+        run_command('hmmpress ' + self.mantis_paths['resfams'] + 'Resfams-full.hmm ',stdout_file=stdout_file)
 
     def download_and_unzip_NOGG(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['NOGG']).mkdir(parents=True, exist_ok=True)
@@ -383,7 +385,7 @@ class MANTIS_DB(MANTIS_NLP):
         uncompress_archive(source_filepath=self.mantis_paths['NOGG'] + 'NOG.annotations.tsv.gz',stdout_file=stdout_file,remove_source=True)
         uncompress_archive(source_filepath=self.mantis_paths['NOGG'] + 'NOG.hmm.tar.gz',extract_path=self.mantis_paths['NOGG'],stdout_file=stdout_file,remove_source=True)
         merge_profiles(self.mantis_paths['NOGG'] + 'NOG_hmm/',target_merged_hmm,stdout_file=stdout_file)
-        self.run_command('hmmpress ' + target_merged_hmm,stdout_file=stdout_file)
+        run_command('hmmpress ' + target_merged_hmm,stdout_file=stdout_file)
 
     def download_and_unzip_NOGT(self,taxon_id,stdout_file=None):
         folder_path =self.mantis_paths['NOGT']+taxon_id+splitter
@@ -403,7 +405,7 @@ class MANTIS_DB(MANTIS_NLP):
             if '.hmm' in hmm_profile: move_file(hmm_profile,hmm_profile.strip('.gz'))
         merge_profiles(folder_path+'profiles/'+taxon_id,folder_path+taxon_id+'_merged.hmm',stdout_file=stdout_file)
         if os.path.exists(folder_path+'profiles'):      shutil.rmtree(folder_path+'profiles')
-        self.run_command('hmmpress ' + target_merged_hmm ,stdout_file=stdout_file)
+        run_command('hmmpress ' + target_merged_hmm ,stdout_file=stdout_file)
 
     def download_and_unzip_NOGSQL(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
@@ -538,7 +540,7 @@ class MANTIS_DB(MANTIS_NLP):
                         chunk_file.write(profile)
         chunks_dir = os.listdir(hmm_chunks_folder)
         for chunk in chunks_dir:
-            self.run_command('hmmpress ' + hmm_chunks_folder + chunk, stdout_file=stdout_file)
+            run_command('hmmpress ' + hmm_chunks_folder + chunk, stdout_file=stdout_file)
         stdout_file.close()
 
     ### Support functions for extracting metadata
@@ -815,10 +817,10 @@ class MANTIS_DB(MANTIS_NLP):
         msa_files = os.listdir(alignments_dir)
         for msa in msa_files:
             profile_name=msa.replace('.msa','')
-            self.run_command('hmmbuild '+alignments_dir+profile_name+'.hmm ' + alignments_dir+msa , stdout_file=stdout_file)
+            run_command('hmmbuild '+alignments_dir+profile_name+'.hmm ' + alignments_dir+msa , stdout_file=stdout_file)
             os.remove(alignments_dir+msa)
         hmm_files = os.listdir(alignments_dir)
         merge_profiles(alignments_dir,target_merged_hmm,stdout_file=stdout_file)
         #pressing merged profiles
-        self.run_command('hmmpress ' +target_merged_hmm,stdout_file=stdout_file)
+        run_command('hmmpress ' +target_merged_hmm,stdout_file=stdout_file)
 
