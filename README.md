@@ -211,7 +211,6 @@ NOGT_hmm_folder=/path/to/mantis/hmm/eggnogdb.embl.de/NOGT/
 NOGG_hmm_folder=/path/to/mantis/hmm/eggnogdb.embl.de/NOGG/  
 pfam_hmm_folder=/path/to/mantis/hmm/pfam/  
 kofam_hmm_folder=/path/to/mantis/hmm/kofam/  
-dbcan_hmm_folder=/path/to/mantis/hmm/dbcan/  
 tigrfam_hmm_folder=/path/to/mantis/hmm/tigrfam/  
 ````
 If you don't move any of these folders, don't worry about configuring this.  
@@ -463,7 +462,6 @@ Mantis uses several default data sources, to stop using these data sources add `
 The default hmm data sources are:   
 - Pfam
 - KOfam
-- dbCAN
 - TIGRfam
 - EGGNOG
 
@@ -717,8 +715,5 @@ This project is available under the MIT license.
 >3. The Pfam protein families database in 2019: S. El-Gebali, J. Mistry, A. Bateman, S.R. Eddy, A. Luciani, S.C. Potter, M. Qureshi, L.J. Richardson, G.A. Salazar, A. Smart, E.L.L. Sonnhammer, L. Hirsh, L. Paladin, D. Piovesan, S.C.E. Tosatto, R.D. Finn Nucleic Acids Research (2019)  https://doi.org/10.1093/nar/gky995
 >4. Haft DH, Loftus BJ, Richardson DL, et al. TIGRFAMs: a protein family resource for the functional identification of proteins. Nucleic Acids Res. 2001;29(1):41–43. https://doi.org/10.1093/nar/29.1.41
 >5. Aramaki T., Blanc-Mathieu R., Endo H., Ohkubo K., Kanehisa M., Goto S., Ogata H. KofamKOALA: KEGG ortholog assignment based on profile HMM and adaptive score threshold. Bioinformatics. 2019 Nov 19. pii: btz859. https://doi.org/10.1093/bioinformatics/btz859.
->6. Han Zhang, Tanner Yohe, Le Huang, Sarah Entwistle, Peizhi Wu, Zhenglu Yang, Peter K Busk, Ying Xu, Yanbin Yin, dbCAN2: a meta server for automated carbohydrate-active enzyme annotation, Nucleic Acids Research, Volume 46, Issue W1, 2 July 2018, Pages W95–W101, https://doi.org/10.1093/nar/gky418
->7. Yanbin Yin, Xizeng Mao, Jincai Yang, Xin Chen, Fenglou Mao, Ying Xu, dbCAN: a web resource for automated carbohydrate-active enzyme annotation, Nucleic Acids Research, Volume 40, Issue W1, 1 July 2012, Pages W445–W451, https://doi.org/10.1093/nar/gks479
->8. Gibson MK, Forsberg KJ, Dantas G. Improved annotation of antibiotic resistance functions reveals microbial resistomes cluster by ecology. The ISME Journal. 2014, https://doi.org/ISMEJ.2014.106
->9. Albertsen, M., Hugenholtz, P., Skarshewski, A. et al. Genome sequences of rare, uncultured bacteria obtained by differential coverage binning of multiple metagenomes. Nat Biotechnol 31, 533–538 (2013). https://doi.org/10.1038/nbt.2579
->10. W. Arndt, "Modifying HMMER3 to Run Efficiently on the Cori Supercomputer Using OpenMP Tasking," 2018 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW), Vancouver, BC, 2018, pp. 239-246. https://doi.org/10.1109/IPDPSW.2018.00048
+>6. Albertsen, M., Hugenholtz, P., Skarshewski, A. et al. Genome sequences of rare, uncultured bacteria obtained by differential coverage binning of multiple metagenomes. Nat Biotechnol 31, 533–538 (2013). https://doi.org/10.1038/nbt.2579
+>7. W. Arndt, "Modifying HMMER3 to Run Efficiently on the Cori Supercomputer Using OpenMP Tasking," 2018 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW), Vancouver, BC, 2018, pp. 239-246. https://doi.org/10.1109/IPDPSW.2018.00048
