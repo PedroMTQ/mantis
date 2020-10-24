@@ -536,8 +536,13 @@ def merge_profiles(folder_path,output_file,stdout_file=None):
     if os.path.exists(folder_path):      shutil.rmtree(folder_path)
 
 def move_file(source_file,dest_file):
-    if os.path.exists(dest_file): os.remove(dest_file)
-    os.rename(source_file,dest_file)
+    if not os.path.isdir(dest_file):
+        if os.path.exists(dest_file): os.remove(dest_file)
+    try:
+        os.rename(source_file,dest_file)
+    except:
+        from shutil import move
+        move(source_file,dest_file)
 
 def remove_file(source_file):
     if os.path.exists(source_file): os.remove(source_file)
@@ -576,17 +581,20 @@ def get_child_workers(master_pid,wanted_name=None):
     '''
     res=set()
     #if not psutil.pid_exists(master_pid): return res
-    master_process=psutil.Process(pid=master_pid)
-    children = master_process.children(recursive=True)
-    for process in children:
-        try:
-            if wanted_name:
-                if wanted_name==process.name():
+    try:
+        master_process=psutil.Process(pid=master_pid)
+        children = master_process.children(recursive=True)
+        for process in children:
+            try:
+                if wanted_name:
+                    if wanted_name==process.name():
+                        res.add(process.pid)
+                else:
                     res.add(process.pid)
-            else:
-                res.add(process.pid)
-        except (psutil.NoSuchProcess,AttributeError,FileNotFoundError):
-            pass
+            except (psutil.NoSuchProcess,AttributeError,FileNotFoundError):
+                pass
+    except (psutil.NoSuchProcess):
+        return res
     return sorted(res)
 
 def count_running_workers(worker_status):

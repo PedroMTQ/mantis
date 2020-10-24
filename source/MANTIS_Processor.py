@@ -61,7 +61,7 @@ class MANTIS_Processor():
             for domtblout in domtblout_files:
                 if target_hmm in domtblout:
                     if '_finished' in domtblout:
-                        os.rename(domtblout_folder+domtblout,domtblout_folder+domtblout.strip('_finished'))
+                        move_file(domtblout_folder+domtblout,domtblout_folder+domtblout.strip('_finished'))
             return True
         else: return False
 
@@ -203,14 +203,26 @@ class MANTIS_Processor():
     ########Processing HMMER hits
 
     def is_overlap(self, temp_queries,  current_query):
+        #the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
         if not temp_queries or not current_query: return False
-        y = range(current_query['env_coord_from'], current_query['env_coord_to'] + 1)
+        if current_query['env_coord_from']< current_query['env_coord_to']+1:
+            y_start =   current_query['env_coord_from']
+            y_end   =   current_query['env_coord_to']+1
+        else:
+            y_start =   current_query['env_coord_to']+1
+            y_end   =   current_query['env_coord_from']
+        y = set(range(y_start,y_end))
         for t in temp_queries:
-            x = range(t['env_coord_from'], t['env_coord_to'] + 1)
-            xs = set(x)
-            res = xs.intersection(y)
-            if res: return True
             if t['hmm_name']==current_query['hmm_name']:  return True
+            if t['env_coord_from'] < t['env_coord_to'] + 1:
+                x_start = t['env_coord_from']
+                x_end = t['env_coord_to'] + 1
+            else:
+                x_start = t['env_coord_to'] + 1
+                x_end = t['env_coord_from']
+            x = set(range(x_start,x_end))
+            res = x.intersection(y)
+            if res: return True
         return False
 
     def get_best_hits_approximation(self, query_hits):
@@ -382,7 +394,7 @@ class MANTIS_Processor():
                         hmm_coord_to = int(line[16])
                         ali_coord_from = int(line[17])
                         ali_coord_to = int(line[18])
-                        # we will use envevelop coords as per HMMER's manual recommendation
+                        # we will use envelop coords as per HMMER's manual recommendation
                         env_coord_from = int(line[19])
                         env_coord_to = int(line[20])
                         # correcting coordinates for 5'-3' and 3'-5'
@@ -390,8 +402,12 @@ class MANTIS_Processor():
                         corrected_env_coord_to = env_coord_to if env_coord_to > env_coord_from else env_coord_from
                         # set the coordinates according to the allowed overlap value
                         if self.overlap_value > 0.3: self.overlap_value = 0.3
-                        final_env_coord_from = ceil(corrected_env_coord_from + corrected_env_coord_from * self.overlap_value / 2)
-                        final_env_coord_to = ceil(corrected_env_coord_to - corrected_env_coord_to * self.overlap_value / 2)
+                        hit_range=corrected_env_coord_to-corrected_env_coord_from
+                        hit_overlap=ceil(self.overlap_value*hit_range/2)
+                        final_env_coord_from = corrected_env_coord_from + hit_overlap
+                        final_env_coord_to = corrected_env_coord_to - hit_overlap
+
+
                         if query_name not in res: res[query_name] = {'query_len': query_len, 'hits': []}
                         # when processing mg data, the evalue of hits for chunks should be higher than what it really is (because chunk has less seqs = more significant e-value)
                         if e_value <= self.calculate_evalue_threshold(int(query_len)):
@@ -442,9 +458,9 @@ class MANTIS_Processor():
             else:
                 try:
                     best_hit = self.get_best_hits(list(list_hits),queries_domtblout[query]['query_len'],time_limit=60)
-                except (TimeoutError,RecursionError):
-                    approximated_hits.append(query)
+                except (TimeoutError,RecursionError) as e:
                     best_hit = self.get_best_hits_approximation(list(list_hits))
+                    approximated_hits.append(query)
             queries_domtblout[query]['best_hit']=best_hit
             res_annotation[query][hmm] = queries_domtblout[query]
         if approximated_hits:
@@ -521,46 +537,11 @@ class MANTIS_Processor():
 
 
 if __name__ == '__main__':
-    tests=[
-            [
-            {'i_evalue':1e-9,'env_coord_from':0,'env_coord_to':10},
-            {'i_evalue':1e-10,'env_coord_from':11,'env_coord_to':20},
-            {'i_evalue':1e-15,'env_coord_from':21,'env_coord_to':30},
-            ],
-            [
-            {'i_evalue':1e-9,'env_coord_from':0,'env_coord_to':10},
-            {'i_evalue':1e-10,'env_coord_from':11,'env_coord_to':20},
-            {'i_evalue':1e-50,'env_coord_from':21,'env_coord_to':30},
-            ],
-            [
-            {'i_evalue':1e-9,'env_coord_from':0,'env_coord_to':10},
-            {'i_evalue':1e-10,'env_coord_from':11,'env_coord_to':20},
-            {'i_evalue':1e-50,'env_coord_from':21,'env_coord_to':51},
-            ]    ,
-            [
-            {'i_evalue':1e-9,'env_coord_from':0,'env_coord_to':10},
-            {'i_evalue':1e-10,'env_coord_from':11,'env_coord_to':20},
-            {'i_evalue':1e-50,'env_coord_from':21,'env_coord_to':51},
-            ],
-            [
-            {'i_evalue':1e-10,'env_coord_from':11,'env_coord_to':20},
-            {'i_evalue':1e-50,'env_coord_from':21,'env_coord_to':51},
-            ]
-        ]
-    maxX=log10(1e-50)
-    minX=log10(1e-9)
     hmm_pro=MANTIS_Processor()
-    f = '/home/pedroq/Python_projects/DRAX/Data/Annotation_Output/metag_test.faa'
-    o='/home/pedroq/Python_projects/DRAX/Data/Annotation_Output/'
-    #p = hmm_pro.split_metagenome(f,o)
-    hmm_pro.original_target_path='/home/pedroq/Desktop/mantis_mg/custom_mg_loop/fasta_chunks/p0_c0/p0_c0.faa'
-    hmm_pro.redirect_verbose=None
     hmm_pro.overlap_value=0.1
-    hmm_pro.evalue_threshold=1e-9
-    hmm_pro.acceptable_range=0.05
-    hmm_pro.process_domtblout('/home/pedroq/Python_projects/DRAX/source/Pipelines/mantis_free/hmm/test_hmm/sample/out/query3/fasta_chunks/p1_c0/domtblout/Resfams-full.domtblout',1000,2000)
-    #hmm_pro.read_protein_fasta(hmm_pro.original_target_path)
-    #hmm_pro.target_path='/home/pedroq/Desktop/mantis_mg/custom_mg/fasta_chunks/p1_c0/p1_c0.faa'
-    #hmm_pro.evalue_threshold=1e-6
-    #a=hmm_pro.hit_is_significant(1e-7)
-    #print(a)
+    hmm_pro.evalue_threshold=1e-3
+    hmm_pro.domain_algorithm='dfs'
+    hmm_pro.process_domtblout(
+    output_path='/home/pedroq/Desktop/test_cs/error_out/fasta_chunks/p3_c0/domtblout/kofam_merged.domtblout_chunk_0',
+    count_seqs_chunk=1,
+    count_seqs_original_file=1)

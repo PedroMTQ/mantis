@@ -91,8 +91,8 @@ class MANTIS_Assembler(MANTIS_DB):
         'Pfam hmms folder:\n'+self.mantis_paths['pfam']+'\n'+\
         'KOfam hmms folder:\n'+self.mantis_paths['kofam']+'\n'+\
         'TIGRFAM hmms folder:\n'+self.mantis_paths['tigrfam']+'\n'+\
-        'Resfams hmms folder:\n'+self.mantis_paths['resfams']+'\n'+res+\
         '------------------------------------------'
+        #'Resfams hmms folder:\n'+self.mantis_paths['resfams']+'\n'+res+\
         #'dbCAN hmms folder:\n'+self.mantis_paths['dbcan']+'\n'+\
 
 
@@ -126,51 +126,29 @@ class MANTIS_Assembler(MANTIS_DB):
             print_cyan('conda install -c bioconda hmmer')
         return check
 
+    def get_default_hmm_path(self):
+        file = open(self.config_file, 'r')
+        line = file.readline()
+        while line:
+            line = line.strip('\n')
+            if '#' not in line:
+                # data sources configuration
+                if 'default_hmms_folder=' in line:
+                    line_path = add_slash(line.replace('default_hmms_folder=', ''))
+                    if line_path:
+                        default_hmm_path = line_path
+                        return default_hmm_path
+            line = file.readline()
+        file.close()
 
-    def read_config_file(self):
-        #HMMS
-        # if there's no path, we just assume its in the default folder
-        default_hmm_path=add_slash(mantis_folder+'hmm')
-        resources_path=add_slash(mantis_folder + 'Resources')
-        self.mantis_paths={'default':default_hmm_path,
-                           'resources':resources_path,
-                           'go_obo_nlp':add_slash(resources_path + 'Gene_Ontology'),
-                           'uniprot_nlp':add_slash(resources_path + 'Uniprot'),
-                           'ncbi': add_slash(resources_path + 'NCBI'),
-                           'custom':add_slash(default_hmm_path + 'custom_hmms'),
-                           'NOGT':add_slash(default_hmm_path + 'NOGT'),
-                           'NOGG':add_slash(default_hmm_path+'NOGG'),
-                           'pfam':add_slash(default_hmm_path + 'pfam'),
-                           'kofam':add_slash(default_hmm_path + 'kofam'),
-                           #'dbcan':add_slash(default_hmm_path + 'dbcan'),
-                           'tigrfam':add_slash(default_hmm_path + 'tigrfam'),
-                           'resfams':add_slash(default_hmm_path + 'resfams'),
-                           #'hamap':add_slash(default_hmm_path + 'hamap'),
-                           }
-        self.mantis_hmm_weights={'else':0.7}
-        if self.mantis_config:
-            print('Using custom MANTIS.config',flush=True,file=self.redirect_verbose)
-            self.config_file=self.mantis_config
-        else:
-            if not os.path.isdir(mantis_folder):
-                print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',flush=True,file=self.redirect_verbose)
-                self.cancel_all_jobs()
-                raise FileNotFoundError
-            self.config_file = mantis_folder+'MANTIS.config'
-        try:
-            file = open(self.config_file,'r')
-        except:
-            print('MANTIS.config file has been deleted or moved, make sure you keep it in the root of the project!',flush=True,file=self.redirect_verbose)
-            raise FileNotFoundError
+    def setup_paths_config_file(self):
+        file = open(self.config_file, 'r')
         line = file.readline()
         while line:
             line = line.strip('\n')
             if '#' not in line:
                 #data sources configuration
-                if 'default_hmms_folder=' in line:
-                    line_path = add_slash(line.replace('default_hmms_folder=', ''))
-                    if line_path: self.mantis_paths['default']=line_path
-                elif 'custom_hmms_folder=' in line:
+                if 'custom_hmms_folder=' in line:
                     line_path = add_slash(line.replace('custom_hmms_folder=', ''))
                     if line_path: self.mantis_paths['custom']=line_path
 
@@ -202,23 +180,61 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = add_slash(line.replace('kofam_hmm_folder=', ''))
                     if line_path: self.mantis_paths['kofam']=line_path
 
-                #elif 'dbcan_hmm_folder=' in line:
-                #    self.mantis_paths['dbcan'] = add_slash(line.replace('dbcan_hmm_folder=', ''))
                 elif 'tigrfam_hmm_folder=' in line[:len('tigrfam_hmm_folder=')]:
                     line_path = add_slash(line.replace('tigrfam_hmm_folder=', ''))
                     if line_path: self.mantis_paths['tigrfam']=line_path
 
-                elif 'resfams_hmm_folder=' in line:
-                    line_path = add_slash(line.replace('resfams_hmm_folder=', ''))
-                    if line_path: self.mantis_paths['resfams']=line_path
+                #elif 'resfams_hmm_folder=' in line:
+                #    line_path = add_slash(line.replace('resfams_hmm_folder=', ''))
+                #    if line_path: self.mantis_paths['resfams']=line_path
 
-                #elif 'hamap_hmm_folder=' in line:
-                #    self.mantis_paths['hamap'] = add_slash(line.replace('hamap_hmm_folder=', ''))
                 elif '_weight=' in line:
                     hmm_source,weight=line.split('_weight=')
                     self.mantis_hmm_weights[hmm_source]=float(weight)
             line = file.readline()
         file.close()
+
+    def read_config_file(self):
+        self.mantis_hmm_weights={'else':0.7}
+        if self.mantis_config:
+            print('Using custom MANTIS.config',flush=True,file=self.redirect_verbose)
+            self.config_file=self.mantis_config
+        else:
+            if not os.path.isdir(mantis_folder):
+                print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',flush=True,file=self.redirect_verbose)
+                self.cancel_all_jobs()
+                raise FileNotFoundError
+            self.config_file = mantis_folder+'MANTIS.config'
+        try:
+            file = open(self.config_file,'r')
+        except:
+            print('MANTIS.config file has been deleted or moved, make sure you keep it in the root of the project!',flush=True,file=self.redirect_verbose)
+            raise FileNotFoundError
+
+        default_hmm_path=self.get_default_hmm_path()
+
+        #HMMS
+        # if there's no path, we just assume its in the default folder
+        if not default_hmm_path:  default_hmm_path=add_slash(mantis_folder+'hmm')
+        resources_path=add_slash(mantis_folder + 'Resources')
+        self.mantis_paths={'default':default_hmm_path,
+                           'resources':resources_path,
+                           'go_obo_nlp':add_slash(resources_path + 'Gene_Ontology'),
+                           'uniprot_nlp':add_slash(resources_path + 'Uniprot'),
+                           'ncbi': add_slash(resources_path + 'NCBI'),
+                           'custom':add_slash(default_hmm_path + 'custom_hmms'),
+                           'NOGT':add_slash(default_hmm_path + 'NOGT'),
+                           'NOGG':add_slash(default_hmm_path+'NOGG'),
+                           'pfam':add_slash(default_hmm_path + 'pfam'),
+                           'kofam':add_slash(default_hmm_path + 'kofam'),
+                           #'dbcan':add_slash(default_hmm_path + 'dbcan'),
+                           'tigrfam':add_slash(default_hmm_path + 'tigrfam'),
+                           #'resfams':add_slash(default_hmm_path + 'resfams'),
+                           #'hamap':add_slash(default_hmm_path + 'hamap'),
+                           }
+        self.setup_paths_config_file()
+        if not os.path.isdir(self.mantis_paths['custom']):
+            Path(self.mantis_paths['custom']).mkdir(parents=True, exist_ok=True)
         if self.verbose: print(self,flush=True,file=self.redirect_verbose)
 
     def set_path_go_terms_nlp(self):
@@ -270,7 +286,7 @@ class MANTIS_Assembler(MANTIS_DB):
             get_hmm_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
             #get_hmm_in_folder(self.mantis_paths['dbcan']) if not folder else self.mantis_paths['dbcan'],
             get_hmm_in_folder(self.mantis_paths['tigrfam']) if not folder else self.mantis_paths['tigrfam'],
-            get_hmm_in_folder(self.mantis_paths['resfams']) if not folder else self.mantis_paths['resfams'],
+            #get_hmm_in_folder(self.mantis_paths['resfams']) if not folder else self.mantis_paths['resfams'],
             #get_hmm_in_folder(self.mantis_paths['hamap']) if not folder else self.mantis_paths['hamap'],
         ]
         for hmm_path in self.get_custom_hmms_paths(folder):
@@ -295,7 +311,7 @@ class MANTIS_Assembler(MANTIS_DB):
         run_command('hmmpress '+target_folder + output_file + '_merged.hmm',stdout_file=self.redirect_verbose)
 
     def file_exists(self,target_file,force_download=False):
-        if os.path.exists(target_file) or force_download:
+        if os.path.exists(target_file) and not force_download:
             return True
         return False
 
@@ -309,8 +325,8 @@ class MANTIS_Assembler(MANTIS_DB):
             target_file = get_hmm_in_folder(self.mantis_paths['pfam'])
         elif 'tigrfam'  in database.lower():
             target_file = get_hmm_in_folder(self.mantis_paths['tigrfam'])
-        elif 'resfams'  in database.lower():
-            target_file = get_hmm_in_folder(self.mantis_paths['resfams'])
+        #elif 'resfams'  in database.lower():
+        #    target_file = get_hmm_in_folder(self.mantis_paths['resfams'])
         #elif 'hamap'  in database.lower():
         #    target_file = get_hmm_in_folder(self.mantis_paths['hamap'])
         elif 'NOGG'.lower()  in database.lower():
@@ -330,6 +346,9 @@ class MANTIS_Assembler(MANTIS_DB):
                 return True
         elif database=='ncbi':
             if self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp', force_download):
+                return True
+        elif database=='NOGSQL':
+            if self.file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
                 return True
         target_file=self.get_path_default_hmm(database,taxon_id)
         if target_file:
@@ -434,7 +453,7 @@ class MANTIS_Assembler(MANTIS_DB):
             self.mantis_paths['kofam']:['ko_list','ko2cog.xl','ko2go.xl','ko2tc.xl','ko2cazy.xl','ko_to_path','map_description'],
             #self.mantis_paths['dbcan']:['CAZyDB.07312019.fam.subfam.ec.txt'],
             self.mantis_paths['tigrfam']:['gpl.html','COPYRIGHT','TIGRFAMS_GO_LINK','TIGRFAMS_ROLE_LINK','TIGR_ROLE_NAMES'],
-            self.mantis_paths['resfams']:['180102_resfams_metadata_updated_v122.tsv'],
+            #self.mantis_paths['resfams']:['180102_resfams_metadata_updated_v122.tsv'],
             #self.mantis_paths['hamap']:['hamap.tsv'],
 
         }
@@ -548,7 +567,6 @@ class MANTIS_Assembler(MANTIS_DB):
     def processes_handler(self,target_worker_function,worker_count,add_sentinels=True):
         #os.getpid to add the master_pid
         processes = [Process(target=target_worker_function, args=(self.queue,os.getpid(),)) for _ in range(worker_count)]
-        print(is_picklable(self.queue,os.getpid()))
         #adding sentinel record since queue can be signaled as empty when its really not
         if add_sentinels:
             for _ in range(worker_count):   self.queue.append(None)
@@ -565,7 +583,4 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
 if __name__ == '__main__':
-    p=MANTIS_Assembler(mantis_config='/home/pedroq/Desktop/test_hmm/t.config')
-    hmm_path='/home/pedroq/Desktop/test_hmm/dbcan/dbcan.hmm'
-    #a=p.split_hmm_into_chunks(hmm_path)
-    #p.setup_databases()
+    p=MANTIS_Assembler()

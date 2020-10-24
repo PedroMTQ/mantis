@@ -270,15 +270,29 @@ class MANTIS_Consensus(MANTIS_NLP):
         return sorted(query_hits, key=lambda k: k[2]['evalue'])
 
     def is_overlap_Consensus(self, temp_queries,  current_query):
+        #the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
         if not temp_queries or not current_query: return False
-        y = range(current_query[2]['query_start'], current_query[2]['query_end'] + 1)
+        if current_query[2]['query_start']< current_query[2]['query_end']+1:
+            y_start =   current_query[2]['query_start']
+            y_end   =   current_query[2]['query_end']+1
+        else:
+            y_start =   current_query[2]['query_end']+1
+            y_end   =   current_query[2]['query_start']
+        y = set(range(y_start,y_end))
         for t in temp_queries:
-            x = range(t[2]['query_start'], t[2]['query_end'] + 1)
-            xs = set(x)
-            res = xs.intersection(y)
-            if res: return True
             if t[1]==current_query[1]:  return True
+            if t[2]['query_start'] < t[2]['query_end'] + 1:
+                x_start = t[2]['query_start']
+                x_end = t[2]['query_end'] + 1
+            else:
+                x_start = t[2]['query_end'] + 1
+                x_end = t[2]['query_start']
+            x = set(range(x_start,x_end))
+            res = x.intersection(y)
+            if res: return True
         return False
+
+
 
     def get_best_hits_approximation_Consensus(self, query_hits):
         query_hits = self.sort_by_evalue_Consensus(query_hits)
