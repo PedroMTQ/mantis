@@ -1,5 +1,5 @@
 # MANTIS
-![overview_small](./Images/mantis_icon_small.png)
+![mantis_icon](./Images/mantis_icon_orange.png)
 
 
 
@@ -29,7 +29,7 @@ Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources
 
 # Workflow overview
 
-![overview_small](./Images/overview_small.png)
+![overview](./Images/overview.png)
 
 
 
@@ -213,7 +213,6 @@ pfam_hmm_folder=/path/to/mantis/hmm/pfam/
 kofam_hmm_folder=/path/to/mantis/hmm/kofam/  
 dbcan_hmm_folder=/path/to/mantis/hmm/dbcan/  
 tigrfam_hmm_folder=/path/to/mantis/hmm/tigrfam/  
-resfams_hmm_folder=/path/to/mantis/hmm/resfams/  
 ````
 If you don't move any of these folders, don't worry about configuring this.  
 If you don't want all the hmm files to be used, you can change the path to 'NA', for example: `NOGT_hmm_folder=NA`
@@ -466,7 +465,6 @@ The default hmm data sources are:
 - KOfam
 - dbCAN
 - TIGRfam
-- Resfams
 - EGGNOG
 
 It also uses a list of [essential genes](https://raw.githubusercontent.com/MadsAlbertsen/multi-metagenome/master/R.data.generation/essential.hmm) to identify HMM profile matches that correpond to previously identified essential genes.
