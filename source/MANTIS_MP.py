@@ -109,6 +109,11 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
             stdout_file= open(output_path + 'Mantis.out','a+')
             print( 'The current sample: '+file_path+' will be split into ' + str(current_chunks) + ' chunks (up to '+str(chunk_size)+' sequences each), which will be stored at:\n'+chunk_dir,flush=True, file=stdout_file)
             stdout_file.close()
+        if worker_count<environment_cores*worker_per_core:
+            if len(self.fastas_to_annotate)<environment_cores*worker_per_core:
+                worker_count=len(self.fastas_to_annotate)
+            else:
+                worker_count=environment_cores*worker_per_core
         print_cyan('Samples will be split into '+str(n_chunks)+' chunks with '+str(worker_count)+' workers',flush=True, file=self.redirect_verbose)
         self.processes_handler(self.worker_split_sample,worker_count)
 
@@ -132,11 +137,13 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
         command += ' --cpu ' + str(self.hmmer_threads)
         #since we split the original fasta into chunks, hmmer might remove some hits ( I correct for this further down the line, but not in hmmer)
         #even when using the default evalue threshold, there isn't much of a loss
-        if self.evalue_threshold:
-            command += ' -E ' + str(self.evalue_threshold*10)
+        if self.evalue_threshold=='dynamic':
+            command += ' -E ' + str(1e-8)
+        elif self.evalue_threshold:
+            command += ' -E ' + str(self.evalue_threshold/10)
         else:
             #hmmers default evalue threshold will be 1e-6, Mantis will be more strict further down the line - this is just to allow splitting up the file into chunks
-            command += ' -E ' + str(1e-6)
+            command += ' -E ' + str(1e-3)
         command += ' --notextw '
         command += ' ' + hmm_path
         command += ' ' + target_path
@@ -203,7 +210,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
         hmmer_stdout_file.close()
         stdout_file.close()
         if output_file:
-            os.rename(output_file,output_file+'_finished')
+            move_file(output_file,output_file+'_finished')
 
 
 

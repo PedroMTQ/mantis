@@ -386,16 +386,17 @@ class MANTIS_Interpreter():
             self.get_link_metacyc(dict_hmms)
         elif 'Burstein2016' in hmm_file:
             self.get_link_cas(dict_hmms)
-        #indirect linking
-        elif 'Resfams' in hmm_file:
-            self.get_link_resfams(dict_hmms)
-        #elif 'dbCAN' in hmm_file:
-        #    self.get_link_dbcan(dict_hmms)
         elif 'kofam' in hmm_file:
             self.get_link_kofam(dict_hmms)
         elif 'tigrfam' in hmm_file:
             self.get_link_tigrfam(dict_hmms)
             self.is_essential(dict_hmms)
+        #legacy dbs
+        #indirect linking
+        #elif 'Resfams' in hmm_file:
+        #    self.get_link_resfams(dict_hmms)
+        #elif 'dbCAN' in hmm_file:
+        #    self.get_link_dbcan(dict_hmms)
         #elif 'hamap' in hmm_file:
         #    self.get_link_custom_hmm(dict_hmms,self.get_path_default_hmm('hamap'))
         else:
@@ -504,5 +505,5 @@ if __name__ == '__main__':
     m.interpreted_output_file=f2
     m.custom=custom_hmm
     a=m.read_and_interpret_output_annotation(f)
-    for i in a:
-        print(a[i])
+    #for i in a:
+    #    print(a[i])

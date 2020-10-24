@@ -39,7 +39,9 @@ def run_mantis(  target_path,
     if not acceptable_range:        acceptable_range=0.05
     if not overlap_value:           overlap_value=0.1
     if not domain_algorithm:        domain_algorithm='dfs'
-    if evalue_threshold:    evalue_threshold=float(evalue_threshold)
+    if evalue_threshold:
+        if evalue_threshold!='dynamic':
+            evalue_threshold=float(evalue_threshold)
     if overlap_value:       overlap_value=float(overlap_value)
     if default_workers:     default_workers=int(default_workers)
     if chunk_size:          chunk_size=int(chunk_size)
@@ -150,10 +152,10 @@ class MANTIS(MANTIS_MP):
         return 'User configuration:'+'\n'+'------------------------------------------'+'\n'+''.join(output_list)
 
     def generate_fastas_to_annotate(self):
-        if self.target_path.split('.')[-1] in ['tsv']:
-            self.annotate_multiple_samples()
-        elif self.target_path[-1]==splitter:
+        if os.path.isdir(self.target_path):
             self.annotate_directory()
+        elif self.target_path.split('.')[-1] in ['tsv']:
+            self.annotate_multiple_samples()
         elif self.target_path.split('.')[-2] in ['tar']:
             self.annotate_compressed_sample()
         elif self.target_path.split('.')[-1] in ['gz','zip']:
@@ -236,7 +238,9 @@ class MANTIS(MANTIS_MP):
             line = line.split()
             if str(taxon_id) == str(line[0]):
                 lineage_file.close()
-                return line[1:]
+                lineage = line[1:]
+                lineage.append(taxon_id)
+                return lineage
             line = lineage_file.readline().strip('\n').replace('|', '')
         lineage_file.close()
         return []
@@ -259,10 +263,11 @@ class MANTIS(MANTIS_MP):
             try:
                 webpage = req.text
             except:
+                print('Could not get taxa id, trying again')
                 c += 1
-        taxa_id = re.search('<Id>\d+</Id>', webpage)
-        if taxa_id: return re.search('\d+', taxa_id.group()).group()
-
+            taxa_id = re.search('<Id>\d+</Id>', webpage)
+            if taxa_id: return re.search('\d+', taxa_id.group()).group()
+        print('Could not find taxa ID for',organism_name)
 
 
     def setup_organism_lineage(self, organism_details,stdout_file):
@@ -365,7 +370,10 @@ if __name__ == '__main__':
     tsv_file='/home/pedroq/Desktop/test_hmm/test1.faa'
     #l=12158
     l=1306215
-    mm=MANTIS(target_path=tsv_file,output_folder=to,mantis_config='/home/pedroq/Desktop/test_hmm/t.config',organism_details='escherichia coli')#,chunk_size=1000)
-    print(mm.check_internet_connection())
+    mm=MANTIS(target_path=tsv_file,output_folder=to,mantis_config='/home/pedroq/Desktop/test_hmm/t.config',organism_details='Saccharomyces cerevisiae')#,chunk_size=1000)
+    #print(mm.check_internet_connection())
+
+    print(mm.get_taxa_ncbi('Salmonella enterica'))
+    print(mm.get_organism_lineage(28901))
     #mm.keep_files=True
     #mm.run_mantis()
