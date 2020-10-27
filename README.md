@@ -1,4 +1,4 @@
-# MANTIS
+# Mantis - flexible and consensus-driven genome annotation
 ![mantis_icon](./Images/mantis_icon_orange.png)
 
 
