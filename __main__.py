@@ -54,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('-cs','--chunk_size',help='If you would like to set the chunk size when running Mantis')
     parser.add_argument('-ht','--hmmer_threads',help='If you would like to set the number of threads used by HMMER.')
     parser.add_argument('-c','--cores',help='If you would like to set the number of physical cores used by Mantis. This is the different from the virtual <default_workers>')
-    parser.add_argument('-m','--memory',help='If you would like to set the amount of RAM used by Mantis. Mantis uses all available RAM by default.')
+    parser.add_argument('-m','--memory',help='If you would like to set the amount of RAM used by Mantis (in GB). Mantis uses all available RAM by default.')
 
 
     args=parser.parse_args()
