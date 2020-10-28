@@ -659,10 +659,17 @@ class MANTIS_NLP(NLP_Pre_Processer,Word_Weighter):
 
         self.good_identifiers={'enzyme_ec','tcdb','kegg_ko','tigrfam','pfam','cog','go','viralzone','seq_onto'}
 
-        self.words_to_remove = ['mainrole','sub1role','protein','proteins',
-                                'enzyme','enzymes','putative','activity',
-                                'process','unknown','function','functions',
-                                'processes'
+        self.words_to_remove = ['mainrole', 'sub1role', 'protein', 'proteins',
+                                'enzyme', 'enzymes', 'putative', 'activity',
+                                'process', 'unknown', 'function', 'functions',
+                                'processes', 'responsible', 'probable',
+                                'other', 'complex', 'integral',
+                                'metabolic', 'identical', 'type',
+                                'related', 'large', 'small',
+                                'accessory', 'major', 'related,'
+                                'variable', 'potential', 'specific',
+                                'regulation',
+                                'putative',
                                 ]
         self.build_frequency_dict()
         self.pickled_go_syns = self.go_terms_path+'.pickle_syns'
