@@ -29,5 +29,5 @@ class InstallationCheckNotPassed(Exception):
 
 class CythonNotCompiled(Exception):
     def __str__(self):
-        return 'Cython has not been correctly compiled! Please go to mantis/source/cython_src/ and run <python setup_get_non_overlapping_hits.py build_ext --inplace>'
+        return 'Cython has not been correctly compiled! Please go to mantis/source/ and run python utils.py'
 

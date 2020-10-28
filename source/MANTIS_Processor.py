@@ -380,50 +380,53 @@ class MANTIS_Processor():
             line = file.readline().strip('\n')
             while line:
                 if line[0] != '#':
-                    # after 22 it's just the free text of the annotation description
-                    line = line.split()[0:22]
-                    if len(line) == 22:
-                        query_name = line[0]
-                        query_len = int(line[2])
-                        hmm_name = line[3]
-                        hmm_accession = line[4]
-                        hmm_len = line[5]
-                        i_evalue = float(line[12])
-                        e_value = self.recalculate_evalue(i_evalue, count_seqs_chunk, count_seqs_original_file)
-                        hmm_coord_from = int(line[15])
-                        hmm_coord_to = int(line[16])
-                        ali_coord_from = int(line[17])
-                        ali_coord_to = int(line[18])
-                        # we will use envelop coords as per HMMER's manual recommendation
-                        env_coord_from = int(line[19])
-                        env_coord_to = int(line[20])
-                        # correcting coordinates for 5'-3' and 3'-5'
-                        corrected_env_coord_from = env_coord_from if env_coord_from < env_coord_to else env_coord_to
-                        corrected_env_coord_to = env_coord_to if env_coord_to > env_coord_from else env_coord_from
-                        # set the coordinates according to the allowed overlap value
-                        if self.overlap_value > 0.3: self.overlap_value = 0.3
-                        hit_range=corrected_env_coord_to-corrected_env_coord_from
-                        hit_overlap=ceil(self.overlap_value*hit_range/2)
-                        final_env_coord_from = corrected_env_coord_from + hit_overlap
-                        final_env_coord_to = corrected_env_coord_to - hit_overlap
+                    try:
+                        # after 22 it's just the free text of the annotation description
+                        line = line.split()[0:22]
+                        if len(line) == 22:
+                            query_name = line[0]
+                            query_len = int(line[2])
+                            hmm_name = line[3]
+                            hmm_accession = line[4]
+                            hmm_len = line[5]
+                            i_evalue = float(line[12])
+                            e_value = self.recalculate_evalue(i_evalue, count_seqs_chunk, count_seqs_original_file)
+                            hmm_coord_from = int(line[15])
+                            hmm_coord_to = int(line[16])
+                            ali_coord_from = int(line[17])
+                            ali_coord_to = int(line[18])
+                            # we will use envelop coords as per HMMER's manual recommendation
+                            env_coord_from = int(line[19])
+                            env_coord_to = int(line[20])
+                            # correcting coordinates for 5'-3' and 3'-5'
+                            corrected_env_coord_from = env_coord_from if env_coord_from < env_coord_to else env_coord_to
+                            corrected_env_coord_to = env_coord_to if env_coord_to > env_coord_from else env_coord_from
+                            # set the coordinates according to the allowed overlap value
+                            if self.overlap_value > 0.3: self.overlap_value = 0.3
+                            hit_range=corrected_env_coord_to-corrected_env_coord_from
+                            hit_overlap=ceil(self.overlap_value*hit_range/2)
+                            final_env_coord_from = corrected_env_coord_from + hit_overlap
+                            final_env_coord_to = corrected_env_coord_to - hit_overlap
 
 
-                        if query_name not in res: res[query_name] = {'query_len': query_len, 'hits': []}
-                        # when processing mg data, the evalue of hits for chunks should be higher than what it really is (because chunk has less seqs = more significant e-value)
-                        if e_value <= self.calculate_evalue_threshold(int(query_len)):
-                            hit_dict = {'hmm_name': hmm_name,
-                                        'hmm_accession': hmm_accession,
-                                        'hmm_len': hmm_len,
-                                        'i_evalue': e_value,
-                                        'hmm_coord_from': hmm_coord_from,
-                                        'hmm_coord_to': hmm_coord_to,
-                                        'ali_coord_from': ali_coord_from if ali_coord_from < ali_coord_to else ali_coord_to,
-                                        'ali_coord_to': ali_coord_to if ali_coord_to > ali_coord_from else ali_coord_from,
-                                        'env_coord_from': final_env_coord_from,
-                                        'env_coord_to': final_env_coord_to,
-                                        }
-                            res[query_name]['hits'].append(hit_dict)
-                            hit_counter += 1
+                            if query_name not in res: res[query_name] = {'query_len': query_len, 'hits': []}
+                            # when processing mg data, the evalue of hits for chunks should be higher than what it really is (because chunk has less seqs = more significant e-value)
+                            if e_value <= self.calculate_evalue_threshold(int(query_len)):
+                                hit_dict = {'hmm_name': hmm_name,
+                                            'hmm_accession': hmm_accession,
+                                            'hmm_len': hmm_len,
+                                            'i_evalue': e_value,
+                                            'hmm_coord_from': hmm_coord_from,
+                                            'hmm_coord_to': hmm_coord_to,
+                                            'ali_coord_from': ali_coord_from if ali_coord_from < ali_coord_to else ali_coord_to,
+                                            'ali_coord_to': ali_coord_to if ali_coord_to > ali_coord_from else ali_coord_from,
+                                            'env_coord_from': final_env_coord_from,
+                                            'env_coord_to': final_env_coord_to,
+                                            }
+                                res[query_name]['hits'].append(hit_dict)
+                                hit_counter += 1
+                    except:
+                        print('Could not read line:',line,'in file',output_path,flush=True)
                 line = file.readline().strip('\n')
         return res,hit_counter
 

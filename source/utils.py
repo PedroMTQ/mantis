@@ -728,6 +728,9 @@ def yield_file(list_of_files):
 
 def compile_cython():
     cython_folder=mantis_folder+'source'+splitter+'cython_src'+splitter
+    for f in os.listdir(cython_folder):
+        if 'get_non_overlapping_hits.c' in f:
+            remove_file(cython_folder+f)
     run_command('python '+cython_folder+ 'setup_get_non_overlapping_hits.py build_ext '+
                 '--build-lib '+cython_folder)
 
@@ -745,4 +748,4 @@ def is_picklable(obj):
     return True
 
 if __name__ == '__main__':
-    print(global_queue)
+    compile_cython()
