@@ -201,7 +201,10 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
 
 
     def run_hmmer_annotation(self,hmmer_command,hmmer_stdout_path,stdout_path,master_pid,output_file=None):
-        hmmer_stdout_file = open(hmmer_stdout_path, 'w+')
+        if self.keep_files:
+            hmmer_stdout_file = open(hmmer_stdout_path, 'w+')
+        else:
+            hmmer_stdout_file = open(os.devnull, 'w')
         stdout_file = open(stdout_path, 'a+')
         print('Running HMMER command:\n', hmmer_command, flush=True, file=stdout_file)
         start_time = time()
