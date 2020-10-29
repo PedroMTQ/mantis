@@ -169,7 +169,7 @@ Mantis is easy to setup, simply:
 1. Clone the repository with git  
 2. Edit MANTIS.config with desired paths
 3. Create a Conda environment for Mantis with `conda env create -f mantis/mantis_env.yml`
-4. Activate the previously created Conda environment
+4. Activate the previously created Conda environment with `conda activate mantis_env`
 5. Setup all default databases for Mantis with`python mantis setup_databases`
 
 To check your installation run:
@@ -191,7 +191,7 @@ It's preferable to use a self contained environment, avoiding compatibility issu
 
 This is not necessary, but if you'd like to share your Mantis environment across multiple users do the following:
 1. Create the Mantis environment in a group folder location, by running `conda env create -f mantis_env.yml -p <path/to/group/folder/>`
-Future Mantis users now need to tot hef following:
+Future Mantis users now need to do the following:
 2. Run `conda config` to generate the `.condarc` file
 3. Edit `.condarc` file (usually located in your root folder) and add:
 ````
