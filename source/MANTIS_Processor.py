@@ -3,23 +3,25 @@ try:
 except:
     from MANTIS_Assembler import *
 
-try:
-    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+
+try:    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
 except:
-    try:
-        from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+    try:from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
     except:
         if not cython_compiled():
             compile_cython()
-            try:
-                from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+            try:    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
             except:
-                try:
-                    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-                except:
-                    raise CythonNotCompiled
+                try:    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+                except: raise CythonNotCompiled
+        #when cython's version is not compatible with the current python version, we need to recompile it
         else:
-            raise CythonNotCompiled
+            compile_cython()
+            try:    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+            except:
+                try:    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+                except: raise CythonNotCompiled
+
 
 #This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
