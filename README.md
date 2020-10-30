@@ -93,13 +93,13 @@ python  mantis/  merge_hmm_folder -t target
 ````
 python mantis/ run_mantis -t target.faa -o output_folder -od organism_details -et evalue_threshold -ar acceptable_range -ov overlap_value -mc custom_MANTIS.config    
 ````
-*example*: `python mantis run_mantis -t mantis/tests/test_sample.faa -mc mantis/tests/test_hmm/test.hmm -od "Escherichia coli"`
+*example*: `python mantis run_mantis -t mantis/tests/test_sample.faa -thmm mantis/tests/test_hmm/test.hmm -od "Escherichia coli"`
 
 **6. Annotate multiple samples**  
 ````
 python mantis/ run_mantis -t target.tsv -o output_folder -et evalue_threshold -ar acceptable_range -ov overlap_value -mc custom_MANTIS.config
 ````
-*example*: `python mantis run_mantis -t mantis/tests/test_file.tsv -mc mantis/tests/test_hmm/test.hmm`
+*example*: `python mantis run_mantis -t mantis/tests/test_file.tsv -thmm mantis/tests/test_hmm/test.hmm`
 
 ### Output files  
 
@@ -342,11 +342,11 @@ Optional arguments:  --output_folder / -o
 
 ***Example***
 ````
-python mantis run_mantis -t mantis/tests/test_sample.faa -mc mantis/tests/test_hmm/test.hmm -od "Escherichia coli"
+python mantis run_mantis -t mantis/tests/test_sample.faa -thmm mantis/tests/test_hmm/test.hmm -od "Escherichia coli"
 ````
 ### 4.5 Annotate multiple samples:
 ````
-python mantis/ run_mantis -t target.tsv -o output_folder -mc mantis/tests/test_hmm/test.hmm
+python mantis/ run_mantis -t target.tsv -o output_folder -thmm mantis/tests/test_hmm/test.hmm
 
 Mandatory arguments: --target / -t
 Optional arguments:  --output_folder / -o
@@ -402,11 +402,11 @@ Mantis scales well with Metagenomes, since it automatically splits fasta files i
 
 ### 5.1 Example annotate one sample
 ````
-python mantis run_mantis -t mantis/tests/test_sample.faa -mc mantis/tests/test_hmm/test.hmm -od "Escherichia coli"
+python mantis run_mantis -t mantis/tests/test_sample.faa -thmm mantis/tests/test_hmm/test.hmm -od "Escherichia coli"
 ````
 ### 5.2 Example annotate multiple samples
 ````
-python mantis run_mantis -t mantis/tests/test_file.tsv -mc mantis/tests/test_hmm/test.hmm
+python mantis run_mantis -t mantis/tests/test_file.tsv -thmm mantis/tests/test_hmm/test.hmm
 ````
 
 ## 6. Output
