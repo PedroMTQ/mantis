@@ -303,7 +303,7 @@ This method will concatenate all the **.hmms** files in a specified target folde
 
 ### 4.4 Annotate one sample:
 ````
-python mantis/ run_mantis -t target.faa -o output_folder -od organism_details -od "Escherichia coli"
+python mantis/ run_mantis -t target.faa -o output_folder -od organism_details 
 
 Mandatory arguments: --target / -t
 Optional arguments:  --output_folder / -o
