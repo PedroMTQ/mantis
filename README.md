@@ -56,7 +56,7 @@ Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources
 5. Go up one folder and run `python mantis setup_databases`
 6. Run `python mantis run_mantis -t target_faa`
 
-The step 1. is essential to make sure you correctly download `NOG_sql.tar.gz` from the Resources folder. An alternative to using lfs is to just manually downlaod the file yourself and put it in the mantis/Resources folder.
+The step 1. is essential for the correct download of `NOG_sql.tar.gz` in the Resources folder. An alternative to lfs is to manually download the file and place it in the mantis/Resources folder.
 
 
 **Custom hmms**  
