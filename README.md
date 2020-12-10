@@ -49,12 +49,11 @@ Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources
 ### Quick configuration
 
 ### Quick configuration
-1. `git lfs install`
-2. `git clone git@github.com:PedroMTQ/mantis.git`  
-3. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
-4. Run `conda activate mantis_env`
-5. Go up one folder and run `python mantis setup_databases`
-6. Run `python mantis run_mantis -t target_faa`
+1. `git clone git@github.com:PedroMTQ/mantis.git`  
+2. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
+3. Run `conda activate mantis_env`
+4. Go up one folder and run `python mantis setup_databases`
+5. Run `python mantis run_mantis -t target_faa`
 
 The step 1. is essential for the correct download of `NOG_sql.tar.gz` in the Resources folder. An alternative to lfs is to manually download the file and place it in the mantis/Resources folder.
 
