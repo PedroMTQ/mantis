@@ -3,7 +3,7 @@
 
 
 
-This tool can be used for protein function annotation, it is a standalone tool that uses HMMER to match sequences against multiple reference datasets. It accepts as input an aminoacids sequence fasta.  
+This tool can be used for protein function annotation, it is a standalone tool that uses HMMER to match sequences against multiple reference datasets, producing a consensus annotation using text mining. It accepts as input one or multiple aminoacids sequence fasta.  
 The main goals of this tool are to:
 - consider multiple protein domains
 - annotate with taxonomy resolution
