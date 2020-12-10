@@ -1,9 +1,0 @@
-NOG_sql.tar.gz filter=lfs diff=lfs merge=lfs -text
-essential_genes/essential_genes.txt filter=lfs diff=lfs merge=lfs -text
-essential_genes/readme.md filter=lfs diff=lfs merge=lfs -text
-Gene_Ontology/go.obo.pickle_dict filter=lfs diff=lfs merge=lfs -text
-Gene_Ontology/go.obo.pickle_syns filter=lfs diff=lfs merge=lfs -text
-Gene_Ontology/go.obo.pickle_terms filter=lfs diff=lfs merge=lfs -text
-Uniprot/uniprot-filtered-reviewed_yes.tab.gz filter=lfs diff=lfs merge=lfs -text
-Uniprot/uniprot-filtered-reviewed_yes.tab_n_grams_1.pickle filter=lfs diff=lfs merge=lfs -text
-NCBI/ filter=lfs diff=lfs merge=lfs -text
