@@ -23,7 +23,7 @@ class MANTIS_Interpreter():
                         target_hmm_dict['link'][dict_key].append(i)
 
     #This is the default interpreter since we should always have NOG annotations, the others interpreters are built according to the available hmms
-    def get_link_NOG(self,dict_hmms,hmm_file_path):
+    def get_link_compiled_metadata(self,dict_hmms,hmm_file_path):
         #we can extract ECs,KOs and pfam ids from NOG hmmss
         with open(hmm_file_path,'r') as file:
             line=file.readline()
@@ -53,29 +53,6 @@ class MANTIS_Interpreter():
         if hmm.lower() in temp and 'protein' in temp and len(temp)==2:
             return True
         return False
-
-    def get_link_pfam(self,dict_hmms):
-        file_path=self.mantis_paths['pfam']+'Pfam-A.hmm.dat'
-        with open(file_path) as file:
-            line=file.readline()
-            stop=False
-            while line:
-                line=line.strip('\n').split('   ')
-                if len(line)==2:
-                    row_header, row_description=line
-                    if row_header=='#=GF ID':
-                        if row_description in dict_hmms:
-                            stop = True
-                            hmm = str(row_description)
-                    if row_header=='#=GF DE' and stop:
-                        self.add_to_dict(dict_hmms[hmm], 'pfam', hmm)
-                        pfam_accession=dict_hmms[hmm]['link']['accession'].split('.')[0]
-                        self.add_to_dict(dict_hmms[hmm], 'pfam', pfam_accession)
-                        if not self.is_redundant_description_pfam(hmm,row_description):
-                            self.add_to_dict(dict_hmms[hmm], 'description', row_description)
-                        self.get_common_links(row_description,dict_hmms[hmm])
-                        stop = False
-                line=file.readline()
 
 
     def get_link_cas(self,dict_hmms):
@@ -373,13 +350,13 @@ class MANTIS_Interpreter():
         #default linking:
         if 'NOGG' in hmm_file:
             target_sql_file = self.mantis_paths['NOGG'] + 'NOGG_sql_annotations.tsv'
-            self.get_link_NOG(dict_hmms=dict_hmms,hmm_file_path=target_sql_file)
+            self.get_link_compiled_metadata(dict_hmms=dict_hmms,hmm_file_path=target_sql_file)
         elif 'NOGT' in hmm_file:
             taxon_id=re.search('NOGT\d+',hmm_file).group().replace('NOGT','')
             target_sql_file = self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id + '_sql_annotations.tsv'
-            self.get_link_NOG(dict_hmms=dict_hmms,hmm_file_path=target_sql_file)
+            self.get_link_compiled_metadata(dict_hmms=dict_hmms,hmm_file_path=target_sql_file)
         elif 'Pfam' in hmm_file:
-            self.get_link_pfam(dict_hmms)
+            self.get_link_compiled_metadata(dict_hmms=dict_hmms,hmm_file_path=self.mantis_paths['pfam'] + 'pfam_metadata.tsv')
             self.is_essential(dict_hmms)
         #direct linking:
         elif 'metacyc' in hmm_file:

@@ -94,7 +94,44 @@ class MANTIS_Processor():
             for to_delete in grouped_domtblout[domtblout]:
                 os.remove(to_delete)
 
-    def split_hits(self,domtblout_path,worker_count):
+    def split_hits(self,domtblout_path,current_chunk_dir,worker_count):
+        #split the hits into different chunk allows for memory saving during hit processing
+        list_of_files=[domtblout_path+'_chunk_'+str(i) for i in range(worker_count)]
+        if self.keep_files:
+            Path(current_chunk_dir + 'raw_domtblout').mkdir(parents=True, exist_ok=True)
+        hit_to_file={}
+        file_yielder = yield_file(list_of_files)
+        with open(domtblout_path) as file:
+            original_line = file.readline()
+            line = str(original_line).strip('\n')
+            while line:
+                if line[0] != '#':
+                    line = line.split()[0:22]
+                    if len(line) == 22:
+                        query_name = line[0]
+                        if query_name not in hit_to_file:
+                            file_name = next(file_yielder)
+                            hit_to_file[query_name]=file_name
+                        #to avoid errors in writing to file if opened by multiple processes
+                        while file_exists(hit_to_file[query_name]+'_open'):
+                            sleep(0.05)
+                        #in the first iteration, the file doesnt exist, so we cant move it yet
+                        if file_exists(hit_to_file[query_name]):
+                            move_file(hit_to_file[query_name], hit_to_file[query_name]+ '_open')
+                        opened_file= open(hit_to_file[query_name]+'_open','a+')
+                        opened_file.write(original_line)
+                        opened_file.close()
+                        move_file(hit_to_file[query_name]+'_open',hit_to_file[query_name])
+
+                original_line=file.readline()
+                line = str(original_line).strip('\n')
+
+        if self.keep_files:
+            move_file(domtblout_path,current_chunk_dir + 'raw_domtblout')
+        else:
+            os.remove(domtblout_path)
+
+    def split_hits_legacy(self,domtblout_path,worker_count):
         #split the hits into different chunk allows for memory saving during hit processing
         list_of_files=[domtblout_path+'_chunk_'+str(i) for i in range(worker_count)]
         hit_to_file={}
@@ -110,8 +147,10 @@ class MANTIS_Processor():
                         if query_name not in hit_to_file:
                             file_name = next(file_yielder)
                             hit_to_file[query_name]=file_name
+                        print(hit_to_file[query_name])
                         opened_file= open(hit_to_file[query_name],'a+')
                         opened_file.write(original_line)
+                        opened_file.close()
 
                 original_line=file.readline()
                 line = str(original_line).strip('\n')
@@ -129,7 +168,7 @@ class MANTIS_Processor():
                 line=file.readline()
 
     def remove_temp_fasta_length(self,chunk_dir):
-        if self.file_exists(chunk_dir+'missing_annotation.length'):
+        if file_exists(chunk_dir+'missing_annotation.length'):
             os.remove(chunk_dir+'missing_annotation.length')
 
 
@@ -520,6 +559,7 @@ class MANTIS_Processor():
                                     ]
                             line = '\t'.join(line)
                             output_file.write(line + '\n')
+
 
     def merge_target_output(self,output_file,output_folder,chunks_path,stdout_file,same_output=True):
         header=False

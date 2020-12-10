@@ -350,7 +350,6 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
         self.prepare_queue_split_hits(worker_count)
         self.processes_handler(self.worker_split_hits, worker_count)
 
-
         self.prepare_queue_process_output()
         self.processes_handler(self.worker_process_output, worker_count)
 
@@ -361,6 +360,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
 
         for chunk_name,chunk_path,current_chunk_dir,organism_lineage,count_seqs_chunk,count_seqs_original_file,output_path in self.chunks_to_annotate:
             self.remove_temp_fasta_length(current_chunk_dir)
+
 
 
     def prepare_queue_merge_domtblout(self):
@@ -405,7 +405,7 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
             record = queue.pop(0)
             if record is None: break
             domtblout_path,current_chunk_dir,worker_count,stdout_path = record
-            self.split_hits(domtblout_path,worker_count)
+            self.split_hits(domtblout_path,current_chunk_dir,worker_count)
 
 
 
@@ -430,6 +430,9 @@ class MANTIS_MP(MANTIS_Assembler,MANTIS_Processor,MANTIS_Interpreter,MANTIS_Cons
             domtblout_path,current_chunk_dir,count_seqs_chunk,count_seqs_original_file,stdout_path = record
             processed_hits= self.process_domtblout(output_path=domtblout_path,count_seqs_chunk=count_seqs_chunk,count_seqs_original_file=count_seqs_original_file,stdout_path=stdout_path)
             self.save_processed_hits(processed_hits,add_slash(add_slash(current_chunk_dir)+'processed_output'),domtblout=get_path_level(domtblout_path))
+            if not self.keep_files:
+                os.remove(domtblout_path)
+
 
     def prepare_queue_merge_output(self):
         for chunk_name,chunk_path,current_chunk_dir,organism_lineage,count_seqs_chunk,count_seqs_original_file,output_path in self.chunks_to_annotate:
