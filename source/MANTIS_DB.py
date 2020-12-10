@@ -566,11 +566,15 @@ class MANTIS_DB(MANTIS_NLP):
                 if os.path.exists(current_nogt_folder):
                     shutil.rmtree(current_nogt_folder)
         #moving the files to their respective folders
-        move_file(NOGG_sql_path+'NOGG_sql_annotations.tsv',self.mantis_paths['NOGG']+'NOGG_sql_annotations.tsv')
-        for tax_folder in os.listdir(NOGT_sql_path):
-            if os.path.isdir(NOGT_sql_path+tax_folder):
-                for f in os.listdir(add_slash(NOGT_sql_path+tax_folder)):
-                    move_file(add_slash(NOGT_sql_path+tax_folder)+f,add_slash(self.mantis_paths['NOGT']+tax_folder)+f)
+        if self.mantis_paths['NOGG']!='NA':
+            Path(add_slash(self.mantis_paths['NOGG'])).mkdir(parents=True, exist_ok=True)
+            move_file(NOGG_sql_path+'NOGG_sql_annotations.tsv',self.mantis_paths['NOGG']+'NOGG_sql_annotations.tsv')
+        if self.mantis_paths['NOGT']!='NA':
+            for tax_folder in os.listdir(NOGT_sql_path):
+                if os.path.isdir(NOGT_sql_path+tax_folder):
+                    for f in os.listdir(add_slash(NOGT_sql_path+tax_folder)):
+                        Path(add_slash(self.mantis_paths['NOGT']+tax_folder)).mkdir(parents=True, exist_ok=True)
+                        move_file(add_slash(NOGT_sql_path+tax_folder)+f,add_slash(self.mantis_paths['NOGT']+tax_folder)+f)
         #removing empty folders
         if os.path.exists(NOGG_sql_path):
             shutil.rmtree(NOGG_sql_path)
