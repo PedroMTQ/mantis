@@ -19,7 +19,7 @@ class MANTIS_DB(MANTIS_NLP):
             compile_cython()
         self.output_folder= mantis_folder+'setup_databases/'
         self.mantis_out=self.output_folder + 'Mantis.out'
-        if self.file_exists(self.mantis_out):
+        if file_exists(self.mantis_out):
             os.remove(self.mantis_out)
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
@@ -99,7 +99,7 @@ class MANTIS_DB(MANTIS_NLP):
             target_sql_file = self.mantis_paths['NOGG'] + 'NOGG_sql_annotations.tsv'
             target_annotation_file = self.mantis_paths['NOGG'] + 'NOG.annotations.tsv'
             taxon_id=None
-            if self.file_exists(target_sql_file):
+            if file_exists(target_sql_file):
                 if len(self.get_hmms_annotation_file(target_sql_file, hmm_col=0)) != len(self.get_hmms_annotation_file(target_annotation_file, hmm_col=1)):
                     self.queue.append([target_sql_file,target_annotation_file,taxon_id, self.mantis_out])
                 else:
@@ -112,7 +112,7 @@ class MANTIS_DB(MANTIS_NLP):
                 if os.path.isdir(self.mantis_paths['NOGT']+taxon_id):
                     target_annotation_file = self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id + '_annotations.tsv'
                     target_sql_file = self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id + '_sql_annotations.tsv'
-                    if self.file_exists(target_sql_file):
+                    if file_exists(target_sql_file):
                         if len(self.get_hmms_annotation_file(target_sql_file, hmm_col=0)) != len(self.get_hmms_annotation_file(target_annotation_file, hmm_col=1)):
                             self.queue.append([target_sql_file, target_annotation_file, taxon_id,self.mantis_out])
                         else:
@@ -177,13 +177,13 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_tax_lineage_dmp(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['ncbi']).mkdir(parents=True, exist_ok=True)
-        if self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp',force_download):
+        if file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp',force_download):
             print('NCBI taxonomic lineage file already exists! Skipping...',flush=True,file=stdout_file)
             return
         try: os.remove(self.mantis_paths['ncbi'] + 'taxidlineage.dmp')
         except: pass
         url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
-        if not self.file_exists(self.mantis_paths['ncbi']+'readme.md'):
+        if not file_exists(self.mantis_paths['ncbi']+'readme.md'):
             with open(self.mantis_paths['ncbi']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This file was downloaded on '+datetime_str+' from:')
@@ -200,13 +200,13 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_go_obo(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['go_obo_nlp']).mkdir(parents=True, exist_ok=True)
-        if self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo',force_download):
+        if file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo',force_download):
             print('Gene ontology obo file already exists! Skipping...',flush=True,file=stdout_file)
             return
         try: os.remove(self.mantis_paths['go_obo_nlp'] + 'go.obo')
         except: pass
         url = 'http://purl.obolibrary.org/obo/go.obo'
-        if not self.file_exists(self.mantis_paths['go_obo_nlp']+'readme.md'):
+        if not file_exists(self.mantis_paths['go_obo_nlp']+'readme.md'):
             with open(self.mantis_paths['go_obo_nlp']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This file was downloaded on '+datetime_str+' from:')
@@ -232,39 +232,149 @@ class MANTIS_DB(MANTIS_NLP):
                 if '.gz' in file:
                     uncompress_archive(source_filepath=self.mantis_paths['uniprot_nlp'] + file, stdout_file=stdout_file, remove_source=False)
 
+    def read_pfam2go(self):
+        res = {}
+        with open(self.mantis_paths['pfam'] + 'pfam2go') as pfam2go_file:
+            line = pfam2go_file.readline()
+            while line:
+                line = line.strip('\n')
+                if '!' not in line[0]:
+                    line = line.split('>')
+                    line = [i.strip() for i in line]
+                    pfam_id = line[0].split()[0].replace('Pfam:', '')
+                    go_annots = line[1].split(';')
+                    go_description = [i.replace('GO:', '').strip() for i in go_annots if not re.search('GO:\d{3,}', i)]
+                    go_ids = [i.replace('GO:', '').strip() for i in go_annots if re.search('GO:\d{3,}', i)]
+                    res[pfam_id] = {'go': set(go_ids), 'description': set(go_description)}
+                line = pfam2go_file.readline()
+        return res
+
+    def is_good_description(self,hmm, row_description):
+        temp = [i.lower() for i in row_description.split()]
+        if hmm.lower() in temp and 'protein' in temp and len(temp) == 2:
+            return False
+        if re.search(' [uU]nknown [Ff]unction', row_description): return False
+        return True
+
+    def get_common_links_pfam(self,string, res):
+        ec = find_ecs(string)
+        if ec:
+            if 'enzyme_ec' not in res: res['enzyme_ec'] = set()
+            res['enzyme_ec'].update(ec)
+        tc = find_tcdb(string)
+        if tc:
+            if 'tcdb' not in res: res['tcdb'] = set()
+            res['tcdb'].update(tc)
+        ko = find_ko(string)
+        if ko:
+            if 'kegg_ko' not in res: res['kegg_ko'] = set()
+            res['kegg_ko'].update(ko)
+        pfam = find_pfam(string)
+        if pfam:
+            if 'pfam' not in res: res['pfam'] = set()
+            res['pfam'].update(pfam)
+        cog = find_cog(string)
+        if cog:
+            if 'cog' not in res: res['cog'] = set()
+            res['cog'].update(cog)
+        go = find_go(string)
+        if go:
+            if 'go' not in res: res['go'] = set()
+            res['go'].update(go)
+
+    def build_pfam_line(self,hmm, metadata):
+        link_line = ''
+        pfam_ids=set(metadata['pfam'])
+        metadata['pfam']=set()
+        for p_id in pfam_ids:
+            metadata['pfam'].add(p_id.split('.')[0])
+        for link_type in metadata:
+            # print('link',link,flush=True)
+            for inner_link in metadata[link_type]:
+                link_line += '\t' + link_type + ':' + inner_link
+        return hmm + '\t|\t' + link_line + '\n'
+
+    def compile_pfam_metadata(self):
+        pfam2go = self.read_pfam2go()
+        with open(self.mantis_paths['pfam']+'pfam_metadata.tsv','w+') as pfam_metadata_file:
+            with open(self.mantis_paths['pfam']+'Pfam-A.hmm.dat') as pfam_dat_file:
+                stop = False
+                line = pfam_dat_file.readline()
+                while line:
+                    line = line.strip('\n').split('   ')
+                    if len(line) == 2:
+                        row_header, row_description = line
+                        if row_header == '#=GF ID':
+                            stop = True
+                            hmm = str(row_description)
+                        elif row_header == '#=GF AC':
+                            pfam_accession = str(row_description)
+                        elif row_header == '#=GF DE' and stop:
+                            if hmm in pfam2go:
+                                current_metadata = pfam2go[hmm]
+                            else:
+                                current_metadata = {'description': set()}
+                            current_metadata['pfam'] = set()
+                            current_metadata['pfam'].add(pfam_accession)
+                            if self.is_good_description(hmm, row_description):
+                                current_metadata['description'].add(row_description)
+                            self.get_common_links_pfam(row_description, current_metadata)
+                            stop = False
+                            metadata_line = self.build_pfam_line(hmm, current_metadata)
+                            pfam_metadata_file.write(metadata_line)
+                    line = pfam_dat_file.readline()
+
+
+
+
 
 
     def download_and_unzip_pfam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['pfam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm',force_download) and\
-            self.file_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat', force_download):
+            file_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat', force_download) and \
+            file_exists(self.mantis_paths['pfam'] + 'pfam_metadata.tsv', force_download) and \
+            file_exists(self.mantis_paths['pfam'] + 'pfam2go', force_download):
             print('Pfam hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         pfam_hmm = 'ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz'
         pfam_metadata = 'ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz'
-        if not self.file_exists(self.mantis_paths['pfam']+'readme.md'):
+        pfam2go='http://current.geneontology.org/ontology/external2go/pfam2go'
+        if not file_exists(self.mantis_paths['pfam']+'readme.md'):
             with open(self.mantis_paths['pfam']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')
                 file.write(pfam_hmm)
                 file.write('\nMetadata was downloaded from:\n'+pfam_metadata)
+                file.write('\nPfam2GO was downloaded from:\n'+pfam2go)
         print_cyan('Downloading and unzipping Pfam hmms ',flush=True,file=stdout_file)
-        for url in [pfam_hmm,pfam_metadata]:
+        to_download=[]
+        to_unzip=[]
+        if not file_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat', force_download):
+            to_download.append(pfam_hmm)
+            to_unzip.append('Pfam-A.hmm.gz')
+        if not file_exists(self.mantis_paths['pfam'] + 'pfam_metadata.tsv', force_download):
+            to_unzip.append('Pfam-A.hmm.dat.gz')
+            to_download.append(pfam_metadata)
+        if not file_exists(self.mantis_paths['pfam'] + 'pfam2go', force_download): to_download.append(pfam2go)
+        for url in to_download:
             download_file(url,output_folder=self.mantis_paths['pfam'],stdout_file=stdout_file)
-        for file_to_unzip in ['Pfam-A.hmm.gz','Pfam-A.hmm.dat.gz']:
+        for file_to_unzip in to_unzip:
             uncompress_archive(source_filepath=self.mantis_paths['pfam'] + file_to_unzip,stdout_file=stdout_file,remove_source=True)
-        run_command( 'hmmpress ' + self.mantis_paths['pfam'] + 'Pfam-A.hmm',stdout_file=stdout_file)
+        if not self.check_reference_exists('pfam'):
+            run_command( 'hmmpress ' + self.mantis_paths['pfam'] + 'Pfam-A.hmm',stdout_file=stdout_file)
+        self.compile_pfam_metadata()
 
     def download_and_unzip_kofam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['kofam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('kofam',force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko_list', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko2cog.xl', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko2go.xl', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko2tc.xl', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko2cazy.xl', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'ko_to_path', force_download) and\
-            self.file_exists(self.mantis_paths['kofam'] + 'map_description', force_download):
+            file_exists(self.mantis_paths['kofam'] + 'ko_list', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'ko2cog.xl', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'ko2go.xl', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'ko2tc.xl', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'ko2cazy.xl', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'ko_to_path', force_download) and\
+            file_exists(self.mantis_paths['kofam'] + 'map_description', force_download):
             print('KOfam hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         kofam_hmm = 'ftp://ftp.genome.jp/pub/db/kofam/profiles.tar.gz'
@@ -275,7 +385,7 @@ class MANTIS_DB(MANTIS_NLP):
         ko_to_cazy = 'https://www.kegg.jp/kegg/files/ko2cazy.xl'
         ko_to_path = 'http://rest.kegg.jp/link/pathway/ko'
         map_description = 'https://www.genome.jp/kegg/pathway.html'
-        if not self.file_exists(self.mantis_paths['kofam']+'readme.md'):
+        if not file_exists(self.mantis_paths['kofam']+'readme.md'):
             with open(self.mantis_paths['kofam']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')
@@ -294,12 +404,12 @@ class MANTIS_DB(MANTIS_NLP):
     def download_and_unzip_dbcan_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['dbcan']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('dbcan',force_download) and\
-            self.file_exists(self.mantis_paths['dbcan'] + 'CAZyDB.07312019.fam.subfam.ec.txt', force_download):
+            file_exists(self.mantis_paths['dbcan'] + 'CAZyDB.07312019.fam.subfam.ec.txt', force_download):
             print('dbCAN hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         dbcan_hmm = 'http://bcb.unl.edu/dbCAN2/download/Databases/dbCAN-HMMdb-V8.txt'
         dbcan_metadata = 'http://bcb.unl.edu/dbCAN2/download/Databases/CAZyDB.07312019.fam.subfam.ec.txt'
-        if not self.file_exists(self.mantis_paths['dbcan']+'readme.md'):
+        if not file_exists(self.mantis_paths['dbcan']+'readme.md'):
             with open(self.mantis_paths['dbcan']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')
@@ -314,11 +424,11 @@ class MANTIS_DB(MANTIS_NLP):
     def download_and_unzip_tigrfam_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['tigrfam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('tigrfam',force_download) and\
-            self.file_exists(self.mantis_paths['tigrfam'] + 'gpl.html', force_download) and\
-            self.file_exists(self.mantis_paths['tigrfam'] + 'COPYRIGHT', force_download) and\
-            self.file_exists(self.mantis_paths['tigrfam'] + 'TIGRFAMS_GO_LINK', force_download) and\
-            self.file_exists(self.mantis_paths['tigrfam'] + 'TIGRFAMS_ROLE_LINK', force_download) and\
-            self.file_exists(self.mantis_paths['tigrfam'] + 'TIGR_ROLE_NAMES', force_download):
+            file_exists(self.mantis_paths['tigrfam'] + 'gpl.html', force_download) and\
+            file_exists(self.mantis_paths['tigrfam'] + 'COPYRIGHT', force_download) and\
+            file_exists(self.mantis_paths['tigrfam'] + 'TIGRFAMS_GO_LINK', force_download) and\
+            file_exists(self.mantis_paths['tigrfam'] + 'TIGRFAMS_ROLE_LINK', force_download) and\
+            file_exists(self.mantis_paths['tigrfam'] + 'TIGR_ROLE_NAMES', force_download):
             print('TIGRfam hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         tigrfam_hmm = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMs_15.0_HMM.tar.gz'
@@ -327,7 +437,7 @@ class MANTIS_DB(MANTIS_NLP):
         tigrfam_role_names = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGR_ROLE_NAMES'
         copyright='ftp://ftp.jcvi.org/pub/data/TIGRFAMs/COPYRIGHT'
         license='http://www.gnu.org/licenses/gpl.html'
-        if not self.file_exists(self.mantis_paths['tigrfam']+'readme.md'):
+        if not file_exists(self.mantis_paths['tigrfam']+'readme.md'):
             with open(self.mantis_paths['tigrfam']+'readme.md','w+') as  file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')
@@ -349,14 +459,14 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_resfams_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['resfams']).mkdir(parents=True, exist_ok=True)
-        if not self.file_exists(self.mantis_paths['resfams'] + '180102_resfams_metadata_updated_v122.tsv', force_download):
+        if not file_exists(self.mantis_paths['resfams'] + '180102_resfams_metadata_updated_v122.tsv', force_download):
             print('Resfams metadata tsv missing, it should be in the github repo!',flush=True,file=stdout_file)
             raise RequirementsNotMet('180102_resfams_metadata_updated_v122.tsv')
         if self.check_reference_exists('resfams',force_download):
             print('Resfams hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         resfams_hmm = 'http://dantaslab.wustl.edu/resfams/Resfams-full.hmm.gz'
-        if not self.file_exists(self.mantis_paths['resfams']+'readme.md'):
+        if not file_exists(self.mantis_paths['resfams']+'readme.md'):
             with open(self.mantis_paths['resfams']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')
@@ -372,7 +482,7 @@ class MANTIS_DB(MANTIS_NLP):
         target_annotation_file = self.mantis_paths['NOGG'] + 'NOG.annotations.tsv'
         target_merged_hmm = self.mantis_paths['NOGG'] + 'NOGG_merged.hmm'
         # this will download all organisms nog hmms (not specific to taxa)
-        if self.check_reference_exists('NOGG',force_download) and self.file_exists(target_annotation_file,force_download):
+        if self.check_reference_exists('NOGG',force_download) and file_exists(target_annotation_file,force_download):
             profile_count = get_hmm_profile_count(target_merged_hmm)
             annotations_count = len(self.get_hmms_annotation_file(target_annotation_file, 1))
             # should be the same but some HMMs dont have an annotation (probably an error from NOG)
@@ -381,7 +491,7 @@ class MANTIS_DB(MANTIS_NLP):
                 return
         eggnog_downloads_page_hmm = 'http://eggnogdb.embl.de/download/eggnog_4.5/data/NOG/NOG.hmm.tar.gz'
         eggnog_downloads_page_annot = 'http://eggnogdb.embl.de/download/eggnog_4.5/data/NOG/NOG.annotations.tsv.gz'
-        if not self.file_exists(self.mantis_paths['NOGG']+'readme.md'):
+        if not file_exists(self.mantis_paths['NOGG']+'readme.md'):
             with open(self.mantis_paths['NOGG'] + 'readme.md', 'w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmms weas downloaded on ' + datetime_str + ' from:')
@@ -417,7 +527,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_and_unzip_NOGSQL(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
-        if self.file_exists(self.mantis_paths['default'] + 'eggnog.db',force_download):
+        if file_exists(self.mantis_paths['default'] + 'eggnog.db',force_download):
             print('eggnog.db already exists! Skipping...',flush=True,file=stdout_file)
             return
         url = 'http://eggnogdb.embl.de/download/emapperdb-5.0.0/eggnog.db.gz'
@@ -425,20 +535,47 @@ class MANTIS_DB(MANTIS_NLP):
         uncompress_archive(source_filepath=self.mantis_paths['default'] + 'eggnog.db.gz',stdout_file=stdout_file,remove_source=True)
 
     def unpack_NOG_sql(self,stdout_file=None):
+        '''
+        splitting into different folders for github pushing (without lfs restrictions)
+        x=("NOGT1" "NOGT2" "NOGT3" "NOGT4" "NOGT5")
+        c=0
+        for f in *
+        do
+            mv "$f" "${x[c]}"
+            c=$(( (c+1)%5 ))
+        done
+
+        split into 6 subfolders(5 NOGT + NOGG) which should be compressed with:
+        export GZIP=-9
+        then in the NOGT folder do:
+        for i in *; do tar cvzf $i.tar.gz $i; done
+        '''
         resources_path=self.mantis_paths['resources']
-        NOG_sql_path=resources_path+'NOG_sql.tar.gz'
-        uncompress_archive(source_filepath=NOG_sql_path,extract_path=resources_path,stdout_file=stdout_file,remove_source=False)
-        NOGG_sql_path=add_slash(add_slash(resources_path+'NOG_sql')+'NOGG')
+        NOG_sql_folder=add_slash(resources_path+'NOG_sql')
+        for compressed_sql in os.listdir(NOG_sql_folder):
+            if '.tar.gz' in compressed_sql:
+                uncompress_archive(source_filepath=NOG_sql_folder+compressed_sql, extract_path=NOG_sql_folder, stdout_file=stdout_file,remove_source=False)
         NOGT_sql_path=add_slash(add_slash(resources_path+'NOG_sql')+'NOGT')
+        NOGG_sql_path=add_slash(add_slash(resources_path+'NOG_sql')+'NOGG')
+        Path(NOGT_sql_path).mkdir(parents=True, exist_ok=True)
+        for sql_folder in os.listdir(NOG_sql_folder):
+            if re.search('NOGT\d',sql_folder) and 'tar.gz' not in sql_folder:
+                current_nogt_folder=add_slash(add_slash(NOG_sql_folder)+sql_folder)
+                for inner_dir in os.listdir(current_nogt_folder):
+                    move_file(current_nogt_folder + inner_dir, NOGT_sql_path)
+                if os.path.exists(current_nogt_folder):
+                    shutil.rmtree(current_nogt_folder)
         #moving the files to their respective folders
-        for f in os.listdir(NOGG_sql_path):
-            move_file(NOGG_sql_path+f,self.mantis_paths['NOGG']+f)
+        move_file(NOGG_sql_path+'NOGG_sql_annotations.tsv',self.mantis_paths['NOGG']+'NOGG_sql_annotations.tsv')
         for tax_folder in os.listdir(NOGT_sql_path):
-            for f in os.listdir(add_slash(NOGT_sql_path+tax_folder)):
-                move_file(add_slash(NOGT_sql_path+tax_folder)+f,add_slash(self.mantis_paths['NOGT']+tax_folder)+f)
+            if os.path.isdir(NOGT_sql_path+tax_folder):
+                for f in os.listdir(add_slash(NOGT_sql_path+tax_folder)):
+                    move_file(add_slash(NOGT_sql_path+tax_folder)+f,add_slash(self.mantis_paths['NOGT']+tax_folder)+f)
         #removing empty folders
-        if os.path.exists(resources_path+'NOG_sql'):
-            shutil.rmtree(resources_path+'NOG_sql')
+        if os.path.exists(NOGG_sql_path):
+            shutil.rmtree(NOGG_sql_path)
+        if os.path.exists(NOGT_sql_path):
+            shutil.rmtree(NOGT_sql_path)
 
     ### Support functions for setting up queue to download NOGT hmms
 
@@ -459,7 +596,7 @@ class MANTIS_DB(MANTIS_NLP):
         Path(self.mantis_paths['NOGT']).mkdir(parents=True, exist_ok=True)
         # we will download tax specific hmms, which can be used for more specific hmmscans
         eggnog_downloads_page = 'http://eggnog5.embl.de/download/latest/per_tax_level/'
-        if not self.file_exists(self.mantis_paths['NOGT']+'readme.md'):
+        if not file_exists(self.mantis_paths['NOGT']+'readme.md'):
             with open(self.mantis_paths['NOGT']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('These hmms were downloaded on '+datetime_str+' from:')
@@ -469,7 +606,7 @@ class MANTIS_DB(MANTIS_NLP):
         for taxon_id in taxon_ids:
             if taxon_id!='1':
                 target_annotation_file = self.mantis_paths['NOGT'] + taxon_id + splitter + taxon_id + '_annotations.tsv'
-                if self.check_reference_exists('NOGT',taxon_id,force_download) and self.file_exists(target_annotation_file,force_download):
+                if self.check_reference_exists('NOGT',taxon_id,force_download) and file_exists(target_annotation_file,force_download):
                     hmm_path = get_hmm_in_folder(self.mantis_paths['NOGT'] + taxon_id + splitter)
                     profile_count=get_hmm_profile_count(hmm_path)
                     annotations_count=len(self.get_hmms_annotation_file(target_annotation_file, 1))
@@ -556,7 +693,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def get_hmms_annotation_file(self,annotations_file,hmm_col):
         res=set()
-        if not self.file_exists(annotations_file): return  res
+        if not file_exists(annotations_file): return  res
         with open(annotations_file, 'r') as file:
             line = file.readline()
             while line:
@@ -805,14 +942,14 @@ class MANTIS_DB(MANTIS_NLP):
     def download_and_unzip_hamap_hmm(self,force_download=False,stdout_file=None):
         Path(self.mantis_paths['hamap']).mkdir(parents=True, exist_ok=True)
         target_merged_hmm=self.mantis_paths['hamap']+'hamap.hmm'
-        if not self.file_exists(self.mantis_paths['hamap'] + 'hamap.tsv', force_download):
+        if not file_exists(self.mantis_paths['hamap'] + 'hamap.tsv', force_download):
             print('HAMAP metadata tsv missing!',flush=True,file=stdout_file)
             self.compile_metadata_hamap(stdout_file=stdout_file)
         if self.check_reference_exists('hamap',force_download):
             print('HAMAP hmm already exists! Skipping...',flush=True,file=stdout_file)
             return
         hamap_alignments='ftp://ftp.expasy.org/databases/hamap/hamap_alignments.tar.gz'
-        if not self.file_exists(self.mantis_paths['hamap']+'readme.md'):
+        if not file_exists(self.mantis_paths['hamap']+'readme.md'):
             with open(self.mantis_paths['hamap']+'readme.md','w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write('This hmm was downloaded on '+datetime_str+' from:')

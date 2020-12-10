@@ -310,10 +310,7 @@ class MANTIS_Assembler(MANTIS_DB):
         run_command('for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',stdout_file=self.redirect_verbose)
         run_command('hmmpress '+target_folder + output_file + '_merged.hmm',stdout_file=self.redirect_verbose)
 
-    def file_exists(self,target_file,force_download=False):
-        if os.path.exists(target_file) and not force_download:
-            return True
-        return False
+
 
     def get_path_default_hmm(self,database,taxon_id=None):
         target_file=None
@@ -339,21 +336,21 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def check_reference_exists(self,database,taxon_id=None,force_download=False):
         if database=='go_obo_nlp':
-            if self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo', force_download):
+            if file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo', force_download):
                 return True
         elif database=='uniprot_nlp':
             if os.listdir(self.mantis_paths['uniprot_nlp']):
                 return True
         elif database=='ncbi':
-            if self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp', force_download):
+            if file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp', force_download):
                 return True
         elif database=='NOGSQL':
-            if self.file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
+            if file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
                 return True
         target_file=self.get_path_default_hmm(database,taxon_id)
         if target_file:
             for extension in ['','.h3f','.h3i','.h3m','.h3p']:
-                if not self.file_exists(target_file+extension,force_download=force_download):
+                if not file_exists(target_file+extension,force_download=force_download):
                     return False
         else:
             return False
@@ -363,7 +360,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def check_installation_extras(self,res,verbose=True):
         if verbose: yellow('Checking extra files',flush=True,file=self.redirect_verbose)
-        if not self.file_exists(self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'):
+        if not file_exists(self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'):
             red('Essential genes list is missing, it should be in the github repo!')
             if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt', flush=True,file=self.redirect_verbose)
             res.append(self.mantis_paths['resources'] + 'essential_genes/')
@@ -371,7 +368,7 @@ class MANTIS_Assembler(MANTIS_DB):
             if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes', flush=True,file=self.redirect_verbose)
 
 
-        if not self.file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp'):
+        if not file_exists(self.mantis_paths['ncbi'] + 'taxidlineage.dmp'):
             if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['ncbi']+'taxidlineage.dmp', flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['ncbi'])
         else:
@@ -387,7 +384,7 @@ class MANTIS_Assembler(MANTIS_DB):
             else:
                 if verbose: green('Passed installation check on: ' + self.mantis_paths['uniprot_nlp'], flush=True, file=self.redirect_verbose)
 
-        if not self.file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo'):
+        if not file_exists(self.mantis_paths['go_obo_nlp'] + 'go.obo'):
             if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths['go_obo_nlp']+'go.obo', flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['go_obo_nlp'])
         else:
@@ -449,7 +446,7 @@ class MANTIS_Assembler(MANTIS_DB):
         if verbose: yellow('Checking HMM installation',flush=True,file=self.redirect_verbose)
         requirements={
             self.mantis_paths['NOGG']:['NOGG_sql_annotations.tsv'],
-            self.mantis_paths['pfam']:['Pfam-A.hmm.dat'],
+            self.mantis_paths['pfam']:['pfam_metadata.tsv'],
             self.mantis_paths['kofam']:['ko_list','ko2cog.xl','ko2go.xl','ko2tc.xl','ko2cazy.xl','ko_to_path','map_description'],
             #self.mantis_paths['dbcan']:['CAZyDB.07312019.fam.subfam.ec.txt'],
             self.mantis_paths['tigrfam']:['gpl.html','COPYRIGHT','TIGRFAMS_GO_LINK','TIGRFAMS_ROLE_LINK','TIGR_ROLE_NAMES'],
@@ -584,3 +581,4 @@ class MANTIS_Assembler(MANTIS_DB):
 
 if __name__ == '__main__':
     p=MANTIS_Assembler()
+    p.unpack_NOG_sql()

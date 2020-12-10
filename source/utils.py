@@ -518,10 +518,12 @@ def download_file(url,output_folder='',stdout_file=None,retry_limit=10):
 
 def concat_files(output_file,list_file_paths,stdout_file=None):
     print('Concatenating files into ',output_file,flush=True,file=stdout_file)
-    with open(output_file,'wb') as wfd:
-        for f in list_file_paths:
+    for f in list_file_paths:
+        with open(output_file, 'wb') as wfd:
             with open(f,'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
+                fd.close()
+                wfd.close()
 
 def merge_profiles(folder_path,output_file,stdout_file=None):
     print('Merging profiles in ',folder_path,flush=True,file=stdout_file)
@@ -746,6 +748,11 @@ def is_picklable(obj):
     except pickle.PicklingError:
         return False
     return True
+
+def file_exists(target_file,force_download=False):
+    if os.path.exists(target_file) and not force_download:
+        return True
+    return False
 
 if __name__ == '__main__':
     compile_cython()
