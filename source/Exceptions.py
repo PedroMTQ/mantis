@@ -21,7 +21,7 @@ class InvalidFunction(Exception):
 
 class InvalidTargetFile(Exception):
     def __str__(self):
-        return 'You did not insert a valid target file! Make sure it follows the same format as the file provided in tests/test_file.tsv'
+        return 'You did not insert a valid target file!'
 
 class InstallationCheckNotPassed(Exception):
     def __str__(self):

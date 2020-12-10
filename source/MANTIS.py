@@ -148,6 +148,7 @@ class MANTIS(MANTIS_MP):
         'User cores:\t\t\t\t'+str(self.user_cores)+'\n' if self.user_cores else '',
         'Chunk size:\t\t\t'+str(self.chunk_size)+'\n' if self.chunk_size else '',
         'Domain algorithm:\t\t'+str(self.domain_algorithm)+'\n' if self.domain_algorithm else '',
+        'Skip consensus:\t\t'+str(self.skip_consensus)+'\n' if self.skip_consensus else '',
         '------------------------------------------']
         return 'User configuration:'+'\n'+'------------------------------------------'+'\n'+''.join(output_list)
 
@@ -165,6 +166,7 @@ class MANTIS(MANTIS_MP):
         else:
             print('Your file does not appear to be a fasta. If you want to annotate multiple samples, make sure your file has the <.tsv> extension.', flush=True, file=self.redirect_verbose)
             raise InvalidTargetFile
+        if not self.fastas_to_annotate: raise InvalidTargetFile
         for file_path, output_path, organism_details, count_seqs_original_file in self.fastas_to_annotate:
             Path(output_path).mkdir(parents=True, exist_ok=True)
 
@@ -172,7 +174,8 @@ class MANTIS(MANTIS_MP):
         try:
             with open(self.target_path) as file:
                 line = file.readline()
-                line = file.readline()
+                if splitter not in line:
+                    line = file.readline()
                 while line:
                     line = line.strip('\n').split()
                     if len(line) >= 2:
