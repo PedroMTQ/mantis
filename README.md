@@ -24,7 +24,9 @@ If you have only loose reads, you need to assemble them first; when you have ass
 
 
 ### Paper
-Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources/mantis_data.7z). Paper will be published at a later date.
+Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources/mantis_data.7z).
+The pre-print is available [here](https://www.biorxiv.org/content/10.1101/2020.11.02.360933v1).
+Peer-reviewed paper will be published at a later date.
 
 
 # Workflow overview
