@@ -43,7 +43,7 @@ Paper data is available [here](https://github.com/PedroMTQ/mantis/wiki/Resources
 - **nltk**, tested with v3.4.4
 - **sqlite**, tested with v3.30.1
 - **psutil**, tested with 5.6.7
-- [HMMER](#10-references-and-acknowledgements), tested with v3.2.1
+- **HMMER**, tested with v3.2.1
 
 
 ### Quick configuration
