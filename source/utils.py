@@ -518,12 +518,13 @@ def download_file(url,output_folder='',stdout_file=None,retry_limit=10):
 
 def concat_files(output_file,list_file_paths,stdout_file=None):
     print('Concatenating files into ',output_file,flush=True,file=stdout_file)
-    for f in list_file_paths:
-        with open(output_file, 'wb') as wfd:
+    with open(output_file, 'wb') as wfd:
+        for f in list_file_paths:
             with open(f,'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
-                fd.close()
-                wfd.close()
+                #forcing disk write
+                wfd.flush()
+                os.fsync(wfd)
 
 def merge_profiles(folder_path,output_file,stdout_file=None):
     print('Merging profiles in ',folder_path,flush=True,file=stdout_file)
