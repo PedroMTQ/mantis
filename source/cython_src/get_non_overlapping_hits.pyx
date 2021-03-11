@@ -25,10 +25,23 @@ def is_overlap(set temp_queries, tuple current_query):
     #'env_coord_from'=1
     #'env_coord_to'=2
     #'hmm_name'=3
-    y = range(current_query[1], current_query[2] + 1)
+    if current_query[1]< current_query[2]+1:
+        y_start =   current_query[1]
+        y_end   =   current_query[2]+1
+    else:
+        y_start =   current_query[2]+1
+        y_end   =   current_query[1]
+    y = range(y_start,y_end)
+    ys= set(y)
     for t in temp_queries:
         if t[3]==current_query[3]: return True
-        x = range(t[1], t[2] + 1)
+        if t[1] < t[2] + 1:
+            x_start = t[1]
+            x_end = t[2] + 1
+        else:
+            x_start = t[2] + 1
+            x_end = t[1]
+        x = range(x_start, x_end)
         xs = set(x)
         res = xs.intersection(y)
         if res: return True
