@@ -155,10 +155,7 @@ class MANTIS(MANTIS_MP):
         else:                           self.hmmer_threads = 1
         #the user can force the sorting type
         if sorting_type:                self.sorting_type = sorting_type
-        else:
-        #but we recommend using bitscore for dfs, evalue for bpo or heuristic
-            if self.domain_algorithm !='dfs':   self.sorting_type='evalue'
-            else:                               self.sorting_type='evalue'
+        else:self.sorting_type='evalue'
         self.organism_details = organism_details
         #Execution parameters
         self.skip_consensus = skip_consensus
@@ -209,12 +206,6 @@ class MANTIS(MANTIS_MP):
             'HMMER threads:\t\t\t' + str(self.hmmer_threads) + '\n' if self.hmmer_threads else '',
             'Chunk size:\t\t\t' + str(self.chunk_size) + '\n' if self.chunk_size else '',
             'Algorithm:\t\t\t' + str(self.domain_algorithm) + '\n' if self.domain_algorithm else '',
-            'Formula:\t\t\t' + str(self.best_combo_formula) + '\n' if self.best_combo_formula else '',
-            'Sorting type:\t\t\t' + str(self.sorting_type) + '\n' if self.sorting_type else '',
-            'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
-            'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
-            'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
-            'Skip text similarity analysis:\t' + str(self.no_unifunc) + '\n' if self.no_unifunc else '',
             'Generate KEGG modules matrix:\t' + str(self.kegg_matrix) + '\n' if self.kegg_matrix else '',
             '------------------------------------------']
         return 'User configuration:' + '\n' + '------------------------------------------' + '\n' + ''.join(output_list)
