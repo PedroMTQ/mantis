@@ -20,9 +20,6 @@ If you have only loose reads, you need to assemble them first; when you have ass
 - [Functions](#functions)
 - [Further details](#further-details)
 
-### Paper data
-[[Resources/mantis_data.7z]]
-
 # Workflow overview
 
 ![overview_small](./Images/overview_small.png)
@@ -42,7 +39,7 @@ If you have only loose reads, you need to assemble them first; when you have ass
 
 
 ### Quick configuration
-1. `git clone ssh://git@git-r3lab-server.uni.lu:8022/pedro.queiros/mantis.git`  
+1. `git clone git@github.com:PedroMTQ/mantis.git`  
 2. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
 3. Run `conda activate mantis_env`
 4. Go up one folder and run `python mantis setup_databases`
@@ -137,3 +134,4 @@ This project is available under the [MIT license](https://github.com/PedroMTQ/ma
 >4. Haft DH, Loftus BJ, Richardson DL, et al. TIGRFAMs: a protein family resource for the functional identification of proteins. Nucleic Acids Res. 2001;29(1):41–43. https://doi.org/10.1093/nar/29.1.41
 >5. Aramaki T., Blanc-Mathieu R., Endo H., Ohkubo K., Kanehisa M., Goto S., Ogata H. KofamKOALA: KEGG ortholog assignment based on profile HMM and adaptive score threshold. Bioinformatics. 2019 Nov 19. pii: btz859. https://doi.org/10.1093/bioinformatics/btz859.
 > 6. Lu S, Wang J, Chitsaz F, Derbyshire MK, Geer RC, Gonzales NR, Gwadz M, Hurwitz DI, Marchler GH, Song JS, Thanki N, Yamashita RA, Yang M, Zhang D, Zheng C, Lanczycki CJ, Marchler-Bauer A. CDD/SPARCLE: the conserved domain database in 2020. Nucleic Acids Res. 2020 Jan 8;48(D1):D265-D268. doi: 10.1093/nar/gkz991. PMID: 31777944; PMCID: PMC6943070.
+
