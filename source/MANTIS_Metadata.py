@@ -370,7 +370,7 @@ class MANTIS_Metadata():
             sorted_keys.append('kegg_map_lineage')
         if 'description' in sorted_keys:
             sorted_keys.remove('description')
-            self.remove_ids_text(sorted_keys, temp_link, target_removal='description')
+            #self.remove_ids_text(sorted_keys, temp_link, target_removal='description')
             sorted_keys.append('description')
         for link_key in sorted_keys:
             if isinstance(temp_link[link_key], str): temp_link[link_key] = [temp_link[link_key]]

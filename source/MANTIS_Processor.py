@@ -538,7 +538,7 @@ class MANTIS_Processor():
                             # we will use envelop coords as per HMMER's manual recommendation
                             env_coord_from = int(line[19])
                             env_coord_to = int(line[20])
-                            # correcting coordinates for 5'-3' and 3'-5', hmmer's coordinates on the seq are always the same, regardless of direction
+                            #hmmer's coordinates on the seq are always the same, regardless of direction. might remove this later
                             direction='Forward'
                             if env_coord_from<env_coord_to:
                                 corrected_env_coord_from=env_coord_from
