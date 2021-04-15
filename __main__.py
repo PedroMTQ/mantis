@@ -127,14 +127,14 @@ if __name__ == '__main__':
             if os.path.exists(target_path):
                 if not output_folder:
                     datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
-                    output_folder = add_slash(os.getcwd()) + get_path_level(target_path,
-                                                                            remove_extension=True) + '_' + datetime_str
-                    print('No output folder provided! Saving data to: ' + output_folder)
+                    output_folder = add_slash(os.getcwd()) + get_path_level(target_path,remove_extension=True) + '_' + datetime_str
+                    print(f'No output folder provided! Saving data to: {output_folder}')
                 if os.path.exists(output_folder):
-                    datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
-                    hex_random= '_hex_'+uuid.uuid4().hex[:10]
-                    output_folder += '_' + datetime_str+hex_random
-                    print('Output folder already exists! New output folder will be:', output_folder)
+                    if os.listdir(output_folder):
+                        datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
+                        hex_random= '_hex_'+uuid.uuid4().hex[:10]
+                        output_folder += '_' + datetime_str+hex_random
+                        print(f'The output folder already contains something! New output folder will be: {output_folder}')
                 output_folder = add_slash(output_folder)
 
                 run_mantis(target_path=target_path,
@@ -180,7 +180,7 @@ if __name__ == '__main__':
         output_folder = args.output_folder
         if not output_folder:
             output_folder = add_slash(os.getcwd()) + 'test_run'
-            print('No output folder provided! Saving data to: ' + output_folder)
+            print(f'No output folder provided! Saving data to: {output_folder}')
         output_folder = add_slash(output_folder)
         extract_nog_metadata(metadata_path=output_folder)
     elif args.execution_type == 'test_nlp':
@@ -189,12 +189,13 @@ if __name__ == '__main__':
         output_folder = args.output_folder
         if not output_folder:
             output_folder = add_slash(os.getcwd()) + 'test_run'
-            print('No output folder provided! Saving data to: ' + output_folder)
+            print(f'No output folder provided! Saving data to: {output_folder}')
         if os.path.exists(output_folder):
-            datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
-            hex_random = '_hex_' + uuid.uuid4().hex[:10]
-            output_folder += '_' + datetime_str+hex_random
-            print('Output folder already exists! New output folder will be:', output_folder)
+            if os.listdir(output_folder):
+                datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
+                hex_random = '_hex_' + uuid.uuid4().hex[:10]
+                output_folder += '_' + datetime_str+hex_random
+                print(f'The output folder already contains something! New output folder will be: {output_folder}')
         output_folder = add_slash(output_folder)
         run_mantis_test(target_path=add_slash(MANTIS_FOLDER + 'tests')+ 'test_sample.faa',
                         output_folder=output_folder,

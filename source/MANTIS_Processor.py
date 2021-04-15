@@ -74,7 +74,7 @@ class MANTIS_Processor():
             return False
 
     def save_temp_fasta_length(self, chunk_dir, hmm, count_seqs, db):
-        with open(chunk_dir + 'missing_annotation.' + db + '.length', 'a+') as file:
+        with open(f'{chunk_dir}missing_annotation.{db}.length', 'a+') as file:
             file.write(hmm + '\t' + str(count_seqs) + '\n')
 
     ########To merge domtblout
@@ -111,8 +111,8 @@ class MANTIS_Processor():
     def split_hits(self, domtblout_path, domtblout, chunks_domtblout, current_chunk_dir, worker_count):
         # split the hits into different chunk allows for memory saving during hit processing
         split_domtblout_path = domtblout_path.replace('split_hits', 'domtblout')
-        list_of_files = [split_domtblout_path + domtblout + '_chunk_' + str(i) for i in range(worker_count)]
-        Path(current_chunk_dir + 'domtblout').mkdir(parents=True, exist_ok=True)
+        list_of_files = [f'{split_domtblout_path}{domtblout}_chunk_{i}' for i in range(worker_count)]
+        Path(f'{current_chunk_dir}domtblout').mkdir(parents=True, exist_ok=True)
         hit_to_file = {}
         file_yielder = yield_file(list_of_files)
         for chunk_domtblout in chunks_domtblout:
@@ -135,7 +135,7 @@ class MANTIS_Processor():
 
     def get_temp_fasta_length(self, chunk_dir, domtblout, db):
         hmm = domtblout.split('_')[0]
-        with open(chunk_dir + 'missing_annotation.' + db + '.length') as file:
+        with open(f'{chunk_dir}missing_annotation.{db}.length') as file:
             line = file.readline()
             while line:
                 hmm_key, hmm_len = line.split('\t')
@@ -143,12 +143,12 @@ class MANTIS_Processor():
                 line = file.readline()
 
     def remove_temp_fasta_length(self, chunk_dir, db):
-        if file_exists(chunk_dir + 'missing_annotation.' + db + '.length'):
-            os.remove(chunk_dir + 'missing_annotation.' + db + '.length')
+        if file_exists(f'{chunk_dir}missing_annotation.{db}.length'):
+            os.remove(f'{chunk_dir}missing_annotation.{db}.length')
 
     ########Processing protein fasta
     def remove_temp_fasta(self, temp_fasta_path, db):
-        if 'missing_annotations.' + db + '.tmp' in temp_fasta_path:
+        if f'missing_annotations.{db}.tmp' in temp_fasta_path:
             os.remove(temp_fasta_path)
 
     def remove_annotated_queries(self, missing_queries, annotated_queries):
@@ -200,7 +200,7 @@ class MANTIS_Processor():
         return res
 
     def generate_temp_fasta(self, missing_queries, output_folder, db):
-        temp_path = output_folder + 'missing_annotations.' + db + '.tmp'
+        temp_path = f'{output_folder}missing_annotations.{db}.tmp'
         if os.path.exists(temp_path):
             self.remove_temp_fasta(temp_path, db)
         with open(temp_path, 'w+') as file:
@@ -336,7 +336,7 @@ class MANTIS_Processor():
         the user is not meant to choose a formula, this was written for internal quality testing
         for 1e-3 formula 1 with bitscore and dfs algorithm produced the best results
         '''
-        if self.best_combo_formula==1:
+        if self.best_combo_formula==1: #best
             combo_score = average_value
         elif self.best_combo_formula==2:    #default
             combo_score = average_value * combination_coverage * average_hit_coverage
@@ -538,7 +538,7 @@ class MANTIS_Processor():
                             # we will use envelop coords as per HMMER's manual recommendation
                             env_coord_from = int(line[19])
                             env_coord_to = int(line[20])
-                            #hmmer's coordinates on the seq are always the same, regardless of direction. might remove this later
+                            #hmmer's coordinates on the seq are always the same, regardless of direction
                             direction='Forward'
                             if env_coord_from<env_coord_to:
                                 corrected_env_coord_from=env_coord_from
@@ -575,7 +575,7 @@ class MANTIS_Processor():
                                     res[query_name]['hits'].append(hit_dict)
                                 hit_counter.add(query_name)
                     except:
-                        print('Could not read line:', line, 'in file', output_path, flush=True)
+                        print(f'Could not read line: {line} in file', output_path, flush=True)
                 line = file.readline().strip('\n')
         return res, hit_counter
 
@@ -598,7 +598,7 @@ class MANTIS_Processor():
         queries_domtblout, hit_counter = self.read_domtblout(output_path, count_seqs_chunk, count_seqs_original_file)
         hit_counter = len(hit_counter)
         # processing the hits and getting the best hit/non-overlapping hits
-        print('Found ' + str(hit_counter) + ' hits in:\n' + output_path + '\nWill now get best hits!', flush=True,file=stdout_file)
+        print(f'Found {hit_counter} hits in:\n{output_path}\nWill now get best hits!', flush=True,file=stdout_file)
         approximated_hits = []
         hmm = get_path_level(output_path, remove_extension=True)
         res_annotation = {}
@@ -620,8 +620,8 @@ class MANTIS_Processor():
             res_annotation[query][hmm] = queries_domtblout[query]
         if approximated_hits:
             approximated_hits = ' ; '.join(approximated_hits)
-            print('Some hits in the output file:\n' + output_path + ' were approximated. They were:\n' + approximated_hits,flush=True, file=stdout_file)
-        print('Finished processing hits for:\n' + output_path, flush=True, file=stdout_file)
+            print(f'Some hits in the output file:\n{output_path} were approximated. They were:\n{approximated_hits}',flush=True, file=stdout_file)
+        print(f'Finished processing hits for:\n{output_path}', flush=True, file=stdout_file)
         print('------------------------------------------', flush=True, file=stdout_file)
         if isinstance(stdout_path, str): stdout_file.close()
         return res_annotation
@@ -679,7 +679,7 @@ class MANTIS_Processor():
 
     def merge_target_output(self, output_file, output_folder, chunks_path, stdout_file, same_output=True):
         header = False
-        print('Merging chunks to ', output_folder + output_file,flush=True, file=stdout_file)
+        print(f'Merging chunks to {output_folder}{output_file}',flush=True, file=stdout_file)
         #print('Merging output', output_folder + output_file, 'from chunks:', [get_path_level(i) for i in chunks_path],flush=True, file=stdout_file)
         with open(output_folder + output_file, 'w+') as file:
             for chunk_output in chunks_path:

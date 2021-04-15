@@ -988,4 +988,5 @@ def recalculate_coordinates(env_from,env_to,overlap_value):
 
 
 if __name__ == '__main__':
-    compile_cython()
+    if not cython_compiled():
+        compile_cython()

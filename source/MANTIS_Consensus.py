@@ -139,7 +139,7 @@ class MANTIS_Consensus(MANTIS_NLP):
         except (TimeoutError, RecursionError):
             best_hits = self.get_best_hits_approximation(list(hits), sorting_class='consensus',sorting_type='evalue')
             stdout_file = open(stdout_file_path, 'a+')
-            print('Query ' + query + ' was approximated during consensus generation', flush=True, file=stdout_file)
+            print(f'Query {query} was approximated during consensus generation', flush=True, file=stdout_file)
             stdout_file.close()
         return best_hits
 
@@ -543,12 +543,3 @@ if __name__ == '__main__':
     f3 = '/home/pedroq/Desktop/test_mantis/here2.tsv'
     f4 = '/home/pedroq/Desktop/test_mantis/here2_out.tsv'
     m = MANTIS_Consensus()
-    m.domain_algorithm='dfs'
-    m.time_limit=60
-    m.overlap_value=0.3
-    m.minimum_consensus_overlap=0.7
-    m.sorting_type='bitscore'
-    m.best_combo_formula=1
-    m.mantis_hmm_weights={'else': 0.7}
-    m.generate_consensus_output(f,f2)
-    #m.generate_consensus_output(f3,f4)

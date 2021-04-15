@@ -278,8 +278,8 @@ class MANTIS_Metadata():
         self.add_tigrfam_go_link(dict_hmms)
         self.add_tigrfam_role_names(dict_hmms)
 
-    def get_essential_genes_list(self):
-        essential_genes = self.mantis_paths['default'] + 'essential_genes/essential_genes.txt'
+    def get_essential_genes_list(self) -> object:
+        essential_genes = self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'
         if os.path.exists(essential_genes):
             with open(essential_genes) as file: lines = file.readlines()
             lines = [l.strip('\n') for l in lines]
@@ -298,7 +298,7 @@ class MANTIS_Metadata():
                 taxon_id = 'NOGG'
             else:
                 taxon_id = re.search('NOGT\d+', hmm_file).group().replace('NOGT', '')
-            target_sql_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + taxon_id + '_sql_annotations.tsv'
+            target_sql_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + f'{taxon_id}_sql_annotations.tsv'
             self.get_link_compiled_metadata(dict_hmms=dict_hmms, hmm_file_path=target_sql_file)
         elif 'Pfam' in hmm_file:
             self.get_link_compiled_metadata(dict_hmms=dict_hmms,
@@ -341,14 +341,11 @@ class MANTIS_Metadata():
             for inner_l in temp_link[link_key]:
                 if target_removal == 'description':
                     for i in range(len(temp_link['description'])):
-                        temp_link['description'][i] = temp_link['description'][i].replace(inner_l, '').replace('()',
-                                                                                                               '').strip()
+                        temp_link['description'][i] = temp_link['description'][i].replace(inner_l, '').replace('()','').strip()
                 elif target_removal == 'kegg_map_lineage':
                     if 'kegg_map' == link_key and 'kegg_map_lineage' in temp_link:
                         for i in range(len(temp_link['kegg_map_lineage'])):
-                            temp_link['kegg_map_lineage'][i] = temp_link['kegg_map_lineage'][i].replace(inner_l,
-                                                                                                        '').replace(
-                                '()', '').strip()
+                            temp_link['kegg_map_lineage'][i] = temp_link['kegg_map_lineage'][i].replace(inner_l,'').replace('()', '').strip()
 
     def generate_interpreted_line(self, query, hmm_file, link, evalue, bitscore, direction, query_len, query_start, query_end,
                                   hmm_start, hmm_end, hmm_len):

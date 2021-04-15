@@ -149,13 +149,16 @@ class MANTIS(MANTIS_MP):
         else:                           self.domain_algorithm = 'dfs'
 
         if  best_combo_formula:         self.best_combo_formula = best_combo_formula
-        else:                           self.best_combo_formula = 2
+        else:                           self.best_combo_formula = 1
         if hmmer_threads:               self.hmmer_threads = hmmer_threads
         # 1 should be ideal if we are already using the maximum amount of cores with Mantis
         else:                           self.hmmer_threads = 1
         #the user can force the sorting type
         if sorting_type:                self.sorting_type = sorting_type
-        else:self.sorting_type='evalue'
+        else:
+        #but we recommend using bitscore for dfs, evalue for bpo or heuristic
+            if self.domain_algorithm !='dfs':   self.sorting_type='evalue'
+            else:                               self.sorting_type='bitscore'
         self.organism_details = organism_details
         #Execution parameters
         self.skip_consensus = skip_consensus
@@ -177,7 +180,7 @@ class MANTIS(MANTIS_MP):
                                   mantis_config=mantis_config,keep_files=keep_files)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.target_path:
-            print_cyan('This MANTIS process started running at ' + datetime_str, flush=True, file=self.redirect_verbose)
+            print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
         self.chunks_to_annotate = []
         self.chunks_to_fasta = {}
         self.fastas_to_annotate = []
@@ -185,14 +188,14 @@ class MANTIS(MANTIS_MP):
 
     def print_available_hardware(self):
         if self.user_cores:
-            print('Cores allocated:', self.user_cores)
+            print(f'Cores allocated: {self.user_cores}')
         else:
-            print('Cores allocated:', ENVIRONMENT_CORES)
+            print(f'Cores allocated: {ENVIRONMENT_CORES}')
         if self.user_memory:
-            print('Memory allocated:', self.user_memory)
+            print(f'Memory allocated: {self.user_memory}')
         else:
-            print('Memory allocated:', round(AVAILABLE_RAM, 2))
-        print('Workers per core:', WORKER_PER_CORE)
+            print(f'Memory allocated: {round(AVAILABLE_RAM, 2)}')
+        print(f'Workers per core: {WORKER_PER_CORE}')
 
     def __str__(self):
         output_list = [
@@ -206,6 +209,12 @@ class MANTIS(MANTIS_MP):
             'HMMER threads:\t\t\t' + str(self.hmmer_threads) + '\n' if self.hmmer_threads else '',
             'Chunk size:\t\t\t' + str(self.chunk_size) + '\n' if self.chunk_size else '',
             'Algorithm:\t\t\t' + str(self.domain_algorithm) + '\n' if self.domain_algorithm else '',
+            'Formula:\t\t\t' + str(self.best_combo_formula) + '\n' if self.best_combo_formula else '',
+            'Sorting type:\t\t\t' + str(self.sorting_type) + '\n' if self.sorting_type else '',
+            'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
+            'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
+            'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
+            'Skip text similarity analysis:\t' + str(self.no_unifunc) + '\n' if self.no_unifunc else '',
             'Generate KEGG modules matrix:\t' + str(self.kegg_matrix) + '\n' if self.kegg_matrix else '',
             '------------------------------------------']
         return 'User configuration:' + '\n' + '------------------------------------------' + '\n' + ''.join(output_list)
@@ -416,47 +425,37 @@ class MANTIS(MANTIS_MP):
         self.set_chunks_to_annotate()
         start_time = time()
         self.run_hmmer()
-        print('HMMER took', int(time() - start_time), 'seconds to run', flush=True, file=self.redirect_verbose)
+        print(f'HMMER took {int(time() - start_time)} seconds to run', flush=True, file=self.redirect_verbose)
         processing_start_time = time()
         start_time = time()
         self.process_output()
-        print('Output processing took', int(time() - start_time), 'seconds to run', flush=True,
+        print(f'Output processing took {int(time() - start_time)} seconds to run', flush=True,
               file=self.redirect_verbose)
         start_time = time()
 
         self.interpret_output()
-        print('Output interpretation took', int(time() - start_time), 'seconds to run', flush=True,
+        print(f'Output interpretation took {int(time() - start_time)} seconds to run', flush=True,
               file=self.redirect_verbose)
         if not self.skip_consensus:
             start_time = time()
             self.get_consensus_output()
-            print('Consensus generation took', int(time() - start_time), 'seconds to run', flush=True,file=self.redirect_verbose)
+            print(f'Consensus generation took {int(time() - start_time)} seconds to run', flush=True,file=self.redirect_verbose)
         start_time = time()
         self.merge_mantis_output()
-        print('Output merge took', int(time() - start_time), 'seconds to run', flush=True, file=self.redirect_verbose)
+        print(f'Output merge took {int(time() - start_time)} seconds to run', flush=True, file=self.redirect_verbose)
         start_time = time()
         self.remove_uncompressed_files()
-        print('In total, Mantis took', int(time() - processing_start_time), 'seconds to process HMMER\'s output',flush=True, file=self.redirect_verbose)
+        print(f'In total, Mantis took {int(time() - processing_start_time)} seconds to process HMMER\'s output',flush=True, file=self.redirect_verbose)
         if not self.keep_files:
             print_cyan('Removing temporary files', flush=True, file=self.redirect_verbose)
             self.remove_non_essential_files()
         if self.kegg_matrix and not self.skip_consensus:
             print('Generating KEGG modules matrix!',flush=True, file=self.redirect_verbose)
             self.generate_matrix()
-        print('Mantis has finished running! It took ' + str(int(time() - self.start_time)) + ' seconds to run.',flush=True, file=self.redirect_verbose)
+        print(f'Mantis has finished running! It took {str(int(time() - self.start_time))} seconds to run.',flush=True, file=self.redirect_verbose)
 
 
 if __name__ == '__main__':
-    ts = '/home/pedroq/Python_projects/DRAX/source/Pipelines/mantis/tests/test_Here/metag_test.faa'
-    # ts='/home/pedroq/Python_projects/DRAX/source/Pipelines/mantis/tests/test_Here/partial_mg_sample.faa'
-    to = '/home/pedroq/Desktop/test_hmm/test_general_annot'
-    tsv_file = '/home/pedroq/Python_projects/DRAX/source/Pipelines/mantis/tests/test_sample.faa'
-    tsv_file = '/home/pedroq/Desktop/test_hmm/test2.faa'
-    tsv_file = '/home/pedroq/Desktop/test_hmm/test1.faa'
-    mm = MANTIS(target_path=tsv_file, output_folder=to, mantis_config='/home/pedroq/Desktop/test_hmm/t.config')
-    # print(mm.check_internet_connection())
-
-    print(mm.get_organism_lineage(68892))
-    print(mm.get_organism_lineage(995019))
-    # mm.keep_files=True
-    # mm.run_mantis()
+    m = MANTIS()
+    essential_genes = m.get_essential_genes_list()
+    print(essential_genes)

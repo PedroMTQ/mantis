@@ -68,13 +68,13 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def __str__(self):
         custom_hmms = self.get_custom_hmms_paths(folder=True)
-        res = ''
         custom_hmms_str = ''
+        custom_res=''
         for chmm in custom_hmms:
             custom_hmms_str += chmm + '\n'
         if custom_hmms_str:
-            res = 'Custom hmms folders:\n' + custom_hmms_str
-        return 'Output folder:\n' + self.output_folder if hasattr(self, 'output_folder') else '' + \
+            custom_res = 'Custom hmms folders:\n' + custom_hmms_str
+        res= 'Output folder:\n' + self.output_folder if hasattr(self, 'output_folder') else '' + \
                   '#  External data folders:' + '\n' + \
                   '------------------------------------------' + '\n' + \
                   'Default hmms folder:\n' + \
@@ -94,6 +94,8 @@ class MANTIS_Assembler(MANTIS_DB):
                   'TIGRFAM hmms folder:\n' + \
                   self.mantis_paths['tigrfam'] + '\n' + \
                   '------------------------------------------'
+        if custom_res: res+='\n'+custom_res
+        return res
 
     def print_citation(self):
 
@@ -144,12 +146,12 @@ class MANTIS_Assembler(MANTIS_DB):
                 c += 1
 
     def get_taxa_ncbi(self,organism_name):
-        url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=' + organism_name
+        url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term={organism_name}'
         taxa_id = self.get_taxa_ncbi_url(url)
         if not taxa_id:
-            url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=candidatus+' + organism_name
+            url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=candidatus+{organism_name}'
             taxa_id = self.get_taxa_ncbi_url(url)
-        if not taxa_id:    print('Could not find taxa ID for', organism_name)
+        if not taxa_id:    print(f'Could not find taxa ID for {organism_name}')
         return taxa_id
 
     def get_default_hmm_path(self):
@@ -313,16 +315,16 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def merge_hmm_folder(self, target_folder):
         self.output_folder = target_folder
-        print_cyan('Merging hmm folder:\n' + target_folder, flush=True, file=self.redirect_verbose)
+        print_cyan(f'Merging hmm folder:\n{target_folder}', flush=True, file=self.redirect_verbose)
         output_file = get_path_level(target_folder)
-        print('Merging hmm folder: ' + target_folder, flush=True, file=self.redirect_verbose)
+        print(f'Merging hmm folder: {target_folder}', flush=True, file=self.redirect_verbose)
         run_command(
-            '[ -f ' + target_folder + output_file + '_merged.hmm' + ' ] && rm ' + target_folder + output_file + '_merged.hmm*',
+            f'[ -f {target_folder}{output_file}_merged.hmm ] && rm {target_folder}{output_file}_merged.hmm*',
             stdout_file=self.redirect_verbose)
         run_command(
             'for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',
             stdout_file=self.redirect_verbose)
-        run_command('hmmpress ' + target_folder + output_file + '_merged.hmm', stdout_file=self.redirect_verbose)
+        run_command(f'hmmpress {target_folder}{output_file}_merged.hmm', stdout_file=self.redirect_verbose)
 
     def get_path_default_hmm(self, database, taxon_id=None):
         target_file = None
@@ -387,7 +389,7 @@ class MANTIS_Assembler(MANTIS_DB):
         try:
             files_dir = os.listdir(hmm_folder_path)
         except:
-            if verbose: red('Failed installation check on [path unavailable]: ' + hmm_folder_path, flush=True,
+            if verbose: red(f'Failed installation check on [path unavailable]: {hmm_folder_path}', flush=True,
                             file=self.redirect_verbose)
             res.append(hmm_folder_path)
             self.passed_check = False
@@ -414,11 +416,11 @@ class MANTIS_Assembler(MANTIS_DB):
 
         if check != 0:
             missing_files_str = '; '.join(missing_files)
-            red('Failed installation check on [files missing]: ' + hmm_folder_path + '\n' + missing_files_str,
+            red(f'Failed installation check on [files missing]: {hmm_folder_path}\n{missing_files_str}',
                 flush=True, file=self.redirect_verbose)
             res.append(hmm_folder_path)
         else:
-            if verbose: green('Passed installation check on: ' + hmm_folder_path, flush=True,
+            if verbose: green(f'Passed installation check on: {hmm_folder_path}', flush=True,
                               file=self.redirect_verbose)
 
     def check_installation(self, verbose=True):
@@ -453,7 +455,7 @@ class MANTIS_Assembler(MANTIS_DB):
                 tax_hmm = tax_hmm_folder.split(SPLITTER)[-2]
                 if tax_hmm != '1':
                     self.check_installation_folder(tax_hmm_folder, res, verbose=False,
-                                                   extra_requirements=[tax_hmm + '_sql_annotations.tsv'])
+                                                   extra_requirements=[f'{tax_hmm}_sql_annotations.tsv'])
             nogt_check = [i for i in res if self.mantis_paths['NOG'] in i]
             if not nogt_check:
                 if verbose: green('Passed installation check on: ' + self.mantis_paths['NOG'], flush=True,
@@ -481,8 +483,8 @@ class MANTIS_Assembler(MANTIS_DB):
         if res:
             self.passed_check = False
             fail_res = ''
-            for i in res: fail_res += i + '\n'
-            if verbose: red('Installation check failed on:\n' + fail_res, flush=True, file=self.redirect_verbose)
+            for i in res: fail_res += f'{i}\n'
+            if verbose: red(f'Installation check failed on:\n{fail_res}', flush=True, file=self.redirect_verbose)
         if self.passed_check:
             if verbose:
                 yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
@@ -570,17 +572,17 @@ class MANTIS_Assembler(MANTIS_DB):
             if folder:
                 res.append(add_slash(self.mantis_paths[db] + t))
             else:
-                res.append(add_slash(self.mantis_paths[db] + t) + t + '_merged.hmm')
+                res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
         if folder:
             res.append(add_slash(self.mantis_paths[db] + db + 'G'))
         else:
-            res.append(add_slash(self.mantis_paths[db] + db + 'G') + db + 'G' + '_merged.hmm')
+            res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
         return res
 
     def get_lineage_hmm_path(self, taxon_id, db):
         tax_hmms = self.get_hmm_taxon_ids(db=db)
         if taxon_id in tax_hmms:
-            return add_slash(self.mantis_paths[db] + taxon_id) + taxon_id + '_merged.hmm'
+            return add_slash(self.mantis_paths[db] + taxon_id) + f'{taxon_id}_merged.hmm'
         else:
             return None
 
