@@ -239,7 +239,7 @@ class MANTIS_Assembler(MANTIS_DB):
         self.mantis_nogt_tax = set()
 
         if self.mantis_config:
-            print('Using custom MANTIS.config', flush=True, file=self.redirect_verbose)
+            print(f'Using custom MANTIS.config: {self.mantis_config}', flush=True, file=self.redirect_verbose)
             self.config_file = self.mantis_config
         else:
             if not os.path.isdir(MANTIS_FOLDER):
@@ -382,6 +382,29 @@ class MANTIS_Assembler(MANTIS_DB):
                               file=self.redirect_verbose)
         return res
 
+    def check_chunks_dir(self,chunks_dir):
+        all_chunks=[]
+        for hmm in os.listdir(chunks_dir):
+            if hmm.endswith('.hmm'):
+                all_chunks.append(hmm)
+        for hmm in all_chunks:
+            if not self.check_missing_chunk_files(hmm,chunks_dir):
+                return False
+        return True
+
+    def check_missing_chunk_files(self,hmm,chunks_dir):
+        missing_files=['.h3f', '.h3i', '.h3m', '.h3p']
+        res=0
+        for inner_file in os.listdir(chunks_dir):
+            for mf in missing_files:
+                if inner_file==f'{hmm}{mf}':
+                    res+=1
+        if res==len(missing_files): return True
+        red(f'Failed installation check on [files missing]: {hmm} in chunks folder: {chunks_dir}',
+            flush=True, file=self.redirect_verbose)
+        return False
+
+
     def check_installation_folder(self, hmm_folder_path, res, verbose=True, extra_requirements=[]):
         check = 5 + len(extra_requirements)
         missing_files = set(extra_requirements)
@@ -389,11 +412,18 @@ class MANTIS_Assembler(MANTIS_DB):
         try:
             files_dir = os.listdir(hmm_folder_path)
         except:
-            if verbose: red(f'Failed installation check on [path unavailable]: {hmm_folder_path}', flush=True,
-                            file=self.redirect_verbose)
+            if verbose: red(f'Failed installation check on [path unavailable]: {hmm_folder_path}', flush=True,file=self.redirect_verbose)
             res.append(hmm_folder_path)
             self.passed_check = False
             return
+        if 'chunks' in files_dir:
+            if not self.check_chunks_dir(f'{hmm_folder_path}chunks'):
+                self.passed_check = False
+                return
+            else:
+                if verbose: green(f'Passed installation check on: {hmm_folder_path}', flush=True,
+                                  file=self.redirect_verbose)
+                return
         for file in files_dir:
             if '.hmm' == file[-4:]:
                 check -= 1
@@ -532,15 +562,20 @@ class MANTIS_Assembler(MANTIS_DB):
                 if line[0] != '#':
                     if 'custom_hmm=' in line:
                         line = line.strip('\n')
+                        hmm_path=line.replace('custom_hmm=', '')
+                        if not hmm_path.endswith('.hmm'):
+                            if os.path.isdir(hmm_path):
+                                for inner_file in os.listdir(hmm_path):
+                                    if inner_file.endswith('.hmm'):
+                                        hmm_path+=inner_file
                         if folder:
                             try:
-                                yield add_slash(SPLITTER.join(line.replace('custom_hmm=', '').split(SPLITTER)[:-1]))
+                                yield add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
                             except GeneratorExit:
                                 return ''
-
                         else:
                             try:
-                                yield line.replace('custom_hmm=', '')
+                                yield hmm_path
                             except GeneratorExit:
                                 return ''
                 line = file.readline()
