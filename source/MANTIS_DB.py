@@ -1,3 +1,5 @@
+import os
+
 try:
     from source.Exceptions import *
     from source.utils import *
@@ -54,6 +56,10 @@ class MANTIS_DB(MANTIS_NLP):
             print(f'Database will be split with {worker_count} workers!', flush=True,
                   file=self.redirect_verbose)
             self.processes_handler(self.worker_split_hmms, worker_count)
+        self.prepare_queue_press_custom_hmms()
+        worker_count = estimate_number_workers_setup_database(len(self.queue))
+        print(f'HMMs will be pressed with {worker_count} workers!', flush=True, file=self.redirect_verbose)
+        self.processes_handler(self.worker_press_custom_hmms, worker_count)
         print('Preparing NLP Resources!', flush=True, file=self.redirect_verbose)
         MANTIS_NLP.__init__(self)
         print_cyan('Finished setting up databases!', flush=True, file=self.redirect_verbose)
@@ -122,6 +128,18 @@ class MANTIS_DB(MANTIS_NLP):
         for hmm_path in taxon_nog_hmms + taxon_ncbi_hmms + general_hmms:
             self.queue.append([hmm_path, self.mantis_out])
 
+    def prepare_queue_press_custom_hmms(self):
+        print('Checking which custom hmms need to be pressed', flush=True, file=self.redirect_verbose)
+        hmms_list=[]
+        for hmm_path in self.get_custom_hmms_paths(folder=False):
+            hmm_folder=add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
+            if 'chunks' not in os.listdir(hmm_folder):
+                if hmm_folder[0:2] != 'NA':
+                    hmms_list.append(hmm_path)
+        print(f'Will hmmpress: {hmms_list}', flush=True,file=self.redirect_verbose)
+        for hmm_path in hmms_list:
+            self.queue.append([hmm_path, self.mantis_out])
+
     def prepare_queue_extract_metadata(self):
         stdout_file = open(self.mantis_out, 'a+')
         print('Checking which NOGs we need to extract metadata from', flush=True, file=stdout_file)
@@ -170,6 +188,13 @@ class MANTIS_DB(MANTIS_NLP):
             if record is None: break
             hmm_path, stdout_path = record
             self.split_hmm_into_chunks(hmm_path, stdout_path)
+
+    def worker_press_custom_hmms(self, queue, master_pid):
+        while True:
+            record = queue.pop(0)
+            if record is None: break
+            hmm_path, stdout_path = record
+            self.press_custom_hmms(hmm_path, stdout_path)
 
     def worker_extract_NOG_metadata(self, queue, master_pid):
         while True:
@@ -761,6 +786,7 @@ class MANTIS_DB(MANTIS_NLP):
         stdout_file.close()
         return res
 
+
     def get_hmm_for_queue_split_hmms(self):
         hmms_list = self.compile_hmms_list()
         res = []
@@ -805,6 +831,13 @@ class MANTIS_DB(MANTIS_NLP):
         for chunk in chunks_dir:
             run_command(f'hmmpress {hmm_chunks_folder}{chunk}', stdout_file=stdout_file)
         stdout_file.close()
+
+
+    def press_custom_hmms(self, hmm_path, stdout_path=None):
+        stdout_file = open(stdout_path, 'a+')
+        run_command(f'hmmpress {hmm_path}', stdout_file=stdout_file)
+        stdout_file.close()
+
 
     ### Support functions for extracting metadata
 

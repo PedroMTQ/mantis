@@ -13,7 +13,6 @@ try:
     from math import ceil, log10
     from pickle import load as pickle_load
     from pickle import dump as pickle_dump
-
     if platform.startswith('win'):
         SPLITTER = '\\'
     else:

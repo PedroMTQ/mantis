@@ -48,11 +48,19 @@ If you have only loose reads, you need to assemble them first; when you have ass
 
 **Custom hmms**  
 
-        custom_hmms_folder=/path/to/mantis/hmm/custom_hmms/   
-        custom_hmm=/path/to/HMM_folder/file.hmm
+Custom HMMs can be added in **MANTIS.config** by adding their absolute path or folder path, for example:
 
-Custom hmms can be added in **MANTIS.config** by adding their absolute path, alternatively you may add them to the **custom_hmms** folder.
-Mantis will read the folders within the custom hmms folder and use the .hmm stored in each of those folders.  
+        custom_hmm=/path/to/hmm_folder/file.hmm
+        custom_hmm=/path/to/hmm_folder/
+
+Alternatively you may add them to the **custom_hmms** folder, for example:
+
+        Mantis/hmm/custom_hmms/custom1/custom1.hmm
+        Mantis/hmm/custom_hmms/custom2/custom2.hmm
+ 
+You may also redifine the **custom_hmms** folder path by adding your preferred path to `custom_hmms_folder` in the **MANTIS.config** file, for example:
+
+        custom_hmms_folder=path/to/custom_hmms/
 
 ### Functions
 
@@ -134,4 +142,3 @@ This project is available under the [MIT license](https://github.com/PedroMTQ/ma
 >4. Haft DH, Loftus BJ, Richardson DL, et al. TIGRFAMs: a protein family resource for the functional identification of proteins. Nucleic Acids Res. 2001;29(1):41–43. https://doi.org/10.1093/nar/29.1.41
 >5. Aramaki T., Blanc-Mathieu R., Endo H., Ohkubo K., Kanehisa M., Goto S., Ogata H. KofamKOALA: KEGG ortholog assignment based on profile HMM and adaptive score threshold. Bioinformatics. 2019 Nov 19. pii: btz859. https://doi.org/10.1093/bioinformatics/btz859.
 > 6. Lu S, Wang J, Chitsaz F, Derbyshire MK, Geer RC, Gonzales NR, Gwadz M, Hurwitz DI, Marchler GH, Song JS, Thanki N, Yamashita RA, Yang M, Zhang D, Zheng C, Lanczycki CJ, Marchler-Bauer A. CDD/SPARCLE: the conserved domain database in 2020. Nucleic Acids Res. 2020 Jan 8;48(D1):D265-D268. doi: 10.1093/nar/gkz991. PMID: 31777944; PMCID: PMC6943070.
-
