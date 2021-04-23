@@ -149,7 +149,7 @@ class MANTIS(MANTIS_MP):
         else:                           self.domain_algorithm = 'dfs'
 
         if  best_combo_formula:         self.best_combo_formula = best_combo_formula
-        else:                           self.best_combo_formula = 1
+        else:                           self.best_combo_formula = 2
         if hmmer_threads:               self.hmmer_threads = hmmer_threads
         # 1 should be ideal if we are already using the maximum amount of cores with Mantis
         else:                           self.hmmer_threads = 1

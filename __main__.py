@@ -17,8 +17,12 @@ from source.utils import MANTIS_FOLDER
 
 if __name__ == '__main__':
     print('Executing command:\n', ' '.join(sys.argv))
-    parser = argparse.ArgumentParser(description='MANTIS is a protein function annotation tool, using HMMER for homologs search.\n' +
-                                                 'It takes as input an aminoacids sequences fasta; if you are starting out with a genome, you can use gene prediction tools (e.g. prodigal) to "convert" it into a protein fasta.'
+    parser = argparse.ArgumentParser(description='___  ___               _    _      \n'
+                                                 '|  \\/  |              | |  (_)     \n'
+                                                 '| .  . |  __ _  _ __  | |_  _  ___ \n'
+                                                 '| |\\/| | / _` || \'_ \\ | __|| |/ __|\n'
+                                                 '| |  | || (_| || | | || |_ | |\\__ \\\n'
+                                                 '\\_|  |_/ \\__,_||_| |_| \\__||_||___/, a consensus driven protein function annotation tool\n'
                                      , formatter_class=argparse.RawTextHelpFormatter)
     #run mantis
     parser.add_argument('execution_type',
@@ -68,7 +72,8 @@ if __name__ == '__main__':
                         help='[optional]\tdo not expand hits during consensus generation.')
     parser.add_argument('-km', '--kegg_matrix', action='store_true',
                         help='[optional]\tgenerate KEGG modules completeness matrix.')
-
+    parser.add_argument('-fo', '--force_output', action='store_true',
+                        help='[optional]\tIf you would like to force the output to the folder you specified. This may result in errrors!')
     #setup databases
 
 
@@ -117,6 +122,7 @@ if __name__ == '__main__':
         no_consensus_expansion = args.no_consensus_expansion
         no_unifunc = args.no_unifunc
         kegg_matrix = args.kegg_matrix
+        force_output = args.force_output
         default_workers = args.default_workers
         chunk_size = args.chunk_size
         time_limit = args.time_limit
@@ -130,7 +136,7 @@ if __name__ == '__main__':
                     output_folder = add_slash(os.getcwd()) + get_path_level(target_path,remove_extension=True) + '_' + datetime_str
                     print(f'No output folder provided! Saving data to: {output_folder}')
                 if os.path.exists(output_folder):
-                    if os.listdir(output_folder):
+                    if not force_output and os.listdir(output_folder):
                         datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
                         hex_random= '_hex_'+uuid.uuid4().hex[:10]
                         output_folder += '_' + datetime_str+hex_random
