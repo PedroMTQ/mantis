@@ -93,8 +93,11 @@ class MANTIS_Assembler(MANTIS_DB):
                   self.mantis_paths['kofam'] + '\n' + \
                   'TIGRFAM hmms folder:\n' + \
                   self.mantis_paths['tigrfam'] + '\n' + \
-                  '------------------------------------------'
+                '------------------------------------------' + '\n'
         if custom_res: res+='\n'+custom_res
+        hmm_weights=', '.join([f'{i}:{self.mantis_hmm_weights[i]}' for i in self.mantis_hmm_weights if i!='else'])
+        res+= f'#  Weights: {hmm_weights}\n'
+
         return res
 
     def print_citation(self):
@@ -567,7 +570,7 @@ class MANTIS_Assembler(MANTIS_DB):
                             if os.path.isdir(hmm_path):
                                 for inner_file in os.listdir(hmm_path):
                                     if inner_file.endswith('.hmm'):
-                                        hmm_path+=inner_file
+                                        hmm_path=add_slash(hmm_path)+inner_file
                         if folder:
                             try:
                                 yield add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))

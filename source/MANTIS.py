@@ -149,7 +149,7 @@ class MANTIS(MANTIS_MP):
         else:                           self.domain_algorithm = 'dfs'
 
         if  best_combo_formula:         self.best_combo_formula = best_combo_formula
-        else:                           self.best_combo_formula = 2
+        else:                           self.best_combo_formula = 1
         if hmmer_threads:               self.hmmer_threads = hmmer_threads
         # 1 should be ideal if we are already using the maximum amount of cores with Mantis
         else:                           self.hmmer_threads = 1
@@ -157,8 +157,8 @@ class MANTIS(MANTIS_MP):
         if sorting_type:                self.sorting_type = sorting_type
         else:
         #but we recommend using bitscore for dfs, evalue for bpo or heuristic
-            if self.domain_algorithm !='dfs':   self.sorting_type='evalue'
-            else:                               self.sorting_type='bitscore'
+            if self.domain_algorithm =='dfs':   self.sorting_type='bitscore'
+            else:                               self.sorting_type='evalue'
         self.organism_details = organism_details
         #Execution parameters
         self.skip_consensus = skip_consensus
