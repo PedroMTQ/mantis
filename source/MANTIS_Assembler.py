@@ -374,15 +374,13 @@ class MANTIS_Assembler(MANTIS_DB):
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes',
                               flush=True, file=self.redirect_verbose)
-
-        if not file_exists(self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp'):
-            if verbose: red(
-                'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp',
-                flush=True, file=self.redirect_verbose)
-            res.append(self.mantis_paths['ncbi_tax'])
-        else:
-            if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_tax'], flush=True,
-                              file=self.redirect_verbose)
+        if self.mantis_paths['ncbi_tax'][0:2] != 'NA':
+            if not file_exists(self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp'):
+                if verbose: red(
+                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
+                res.append(self.mantis_paths['ncbi_tax'])
+            else:
+                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_tax'], flush=True,file=self.redirect_verbose)
         return res
 
     def check_chunks_dir(self,chunks_dir):
