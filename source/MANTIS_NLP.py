@@ -6,7 +6,7 @@ except:
 try:
     if not unifunc_downloaded():
         download_unifunc()
-    from source.UniFunc.source import UniFunc
+    from Resources.UniFunc.source import UniFunc
 except:
     from UniFunc.source import UniFunc
 

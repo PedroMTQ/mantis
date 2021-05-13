@@ -39,7 +39,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 file.write(f'>{seq_id}\n{chunk_str}\n')
 
     def set_chunks_to_annotate(self):
-        for file_path, output_path, organism_lineage, count_seqs_original_file in self.fastas_to_annotate:
+        for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
             chunk_dir = add_slash(output_path + 'fasta_chunks')
             all_chunks = os.listdir(chunk_dir)
             for chunk in all_chunks:
@@ -49,7 +49,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 count_seqs_chunk = get_seqs_count(chunk_path)
                 self.chunks_to_annotate.append(
                     [chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk,
-                     count_seqs_original_file, output_path])
+                     count_seqs_original_file,count_residues_original_file, output_path])
                 if output_path not in self.chunks_to_fasta: self.chunks_to_fasta[output_path] = []
                 self.chunks_to_fasta[output_path].append(current_chunk_dir)
 
@@ -85,15 +85,15 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         print_cyan('Splitting samples into chunks!', flush=True, file=self.redirect_verbose)
         worker_count = 1
         n_chunks = 0
-        for file_path, output_path, organism_lineage, count_seqs_original_file in self.fastas_to_annotate:
-            protein_seqs = self.read_protein_fasta(file_path)
+        for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
+            protein_seqs = read_protein_fasta(file_path)
             chunk_dir = add_slash(f'{output_path}fasta_chunks')
             if not os.path.exists(chunk_dir):
                 Path(chunk_dir).mkdir(parents=True, exist_ok=True)
             current_worker_count = estimate_number_workers_split_sample(minimum_worker_load, len(protein_seqs))
             chunk_size = estimate_chunk_size(total_n_seqs=len(protein_seqs),
                                              annotation_workers=self.estimate_number_workers_annotation(split_sample=True),
-                                             chunk_size=self.chunk_size,
+                                             chunk_size=self.chunk_size
                                              )
             if current_worker_count > worker_count: worker_count = current_worker_count
             if len(protein_seqs) < load_balancing_limit:
@@ -119,7 +119,14 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
     ####To run HMMER
 
-    def compile_annotation_job(self, hmm_path, target_path, output_folder, output_initials=''):
+    def compile_annotation_job(self,ref_path, target_path, output_folder, output_initials=''):
+        if ref_path.endswith('.hmm'):
+            return self.compile_annotation_job_hmmer(ref_path, target_path, output_folder, output_initials)
+        elif ref_path.endswith('.dmnd'):
+            return self.compile_annotation_job_diamond(ref_path, target_path, output_folder, output_initials)
+
+
+    def compile_annotation_job_hmmer(self, hmm_path, target_path, output_folder, output_initials=''):
         hmm = get_path_level(hmm_path)
         hmm = hmm.split('.')[0]
         # what is more efficient? hmmsearch or hmmscan? hmmsearch: https://cryptogenomicon.org/2011/05/27/hmmscan-vs-hmmsearch-speed-the-numerology/
@@ -132,7 +139,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         # summarized output
         # command += ' --tblout ' + output_folder + 'tblout'+SPLITTER+output_initials +hmm+'.tblout'
         # output with coordinates of hits
-        domtblout_path = f'{output_folder}domtblout{SPLITTER}{output_initials}{hmm}.domtblout'
+        domtblout_path = f'{output_folder}searchout{SPLITTER}{output_initials}{hmm}.domtblout'
         command += f' --domtblout {domtblout_path}'
         # hmm requires a master thread, so we deduct it from the number of threads
         command += f' --cpu {self.hmmer_threads}'
@@ -145,94 +152,104 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         else:
             threshold_type = '-E'
         if self.evalue_threshold == 'dynamic':
-            command += f' {threshold_type} 1e-6'
+            command += f' {threshold_type} {self.default_evalue_threshold * 10}'
+        elif not self.evalue_threshold:
+            command += f' {threshold_type} {self.default_evalue_threshold * 10}'
         else:
             command += f' {threshold_type} {self.evalue_threshold * 10}'
         command += f' --notextw {hmm_path} {target_path}'
         return command, domtblout_path
 
+    def compile_annotation_job_diamond(self, ref_path, target_path, output_folder, output_initials=''):
+        ref = get_path_level(ref_path)
+        ref = ref.split('.')[0]
+        #dbsize is set so we can scale it  to sample size
+        command = f'{DIAMOND_PATH} blastp --ultra-sensitive --quiet --dbsize {self.diamond_db_size}'
+        dmndout_path = f'{output_folder}searchout{SPLITTER}{output_initials}{ref}.dmndout'
+        command += f' --out {dmndout_path} --outfmt 6 qseqid qlen sseqid slen qstart qend sstart send evalue bitscore'
+        command += f' --threads {self.hmmer_threads}'
+        #here we dont multiply by 10 because we will be scalling to sample size anyway, so the real e-value will need to be much lower anyway
+        if self.evalue_threshold == 'dynamic':
+            command += f' --evalue {self.default_evalue_threshold}'
+        elif not self.evalue_threshold:
+            command += f' --evalue  {self.default_evalue_threshold}'
+        else:
+            command += f' --evalue {self.evalue_threshold}'
+        command += f' -d {ref_path} -q {target_path}'
+        return command, dmndout_path
+
     #####For the general HMMS
 
-    def calculate_total_hmms_annotation(self):
+    def add_number_hmms_taxa(self,db):
+        res=0
+        if self.mantis_paths[db][0:2] != 'NA':
+            tax_hmms = 0
+            for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
+                organism_lineage_temp = list(organism_lineage)
+                if organism_lineage_temp:
+                    current_taxon = organism_lineage_temp.pop(-1)
+                    hmm_path = self.get_lineage_hmm_path(current_taxon, db=db)
+                    # to skip taxons without an hmm
+                    while not hmm_path and organism_lineage_temp:
+                        current_taxon = organism_lineage_temp.pop(-1)
+                        hmm_path = self.get_lineage_hmm_path(current_taxon, db=db)
+                    if hmm_path:
+                        chunks_path = compile_hmm_chunks_path(hmm_path)
+                        tax_hmms += len(chunks_path)
+            res = int(tax_hmms / len(self.fastas_to_annotate))
+        return res
+
+    def calculate_total_refs_annotation(self):
         # some lineage taxons (since we might fully annotate a fasta before the top taxon level) might be unnecessary but this should provide a good estimate
-        n_hmms = 0
-        hmm_list = self.compile_hmms_list()
+        n_refs = 0
+        ref_list = self.compile_refs_list()
         # this will take into account hmms that are split into chunks
-        for hmm in hmm_list:
-            n_hmms += len(compile_hmm_chunks_path(hmm))
+        for ref in ref_list:
+            n_refs += len(get_chunks_path(ref))
         if self.mantis_paths['NCBI'][0:2] != 'NA':
-            n_hmms += len(compile_hmm_chunks_path(add_slash(self.mantis_paths['NCBI'] + 'NCBIG')))
+            n_refs += len(get_chunks_path(add_slash(self.mantis_paths['NCBI'] + 'NCBIG')))
         if self.mantis_paths['NOG'][0:2] != 'NA':
-            n_hmms += len(compile_hmm_chunks_path(add_slash(self.mantis_paths['NOG'] + 'NOGG')))
-        if self.mantis_paths['NOG'][0:2] != 'NA':
-            tax_hmms = 0
-            for file_path, output_path, organism_lineage, count_seqs_original_file in self.fastas_to_annotate:
-                organism_lineage_temp = list(organism_lineage)
-                if organism_lineage_temp:
-                    current_taxon = organism_lineage_temp.pop(-1)
-                    hmm_path = self.get_lineage_hmm_path(current_taxon, db='NOG')
-                    # to skip taxons without an hmm
-                    while not hmm_path and organism_lineage_temp:
-                        current_taxon = organism_lineage_temp.pop(-1)
-                        hmm_path = self.get_lineage_hmm_path(current_taxon, db='NOG')
-                    if hmm_path:
-                        chunks_path = compile_hmm_chunks_path(hmm_path)
-                        tax_hmms += len(chunks_path)
-            n_hmms += int(tax_hmms / len(self.fastas_to_annotate))
-        if self.mantis_paths['NCBI'][0:2] != 'NA':
-            tax_hmms = 0
-            for file_path, output_path, organism_lineage, count_seqs_original_file in self.fastas_to_annotate:
-                organism_lineage_temp = list(organism_lineage)
-                if organism_lineage_temp:
-                    current_taxon = organism_lineage_temp.pop(-1)
-                    hmm_path = self.get_lineage_hmm_path(current_taxon, db='NCBI')
-                    # to skip taxons without an hmm
-                    while not hmm_path and organism_lineage_temp:
-                        current_taxon = organism_lineage_temp.pop(-1)
-                        hmm_path = self.get_lineage_hmm_path(current_taxon, db='NCBI')
-                    if hmm_path:
-                        chunks_path = compile_hmm_chunks_path(hmm_path)
-                        tax_hmms += len(chunks_path)
-            n_hmms += int(tax_hmms / len(self.fastas_to_annotate))
-        self.total_hmms_annotation = n_hmms
-        return n_hmms
+            n_refs += len(get_chunks_path(add_slash(self.mantis_paths['NOG'] + 'NOGG')))
+        n_refs+=self.add_number_hmms_taxa('NOG')
+        n_refs+=self.add_number_hmms_taxa('NCBI')
+        self.total_refs_annotation = n_refs
+        return n_refs
 
     def estimate_number_workers_annotation(self, split_sample=False):
-        if not hasattr(self, 'total_hmms_annotation'):
-            n_hmms = self.calculate_total_hmms_annotation()
+        if not hasattr(self, 'total_refs_annotation'):
+            n_refs = self.calculate_total_refs_annotation()
         else:
-            n_hmms = self.total_hmms_annotation
+            n_refs = self.total_refs_annotation
         return estimate_number_workers_annotation(n_chunks=len(self.chunks_to_annotate),
-                                                  n_hmms=n_hmms,
+                                                  n_refs=n_refs,
                                                   default_workers=self.default_workers,
                                                   user_cores=self.user_cores,
                                                   split_sample=split_sample,
                                                   )
 
-    def run_hmmer(self):
+    def run_homology_search(self):
         worker_count = self.estimate_number_workers_annotation()
-        self.prepare_queue_hmmer()
-        print_cyan(f'Running HMMER with {worker_count} workers.', flush=True, file=self.redirect_verbose)
+        self.prepare_queue_homology_search()
+        print_cyan(f'Running homology search with {worker_count} workers.', flush=True, file=self.redirect_verbose)
         if worker_count < 1:
-            print('Invalid number of workers in run_hmmer')
-            raise BadNumberWorkers
-        self.processes_handler(self.worker_hmmer, worker_count)
+            kill_switch(BadNumberWorkers,'run_hmmer')
+        self.processes_handler(self.worker_annotation, worker_count)
 
-    def run_hmmer_annotation(self, hmmer_command,stdout_path, master_pid, output_file=None):
+    def run_annotation(self, hs_command,stdout_path, master_pid, output_file=None):
         stdout_file = open(stdout_path, 'a+')
-        print(f'Running HMMER command:\n{hmmer_command}', flush=True, file=stdout_file)
+        print(f'Running homology search command:\n{hs_command}', flush=True, file=stdout_file)
         start_time = time()
-        if self.skip_managed_memory:
-            run_command(hmmer_command, master_pid=None, wanted_child='hmmsearch',user_memory=self.user_memory)
+        #if we dont want to manage memory or for diamond
+        if self.skip_managed_memory or hs_command.startswith('blastp'):
+            run_command(hs_command, master_pid=None)
         else:
-            run_command(hmmer_command, master_pid=master_pid, wanted_child='hmmsearch',user_memory=self.user_memory)
-        print(f'Finished running HMMER ({round(time() - start_time, 3)} seconds):\n{hmmer_command}',
-              flush=True, file=stdout_file)
+            run_command(hs_command, master_pid=master_pid, wanted_child='hmmsearch',user_memory=self.user_memory)
+        print(f'Finished running HMMER ({round(time() - start_time, 3)} seconds):\n{hs_command}',flush=True, file=stdout_file)
         stdout_file.close()
         if output_file:
             move_file(output_file, f'{output_file}_finished')
 
-    def worker_hmmer(self, queue, master_pid):
+    def worker_annotation(self, queue, master_pid):
         '''
         this is a bit tricky to understand but it works the following way:
         There is a queue which is stacked with jobs (i.e. hmmer commands to execute), each process/worker takes one job and runs it
@@ -256,30 +273,24 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                  us to make sure all the HMM chunks have finished (so we can generate the fasta for the next taxon). And so with these checkpoints,
                  if the hmmer execution finished running we proceed to the next taxon, otherwise we add another checkpoint to the queue (see add_to_queue_lineage_annotation)....
                  these checkpoints will keep being added and processed by the worker until all the other workers have finished annotating all the required HMM chunks!
-
-
         '''
         while True:
             record = queue.pop(0)
             if record is None: break
             record_type = record[0]
             if record_type == 'General':
-                _, hmmer_command, stdout_path = record
-                self.run_hmmer_annotation(hmmer_command=hmmer_command,
-                                          stdout_path=stdout_path, master_pid=master_pid)
+                _, hs_command, stdout_path = record
+                self.run_annotation(hs_command=hs_command,stdout_path=stdout_path, master_pid=master_pid)
             # for taxon runs
             elif record_type in ['NOGT', 'NCBIT']:
-                _, hmmer_command, stdout_path, output_file = record
-                self.run_hmmer_annotation(hmmer_command=hmmer_command,
-                                          stdout_path=stdout_path, master_pid=master_pid, output_file=output_file)
+                _, hs_command, stdout_path, output_file = record
+                self.run_annotation(hs_command=hs_command,stdout_path=stdout_path, master_pid=master_pid, output_file=output_file)
             elif record_type in ['NOGG_checkpoint', 'NCBIG_checkpoint']:
                 _, current_chunk_dir, fasta_path, count_seqs_original_file, chunks_n = record
                 target_hmm = record_type.split('_')[0]
                 target_db = target_hmm[0:-1]
                 if self.taxon_annotation_finished(target_hmm, current_chunk_dir, chunks_n):
-                    protein_sequences = self.read_protein_fasta(fasta_path)
-                    count_seqs_chunk = len(protein_sequences)
-                    self.remove_temp_fasta(fasta_path, target_db)
+                    remove_temp_fasta(fasta_path, target_db)
                 else:
                     self.queue.insert(0, record)
 
@@ -289,9 +300,9 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 target_db = target_hmm[0:-1]
 
                 if self.taxon_annotation_finished(target_hmm + str(taxon_id), current_chunk_dir, chunks_n):
-                    protein_sequences = self.read_protein_fasta(fasta_path)
+                    protein_sequences = read_protein_fasta(fasta_path)
                     count_seqs_chunk = len(protein_sequences)
-                    domtblout_path = add_slash(f'{current_chunk_dir}domtblout')
+                    domtblout_path = add_slash(f'{current_chunk_dir}searchout')
                     taxon_domtblouts = self.get_taxon_chunks(taxon_id, domtblout_path, target_hmm)
                     annotated_queries = set()
                     for dp in taxon_domtblouts:
@@ -314,25 +325,24 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 else:
                     self.queue.insert(0, record)
 
-    def prepare_queue_hmmer(self):
-        hmms_list = self.compile_hmms_list()
-        chunked_hmms_list = []
-        for hmm_path in hmms_list:
-            chunked_hmms_list.extend(compile_hmm_chunks_path(hmm_path))
-        chunked_hmms_list, chunked_hmms_list_size = self.order_by_size_descending(chunked_hmms_list)
+    def prepare_queue_homology_search(self):
+        refs_list = self.compile_refs_list()
+        chunked_refs_list = []
+        for ref_path in refs_list:
+            chunked_refs_list.extend(get_chunks_path(ref_path))
+        chunked_refs_list = self.order_by_size_descending(chunked_refs_list)
         # this will build the hmmer processes to run as well as give the domtblout we want
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
-            self.create_chunk_hmmer_dirs(current_chunk_dir)
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
+            self.create_chunk_output_dirs(current_chunk_dir)
             self.add_to_queue_lineage_annotation(fasta_path=chunk_path, current_chunk_dir=current_chunk_dir,
                                                  organism_lineage=list(organism_lineage),
                                                  original_lineage=list(organism_lineage),
                                                  count_seqs_original_file=count_seqs_original_file,
                                                  stdout_path=f'{output_path}Mantis.out')
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
-            for hmm_path in chunked_hmms_list:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
+            for ref_path in chunked_refs_list:
                 # full hmmer command to be run with subprocess
-                command, output_file = self.compile_annotation_job(hmm_path, target_path=chunk_path,
-                                                                                   output_folder=current_chunk_dir)
+                command, output_file = self.compile_annotation_job(ref_path, target_path=chunk_path,output_folder=current_chunk_dir)
                 # adding our hmmer command to be consumed by the hmmer processes later on
                 self.queue.append(['General', command, f'{output_path}Mantis.out'])
 
@@ -340,8 +350,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
     def add_to_queue_lineage_annotation(self, fasta_path, current_chunk_dir, organism_lineage, original_lineage,
                                         count_seqs_original_file, stdout_path, dbs_to_use=['NCBI', 'NOG']):
-        protein_sequences = self.read_protein_fasta(fasta_path)
-        count_seqs_chunk = len(protein_sequences)
+        count_seqs_chunk = get_seqs_count(fasta_path)
         # taxa specific dbs include nog and ncbi
         for db in dbs_to_use:
             db_tax = db + 'T'
@@ -359,7 +368,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                             current_taxon = current_lineage.pop(-1)
                             hmm_path = self.get_lineage_hmm_path(current_taxon, db=path_tax)
                         if hmm_path:
-                            chunks_path = compile_hmm_chunks_path(hmm_path)
+                            chunks_path = get_chunks_path(hmm_path)
                             for chunk_hmm in chunks_path:
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                    target_path=fasta_path,
@@ -377,8 +386,8 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                         elif not hmm_path and db == 'NCBI':
                             # if there are still missing annotations from the lineage annotation or there's no taxonomic classification we query against the whole TSHMM database
                             if self.mantis_paths[path_general][0:2] != 'NA':
-                                hmm_path = get_hmm_in_folder(self.mantis_paths[path_general] + hmm_db_general)
-                                chunks_path = compile_hmm_chunks_path(hmm_path)
+                                hmm_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
+                                chunks_path = get_chunks_path(hmm_path)
                                 for chunk_hmm in chunks_path:
                                     command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                                        target_path=fasta_path,
@@ -393,8 +402,8 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                     if (db == 'NOG' and not original_lineage) or (db == 'NCBI'):
                         # if there are still missing annotations from the lineage annotation or there's not taxonomic classification we query against the whole TSHMM database
                         if self.mantis_paths[path_general][0:2] != 'NA':
-                            hmm_path = get_hmm_in_folder(self.mantis_paths[path_general] + hmm_db_general)
-                            chunks_path = compile_hmm_chunks_path(hmm_path)
+                            hmm_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
+                            chunks_path = get_chunks_path(hmm_path)
                             for chunk_hmm in chunks_path:
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                                    target_path=fasta_path,
@@ -407,20 +416,20 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
     ####Merging hmmer output
 
-    def estimate_domtblouts_per_chunk(self):
-        n_hmms = len(self.compile_hmms_list())
+    def estimate_searchouts_per_chunk(self):
+        n_hmms = len(self.compile_refs_list())
         if self.mantis_paths['NOG'][0:2] != 'NA': n_hmms += 2
         if self.mantis_paths['NCBI'][0:2] != 'NA': n_hmms += 2
         return n_hmms
 
     def process_output(self):
-        domtblout_per_chunks = self.estimate_domtblouts_per_chunk()
+        searchout_per_chunks = self.estimate_searchouts_per_chunk()
         worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate),
-                                                              domtblout_per_chunks=domtblout_per_chunks)
+                                                              searchout_per_chunks=searchout_per_chunks,
+                                                              user_cores=self.user_cores)
         print_cyan(f'Processing output with {worker_count} workers.', flush=True, file=self.redirect_verbose)
         if worker_count < 1:
-            print('Invalid number of workers in process_output')
-            raise BadNumberWorkers
+            kill_switch(BadNumberWorkers,'process_output')
 
         # when we have a lot of hits in the HMM file the hit processing can be quite memory heavy, so instead we now split hits into chunks
         # This process is quite light since it only stores the file the hit should be stored at, all the hit information is read and discarded from memory
@@ -435,12 +444,12 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         self.prepare_queue_merge_output()
         self.processes_handler(self.worker_merge_output, worker_count)
 
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             self.remove_temp_fasta_length(current_chunk_dir, 'NOG')
             self.remove_temp_fasta_length(current_chunk_dir, 'NCBI')
 
     def prepare_queue_merge_processed_output(self):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             chunks_output_path = add_slash(f'{current_chunk_dir}processed_output')
             all_output_with_chunks = os.listdir(chunks_output_path)
             self.queue.append([chunks_output_path, all_output_with_chunks, f'{output_path}Mantis.out'])
@@ -458,61 +467,61 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
 
     def prepare_queue_split_hits(self, worker_count):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
-            domtblout_path = add_slash(f'{current_chunk_dir}domtblout')
-            raw_domtblout_path = add_slash(f'{current_chunk_dir}split_hits')
-            move_file(domtblout_path, raw_domtblout_path)
-            all_domtblout = os.listdir(raw_domtblout_path)
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
+            searchout_path = add_slash(f'{current_chunk_dir}searchout')
+            raw_searchout_path = add_slash(f'{current_chunk_dir}raw_searchout')
+            move_file(searchout_path, raw_searchout_path)
+            all_searchout = os.listdir(raw_searchout_path)
             same_db_chunks = {}
-            for domtblout in all_domtblout:
-                chunk_n = re.search('_chunk_\d+', domtblout)
-                if chunk_n: temp = domtblout.replace(chunk_n.group(), '')
-                else:       temp = domtblout
+            for searchout in all_searchout:
+                chunk_n = re.search('_chunk_\d+', searchout)
+                if chunk_n: temp = searchout.replace(chunk_n.group(), '')
+                else:       temp = searchout
                 if temp not in same_db_chunks: same_db_chunks[temp] = set()
-                same_db_chunks[temp].add(domtblout)
-            for domtblout in same_db_chunks:
-                self.queue.append(
-                    [raw_domtblout_path, domtblout, same_db_chunks[domtblout], current_chunk_dir, worker_count,f'{output_path}Mantis.out'])
+                same_db_chunks[temp].add(searchout)
+            for searchout in same_db_chunks:
+                self.queue.append([raw_searchout_path, searchout, same_db_chunks[searchout], current_chunk_dir, worker_count,f'{output_path}Mantis.out'])
 
     def worker_split_hits(self, queue, master_pid):
         while True:
             record = queue.pop(0)
             if record is None: break
-            domtblout_path, domtblout, chunks_domtblout, current_chunk_dir, worker_count, stdout_path = record
-            self.split_hits(domtblout_path, domtblout, chunks_domtblout, current_chunk_dir, worker_count)
+            searchout_path, searchout, chunks_searchout, current_chunk_dir, worker_count, stdout_path = record
+            self.split_hits(searchout_path, searchout, chunks_searchout, current_chunk_dir, worker_count)
 
 
     def prepare_queue_process_output(self):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
-            domtblout_path = add_slash(f'{current_chunk_dir}domtblout')
-            all_domtblout = os.listdir(domtblout_path)
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
+            searchout_path = add_slash(f'{current_chunk_dir}searchout')
+            all_searchout = os.listdir(searchout_path)
             if not os.path.exists(add_slash(add_slash(current_chunk_dir) + 'processed_output')):
                 Path(add_slash(add_slash(current_chunk_dir) + 'processed_output')).mkdir(parents=True, exist_ok=True)
-            for domtblout in all_domtblout:
-                if 'NOG' in domtblout:
-                    count_seqs_chunk_domtblout = self.get_temp_fasta_length(current_chunk_dir, domtblout, 'NOG')
-                elif 'NCBIT' in domtblout or 'NCBIG' in domtblout:
-                    count_seqs_chunk_domtblout = self.get_temp_fasta_length(current_chunk_dir, domtblout, 'NCBI')
+            for searchout in all_searchout:
+                if 'NOG' in searchout:
+                    count_seqs_chunk_searchout = self.get_temp_fasta_length(current_chunk_dir, searchout, 'NOG')
+                elif 'NCBIT' in searchout or 'NCBIG' in searchout:
+                    count_seqs_chunk_searchout = self.get_temp_fasta_length(current_chunk_dir, searchout, 'NCBI')
                 else:
-                    count_seqs_chunk_domtblout = int(count_seqs_chunk)
-                self.queue.append([domtblout_path + domtblout, current_chunk_dir, count_seqs_chunk_domtblout,
-                                   count_seqs_original_file, f'{output_path}Mantis.out'])
+                    count_seqs_chunk_searchout = int(count_seqs_chunk)
+                self.queue.append([searchout_path + searchout, current_chunk_dir, count_seqs_chunk_searchout,
+                                   count_seqs_original_file,count_residues_original_file, f'{output_path}Mantis.out'])
 
     def worker_process_output(self, queue, master_pid):
         while True:
             record = queue.pop(0)
             if record is None: break
-            domtblout_path, current_chunk_dir, count_seqs_chunk, count_seqs_original_file, stdout_path = record
-            processed_hits = self.process_domtblout(output_path=domtblout_path, count_seqs_chunk=count_seqs_chunk,
+            searchout_path, current_chunk_dir, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, stdout_path = record
+            processed_hits = self.process_searchout(output_path=searchout_path, count_seqs_chunk=count_seqs_chunk,
                                                     count_seqs_original_file=count_seqs_original_file,
+                                                    count_residues_original_file=count_residues_original_file,
                                                     stdout_path=stdout_path)
             self.save_processed_hits(processed_hits, add_slash(add_slash(current_chunk_dir) + 'processed_output'),
-                                     domtblout=get_path_level(domtblout_path))
+                                     domtblout=get_path_level(searchout_path))
             if not self.keep_files:
-                os.remove(domtblout_path)
+                os.remove(searchout_path)
 
     def prepare_queue_merge_output(self):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             self.queue.append([current_chunk_dir, output_path])
 
     def worker_merge_output(self, queue, master_pid):
@@ -530,18 +539,18 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
     ###Interpreting output
 
     def interpret_output(self):
-        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate))
+        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate),
+                                                              user_cores=self.user_cores)
         self.prepare_queue_interpret_output()
         print_cyan(f'Interpreting output with {worker_count} workers.', flush=True,
                    file=self.redirect_verbose)
         if worker_count < 1:
-            print('Invalid number of workers in interpret_output')
-            raise BadNumberWorkers
+            kill_switch(BadNumberWorkers,'interpret_output')
 
         self.processes_handler(self.worker_interpret_output, worker_count)
 
     def prepare_queue_interpret_output(self):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             output_annotation_tsv = f'{current_chunk_dir}output_annotation.tsv'
             self.queue.append([output_annotation_tsv, current_chunk_dir])
 
@@ -557,18 +566,17 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
     def get_consensus_output(self):
         MANTIS_Consensus.__init__(self)
-        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate))
+        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate), user_cores=self.user_cores)
         self.prepare_queue_generate_consensus()
         print_cyan(f'Generating consensus output with {worker_count} workers.', flush=True,
                    file=self.redirect_verbose)
         if worker_count < 1:
-            print('Invalid number of workers in get_consensus_output')
-            raise BadNumberWorkers
+            kill_switch(BadNumberWorkers,'get_consensus_output')
 
         self.processes_handler(self.worker_consensus_output, worker_count)
 
     def prepare_queue_generate_consensus(self):
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             interepreted_annotation_tsv = f'{current_chunk_dir}integrated_annotation.tsv'
             stdout_file_path = f'{output_path}Mantis.out'
             self.queue.append([interepreted_annotation_tsv, current_chunk_dir, stdout_file_path])
@@ -584,12 +592,11 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
     # Merging Mantis output
 
     def merge_mantis_output(self):
-        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate))
+        worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate), user_cores=self.user_cores)
         self.prepare_queue_merge_mantis_output()
         print_cyan(f'Merging output with {worker_count} workers.', flush=True, file=self.redirect_verbose)
         if worker_count < 1:
-            print('Invalid number of workers in merge_mantis_output')
-            raise BadNumberWorkers
+            kill_switch(BadNumberWorkers,'merge_mantis_output')
 
         self.processes_handler(self.worker_merge_mantis_output, worker_count)
 

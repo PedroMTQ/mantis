@@ -17,7 +17,7 @@ except:
                 try:
                     from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
                 except:
-                    raise CythonNotCompiled
+                    kill_switch(CythonNotCompiled)
         # when cython's version is not compatible with the current python version, we need to recompile it
         else:
             compile_cython()
@@ -27,15 +27,17 @@ except:
                 try:
                     from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
                 except:
-                    raise CythonNotCompiled
-
+                    kill_switch(CythonNotCompiled)
 
 # This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
 class MANTIS_Processor():
 
-    def create_chunk_hmmer_dirs(self, chunk_dir):
-        for hmmer_dir in ['output_hmmer', 'domtblout']:  # ,'tblout']:
+    def create_chunk_output_dirs(self, chunk_dir):
+        to_create=['searchout']
+        if self.keep_files:
+            to_create.append('output_hmmer')
+        for hmmer_dir in to_create:
             if not os.path.exists(chunk_dir + hmmer_dir):
                 Path(chunk_dir + hmmer_dir).mkdir(parents=True, exist_ok=True)
 
@@ -58,7 +60,7 @@ class MANTIS_Processor():
 
     def taxon_annotation_finished(self, target_hmm, output_folder, chunks_n):
         c = 0
-        domtblout_folder = add_slash(add_slash(output_folder) + 'domtblout')
+        domtblout_folder = add_slash(add_slash(output_folder) + 'searchout')
         domtblout_files = os.listdir(domtblout_folder)
         for domtblout in domtblout_files:
             if target_hmm in domtblout:
@@ -79,24 +81,30 @@ class MANTIS_Processor():
 
     ########To merge domtblout
 
-    def group_output_chunks(self, domtblout_path, all_domtblout_with_chunks, chunk_suffix):
+    def group_output_chunks(self, searchout_path, all_searchout_with_chunks, chunk_suffix):
         # grouping the domtblout into the corresponding original 'hmm'
         res = {}
-        for domtblout in all_domtblout_with_chunks:
-            if 'chunk' in domtblout:
-                hmm_name = domtblout.split('_chunk_')[0]
-                hmm_domtblout = hmm_name + chunk_suffix
-                if hmm_domtblout not in res: res[hmm_domtblout] = []
-                res[hmm_domtblout].append(domtblout_path + domtblout)
+        for searchout in all_searchout_with_chunks:
+            if 'chunk' in searchout:
+                ref_name = searchout.split('_chunk_')[0]
+                ref_searchout = ref_name + chunk_suffix
+                if ref_searchout not in res: res[ref_searchout] = []
+                res[ref_searchout].append(searchout_path + searchout)
         return res
 
-    def merge_output_chunks(self, domtblout_path, all_domtblout_with_chunks, chunk_suffix, stdout_file=None):
-        grouped_domtblout = self.group_output_chunks(domtblout_path, all_domtblout_with_chunks, chunk_suffix)
-        for domtblout in grouped_domtblout:
-            concat_files(output_file=domtblout_path + domtblout, list_file_paths=grouped_domtblout[domtblout],
+    def merge_output_chunks(self, searchout_path, all_searchout_with_chunks, chunk_suffix, stdout_file=None):
+        grouped_searchout = self.group_output_chunks(searchout_path, all_searchout_with_chunks, chunk_suffix)
+        for searchout in grouped_searchout:
+            concat_files(output_file=searchout_path + searchout, list_file_paths=grouped_searchout[searchout],
                          stdout_file=stdout_file)
-            for to_delete in grouped_domtblout[domtblout]:
+            for to_delete in grouped_searchout[searchout]:
                 os.remove(to_delete)
+
+
+
+    def get_dmndout_line(self, line):
+        res = line.strip('\n').split()
+        if res: return res[0]
 
     def get_domtblout_line(self, line):
         if line[0] != '#':
@@ -108,19 +116,21 @@ class MANTIS_Processor():
                 print('BAD LINE', line)
 
 
-    def split_hits(self, domtblout_path, domtblout, chunks_domtblout, current_chunk_dir, worker_count):
+    def split_hits(self, searchout_path, domtblout, chunks_domtblout, current_chunk_dir, worker_count):
         # split the hits into different chunk allows for memory saving during hit processing
-        split_domtblout_path = domtblout_path.replace('split_hits', 'domtblout')
-        list_of_files = [f'{split_domtblout_path}{domtblout}_chunk_{i}' for i in range(worker_count)]
-        Path(f'{current_chunk_dir}domtblout').mkdir(parents=True, exist_ok=True)
+        split_searchout_path = searchout_path.replace('raw_searchout', 'searchout')
+        list_of_files = [f'{split_searchout_path}{domtblout}_chunk_{i}' for i in range(worker_count)]
+        Path(f'{current_chunk_dir}searchout').mkdir(parents=True, exist_ok=True)
         hit_to_file = {}
         file_yielder = yield_file(list_of_files)
-        for chunk_domtblout in chunks_domtblout:
-            chunk_domtblout_path = domtblout_path + chunk_domtblout
-            with open(chunk_domtblout_path) as file:
+        for chunk_searchout in chunks_domtblout:
+            chunk_searchout_path = searchout_path + chunk_searchout
+            if '.dmndout' in chunk_searchout: read_function=self.get_dmndout_line
+            elif '.domtblout' in chunk_searchout: read_function=self.get_domtblout_line
+            with open(chunk_searchout_path) as file:
                 line = file.readline()
                 while line:
-                    query_name = self.get_domtblout_line(line)
+                    query_name = read_function(line)
                     if query_name:
                         if query_name not in hit_to_file:
                             file_name = next(file_yielder)
@@ -129,80 +139,36 @@ class MANTIS_Processor():
                         with open(out_file_path, 'a+') as opened_file: opened_file.write(line)
                     line = file.readline()
             if not self.keep_files:
-                os.remove(chunk_domtblout_path)
+                os.remove(chunk_searchout_path)
 
     ########To calculate new evalue
 
     def get_temp_fasta_length(self, chunk_dir, domtblout, db):
-        hmm = domtblout.split('_')[0]
+        ref = domtblout.split('_')[0]
         with open(f'{chunk_dir}missing_annotation.{db}.length') as file:
             line = file.readline()
             while line:
-                hmm_key, hmm_len = line.split('\t')
-                if hmm == hmm_key: return int(hmm_len)
+                ref_key, ref_len = line.split('\t')
+                if ref == ref_key: return int(ref_len)
                 line = file.readline()
 
     def remove_temp_fasta_length(self, chunk_dir, db):
         if file_exists(f'{chunk_dir}missing_annotation.{db}.length'):
             os.remove(f'{chunk_dir}missing_annotation.{db}.length')
 
-    ########Processing protein fasta
-    def remove_temp_fasta(self, temp_fasta_path, db):
-        if f'missing_annotations.{db}.tmp' in temp_fasta_path:
-            os.remove(temp_fasta_path)
 
     def remove_annotated_queries(self, missing_queries, annotated_queries):
         for p in annotated_queries:
             if p in missing_queries:
                 del missing_queries[p]
 
-    def process_protein_fasta_line(self, res, query, fasta_line, start_recording):
-        # for the first > line
-        if '>' in fasta_line and not start_recording:
-            fasta_line = fasta_line.replace('\'', '')
-            fasta_line = fasta_line.replace('>', '')
-            fasta_line = fasta_line.replace('\"', '')
-            new_query = fasta_line.split()[0]
-            start_recording = True
-            res[new_query] = ''
-            return res, new_query, start_recording
-        # for posterior > lines
-        elif '>' in fasta_line and start_recording:
-            fasta_line = fasta_line.replace('\'', '')
-            fasta_line = fasta_line.replace('>', '')
-            fasta_line = fasta_line.replace('\"', '')
-            start_recording = True
-            new_query = fasta_line.split()[0]
-            res[new_query] = ''
-            return res, new_query, start_recording
-        # to get the sequences
-        elif start_recording:
-            fasta_line = fasta_line.replace('\"', '')
-            fasta_line = fasta_line.replace('\'', '')
-            res[query] += fasta_line.strip()
-            return res, query, start_recording
 
-    def read_protein_fasta(self, protein_fasta_path):
-        res = {}
-        with open(protein_fasta_path, 'r') as file:
-            line = file.readline()
-            if line[0] != '>':  raise FileNotFoundError
-            start_recording = False
-            query = None
-            while line:
-                line = line.strip('\n')
-                if line:
-                    res, query, start_recording = self.process_protein_fasta_line(res=res,
-                                                                                  query=query,
-                                                                                  fasta_line=line,
-                                                                                  start_recording=start_recording)
-                line = file.readline()
-        return res
+
 
     def generate_temp_fasta(self, missing_queries, output_folder, db):
         temp_path = f'{output_folder}missing_annotations.{db}.tmp'
         if os.path.exists(temp_path):
-            self.remove_temp_fasta(temp_path, db)
+            remove_temp_fasta(temp_path, db)
         with open(temp_path, 'w+') as file:
             for mq in missing_queries:
                 chunks = [missing_queries[mq][x:x + 60] for x in range(0, len(missing_queries[mq]), 60)]
@@ -215,20 +181,21 @@ class MANTIS_Processor():
     def is_overlap(self, temp_queries, current_query):
         # the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
         if not temp_queries or not current_query: return False
-        y_start,y_end=recalculate_coordinates(current_query['env_coord_from'],
-                                              current_query['env_coord_to'],
+        y_start,y_end=recalculate_coordinates(current_query['hit_start'],
+                                              current_query['hit_end'],
                                               self.overlap_value)
         y=set(range(y_start, y_end))
 
         for t in temp_queries:
-            if t['hmm_name'] == current_query['hmm_name']:  return True
-            x_start,x_end = recalculate_coordinates(t['env_coord_from'],
-                                                    t['env_coord_to'],
+            if t['hit_name'] == current_query['hit_name']:  return True
+            x_start,x_end = recalculate_coordinates(t['hit_start'],
+                                                    t['hit_end'],
                                                     self.overlap_value)
             x = set(range(x_start, x_end))
             res = x.intersection(y)
             if res: return True
         return False
+
 
     def get_best_hits_approximation(self, query_hits, sorting_class,sorting_type):
         '''
@@ -239,7 +206,8 @@ class MANTIS_Processor():
         This doesnt effectively calculate the "best hit", just a biased (since we start with lowest evalue as root) approximation
         Still, it is a pretty good approximation anyhow
         '''
-        query_hits = self.sort_hits(query_hits, sorting_class,sorting_type=sorting_type)
+        if sorting_class=='consensus': query_hits = self.sort_scaled_hits(query_hits,sorting_type=sorting_type)
+        else: query_hits = self.sort_hits(query_hits, sorting_class,sorting_type=sorting_type)
         combo = []
         while query_hits:
             next_hit = query_hits.pop(0)
@@ -256,7 +224,8 @@ class MANTIS_Processor():
         this will take the hit with the lowest evalue, regardless if there are multiple domains
         '''
         if not query_hits: return []
-        query_hits = self.sort_hits(query_hits, sorting_class,sorting_type=sorting_type)
+        if sorting_class=='consensus': query_hits = self.sort_scaled_hits(query_hits,sorting_type=sorting_type)
+        else: query_hits = self.sort_hits(query_hits, sorting_class,sorting_type=sorting_type)
         lowest_hit = query_hits.pop(0)
         combo = [lowest_hit]
         return combo
@@ -267,7 +236,7 @@ class MANTIS_Processor():
             res.append(conversion_dict[hit[0]])
         return res
 
-    def get_min_max(self, cython_possible_combos, conversion_dict, sorting_class):
+    def get_min_max_dfs(self, cython_possible_combos, conversion_dict, sorting_class):
         min_val = None
         max_val = None
         for len_combo in cython_possible_combos:
@@ -298,13 +267,13 @@ class MANTIS_Processor():
         average_hit_coverage = 0
         hit_ranges = []
         for hit in combo:
-            hit_start, hit_end, hmm_start, hmm_end = hit['env_coord_from'], hit['env_coord_to'], \
-                                                     hit['hmm_coord_from'], hit['hmm_coord_to']
-            hmm_len = hit['hmm_len']
+            hit_start, hit_end, ref_start, ref_end = hit['hit_start'], hit['hit_end'], \
+                                                     hit['ref_start'], hit['ref_end']
+            ref_len = hit['ref_len']
             hit_evalue = hit['evalue']
             hit_bitscore = hit['bitscore']
             hit_coverage = (hit_end - hit_start + 1) / query_length
-            hmm_coverage = (hmm_end - hmm_start + 1) / hmm_len
+            ref_coverage = (ref_end - ref_start + 1) / ref_len
             average_hit_coverage += hit_coverage
             # lower is better
             if self.sorting_type == 'evalue':
@@ -394,7 +363,7 @@ class MANTIS_Processor():
         if not cython_possible_combos: return None
         best_hit_score = 0
         best_combo = None
-        min_val, max_val = self.get_min_max(cython_possible_combos, conversion_dict, sorting_class='processor')
+        min_val, max_val = self.get_min_max_dfs(cython_possible_combos, conversion_dict, sorting_class='processor')
         good_combos = []
         for len_combo in cython_possible_combos:
             if len_combo:
@@ -419,14 +388,14 @@ class MANTIS_Processor():
         conversion_dict = {}
         res = set()
         for hit_i in range(len(query_hits)):
-            hit_start,hit_end=recalculate_coordinates(query_hits[hit_i]['env_coord_from'],
-                                                      query_hits[hit_i]['env_coord_to'],
+            hit_start,hit_end=recalculate_coordinates(query_hits[hit_i]['hit_start'],
+                                                      query_hits[hit_i]['hit_end'],
                                                       self.overlap_value)
             res.add(tuple([
                 hit_i,
                 hit_start,
                 hit_end,
-                query_hits[hit_i]['hmm_name']
+                query_hits[hit_i]['hit_name']
             ]))
             conversion_dict[hit_i] = query_hits[hit_i]
         return res, conversion_dict
@@ -468,29 +437,22 @@ class MANTIS_Processor():
             res.extend(temp)
         return res
 
-    def calculate_evalue_threshold(self, query_len):
-        '''
-        See :
-        https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-3416-y
-
-        #These values were for diamond, but we assume they would also work with HMMER
-        "the best choice of e-value threshold was dependent on read length.
-         For read lengths 100 bp and higher, the best choice of e-value was not the default (Fig. 2c-d).
-        For 100-150 bp, a threshold of 1-e10 yielded the highest accuracy (Additional file 1, Figure S3).
-        For 200-250 bp read lengths, 1e-25 was most accurate (Additional file 1, Figure S3).
-        In general, the optimal e-value threshold increases with increasing read length."
-        '''
-        if self.evalue_threshold == 'dynamic':
-            if query_len <= 150:
-                return 1e-10
-            elif query_len >= 250:
-                return 1e-25
-            else:
-                return float('1e-' + str(ceil(query_len / 10)))
+    def calculate_evalue_threshold(self, query_len,diamond=False):
+        #See :     https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-3416-y
+        #if the user sets evalue threshold, we use that
+        if self.evalue_threshold and self.evalue_threshold!='dynamic': return self.evalue_threshold
+        #if the user sets the evalue threshold to dynamic OR if the user doesnt set evalue threshold and we are analysing diamond's output
+        elif self.evalue_threshold == 'dynamic' or diamond:
+            #this somewhat translates to the findings in the paper
+            res = float('1e-' + str(ceil(query_len / 10)))
+            #for very small sequences, we set a hard threshold
+            if res > self.default_evalue_threshold: res = self.default_evalue_threshold
+            return res
+        #if the user doesnt set the evalue threshold and we are analysing hmmer's output
         else:
-            return self.evalue_threshold
+            return self.default_evalue_threshold
 
-    def recalculate_evalue(self, i_evalue, count_seqs_chunk, count_seqs_original_file):
+    def recalculate_evalue(self, i_evalue, to_divide, to_multiply):
         '''
         keep in mind these calculations will result in minor rounding errors!
         For example in 3 different executions for the same query:
@@ -501,9 +463,74 @@ class MANTIS_Processor():
         Ideally we would not split the fasta into chunks; this would avoid rounding errors but would not allow parallelization
         '''
         evalue = float(i_evalue)
-        evalue /= count_seqs_chunk
-        evalue *= count_seqs_original_file
+        evalue /= to_divide
+        evalue *= to_multiply
         return evalue
+
+    def read_searchout(self, output_path, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, get_output=True):
+        if '.dmndout' in output_path:
+            return self.read_dmndout(output_path=output_path, count_seqs_chunk=count_seqs_chunk,
+                                count_residues_original_file=count_residues_original_file,get_output=get_output)
+        elif '.domtblout' in output_path:
+            return self.read_domtblout(output_path=output_path, count_seqs_chunk=count_seqs_chunk,
+                                count_seqs_original_file=count_seqs_original_file,get_output=get_output)
+
+    def read_dmndout(self, output_path, count_seqs_chunk, count_residues_original_file, get_output=True):
+        res = {}
+        hit_counter = set()
+        # reading the output file
+        with open(output_path, 'r', encoding='utf8') as file:
+            line = file.readline().strip('\n')
+            while line:
+                #try:
+                if True:
+                    line = line.split()
+                    query_name = line[0]
+                    query_len = int(line[1])
+                    ref_name = line[2]
+                    ref_len = int(line[3])
+                    query_start = int(line[4])
+                    query_end = int(line[5])
+                    ref_start = int(line[6])
+                    ref_end = int(line[7])
+                    evalue = float(line[8])
+                    bitscore = float(line[9])
+                    #diamond's evalue is not scaled, so we need to multiply by residues count
+                    evalue = self.recalculate_evalue(evalue, self.diamond_db_size, count_residues_original_file)
+                    #hmmer's coordinates on the seq are always the same, regardless of direction
+                    direction='Forward'
+                    if query_start<query_end:
+                        corrected_query_start=query_start
+                        corrected_query_end=query_end
+                    else:
+                        direction='Backward'
+                        corrected_query_start=query_end
+                        corrected_query_end=query_start
+
+
+
+                    if get_output:
+                        if query_name not in res: res[query_name] = {'query_len': query_len, 'hits': []}
+                    # when processing mg data, the evalue of hits for chunks should be higher than what it really is (because chunk has less seqs = more significant e-value)
+                    if evalue <= self.calculate_evalue_threshold(int(query_len),diamond=True):
+                        hit_dict = {'hit_name': ref_name,
+                                    'hit_accession': '',
+                                    'ref_len': ref_len,
+                                    'evalue': evalue,
+                                    'bitscore': bitscore,
+                                    'direction': direction,
+                                    'ref_start': ref_start if ref_start < ref_end else ref_end,
+                                    'ref_end': ref_end if ref_end > ref_start else ref_start,
+                                    'hit_start': corrected_query_start,
+                                    'hit_end': corrected_query_end,
+                                    }
+                        if get_output:
+                            res[query_name]['hits'].append(hit_dict)
+                        hit_counter.add(query_name)
+                #except:
+                #    print(f'Could not read line: {line} in file', output_path, flush=True)
+                line = file.readline().strip('\n')
+        return res, hit_counter
 
     def read_domtblout(self, output_path, count_seqs_chunk, count_seqs_original_file, get_output=True):
         res = {}
@@ -513,7 +540,8 @@ class MANTIS_Processor():
             line = file.readline().strip('\n')
             while line:
                 if line[0] != '#':
-                    try:
+                    #try:
+                    if True:
                         # after 22 it's just the free text of the annotation description
                         line = line.split()[0:22]
                         if len(line) == 22:
@@ -533,8 +561,8 @@ class MANTIS_Processor():
                             evalue = self.recalculate_evalue(evalue, count_seqs_chunk, count_seqs_original_file)
                             hmm_coord_from = int(line[15])
                             hmm_coord_to = int(line[16])
-                            ali_coord_from = int(line[17])
-                            ali_coord_to = int(line[18])
+                            #ali_coord_from = int(line[17])
+                            #ali_coord_to = int(line[18])
                             # we will use envelop coords as per HMMER's manual recommendation
                             env_coord_from = int(line[19])
                             env_coord_to = int(line[20])
@@ -547,39 +575,30 @@ class MANTIS_Processor():
                                 direction='Backward'
                                 corrected_env_coord_from=env_coord_to
                                 corrected_env_coord_to=env_coord_from
-
-                            #hit_range = corrected_env_coord_to - corrected_env_coord_from
-                            #hit_overlap = ceil(self.overlap_value * hit_range / 2)
-                            #final_env_coord_from = corrected_env_coord_from# + hit_overlap
-                            #final_env_coord_to = corrected_env_coord_to# - hit_overlap
-
-
                             if get_output:
                                 if query_name not in res: res[query_name] = {'query_len': query_len, 'hits': []}
                             # when processing mg data, the evalue of hits for chunks should be higher than what it really is (because chunk has less seqs = more significant e-value)
                             if evalue <= self.calculate_evalue_threshold(int(query_len)):
-                                hit_dict = {'hmm_name': hmm_name,
-                                            'hmm_accession': hmm_accession,
-                                            'hmm_len': hmm_len,
+                                hit_dict = {'hit_name': hmm_name,
+                                            'hit_accession': hmm_accession,
+                                            'ref_len': hmm_len,
                                             'evalue': evalue,
                                             'bitscore': bitscore,
                                             'direction': direction,
-                                            'hmm_coord_from': hmm_coord_from if hmm_coord_from < hmm_coord_to else hmm_coord_to,
-                                            'hmm_coord_to': hmm_coord_to if hmm_coord_to > hmm_coord_from else hmm_coord_from,
-                                            'ali_coord_from': ali_coord_from if ali_coord_from < ali_coord_to else ali_coord_to,
-                                            'ali_coord_to': ali_coord_to if ali_coord_to > ali_coord_from else ali_coord_from,
-                                            'env_coord_from': corrected_env_coord_from,
-                                            'env_coord_to': corrected_env_coord_to,
+                                            'ref_start': hmm_coord_from if hmm_coord_from < hmm_coord_to else hmm_coord_to,
+                                            'ref_end': hmm_coord_to if hmm_coord_to > hmm_coord_from else hmm_coord_from,
+                                            'hit_start': corrected_env_coord_from,
+                                            'hit_end': corrected_env_coord_to,
                                             }
                                 if get_output:
                                     res[query_name]['hits'].append(hit_dict)
                                 hit_counter.add(query_name)
-                    except:
-                        print(f'Could not read line: {line} in file', output_path, flush=True)
+                    #except:
+                    #    print(f'Could not read line: {line} in file', output_path, flush=True)
                 line = file.readline().strip('\n')
         return res, hit_counter
 
-    def process_domtblout(self, output_path, count_seqs_chunk, count_seqs_original_file, stdout_path=None):
+    def process_searchout(self, output_path, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, stdout_path=None):
         '''
         this will read the domtblout file and export:
         query -> all hits with their respective evalue and hit start and end
@@ -595,7 +614,9 @@ class MANTIS_Processor():
             stdout_file = stdout_path
         print('------------------------------------------', flush=True, file=stdout_file)
         print('Processing hits for:\n' + output_path, flush=True, file=stdout_file)
-        queries_domtblout, hit_counter = self.read_domtblout(output_path, count_seqs_chunk, count_seqs_original_file)
+        queries_domtblout, hit_counter = self.read_searchout(output_path=output_path, count_seqs_chunk=count_seqs_chunk,
+                                                             count_seqs_original_file=count_seqs_original_file,
+                                                             count_residues_original_file=count_residues_original_file)
         hit_counter = len(hit_counter)
         # processing the hits and getting the best hit/non-overlapping hits
         print(f'Found {hit_counter} hits in:\n{output_path}\nWill now get best hits!', flush=True,file=stdout_file)
@@ -634,18 +655,18 @@ class MANTIS_Processor():
             pass
         with open(annotation_output_file, 'w') as output_file:
             first_line = ['Query',
-                          'HMM_file',
-                          'HMM_hit',
-                          'HMM_hit_accession',
+                          'Ref_file',
+                          'Ref_hit',
+                          'Ref_hit_accession',
                           'evalue',
                           'bitscore',
                           'Direction',
                           'Query_length',
                           'Query_hit_start',
                           'Query_hit_end',
-                          'HMM_hit_start',
-                          'HMM_hit_end',
-                          'HMM_length',
+                          'Ref_hit_start',
+                          'Ref_hit_end',
+                          'Ref_length',
                           ]
             first_line = '\t'.join(first_line) + '\n'
             output_file.write(first_line)
@@ -660,19 +681,17 @@ class MANTIS_Processor():
                         for hit in annotation_output[query][hmm_file]['best_hit']:
                             line = [str(query),
                                     str(str_hmm_file),
-                                    str(hit['hmm_name']),
-                                    str(hit['hmm_accession']),
-                                    # all calculations with evalues are done, so just making it more readable
-                                    # str(float(format(hit['i_evalue'],'.6g'))),
+                                    str(hit['hit_name']),
+                                    str(hit['hit_accession']),
                                     str(hit['evalue']),
                                     str(hit['bitscore']),
                                     str(hit['direction']),
                                     str(annotation_output[query][hmm_file]['query_len']),
-                                    str(hit['env_coord_from']),
-                                    str(hit['env_coord_to']),
-                                    str(hit['hmm_coord_from']),
-                                    str(hit['hmm_coord_to']),
-                                    str(hit['hmm_len']),
+                                    str(hit['hit_start']),
+                                    str(hit['hit_end']),
+                                    str(hit['ref_start']),
+                                    str(hit['ref_end']),
+                                    str(hit['ref_len']),
                                     ]
                             line = '\t'.join(line)
                             output_file.write(line + '\n')
@@ -699,24 +718,49 @@ class MANTIS_Processor():
                         chunk_line = chunk_file.readline()
 
 
+
+
 if __name__ == '__main__':
     hmm_pro = MANTIS_Processor()
-    query_hits = [{'hmm_name': 'hit1', 'hmm_accession': 'NF038151.1', 'hmm_len': 833, 'evalue': 6.1e-13,
-                   'bitscore': 126.8, 'direction': 'Forward', 'hmm_coord_from': 234, 'hmm_coord_to': 458,
-                   'ali_coord_from': 597, 'ali_coord_to': 820, 'env_coord_from': 580, 'env_coord_to': 870},
-                  {'hmm_name': 'hit2', 'hmm_accession': 'NF033483.0', 'hmm_len': 563, 'evalue': 6.9e-41,
-                   'bitscore': 126.8, 'direction': 'Forward', 'hmm_coord_from': 13, 'hmm_coord_to': 206,
-                   'ali_coord_from': 589, 'ali_coord_to': 788, 'env_coord_from': 580, 'env_coord_to': 795},
-                  {'hmm_name': 'hit3', 'hmm_accession': 'TIGR00606.1', 'hmm_len': 1311, 'evalue': 3e-05,
-                   'bitscore': 7.8, 'direction': 'Forward', 'hmm_coord_from': 90, 'hmm_coord_to': 171,
-                   'ali_coord_from': 607, 'ali_coord_to': 689, 'env_coord_from': 603, 'env_coord_to': 702},
-                  {'hmm_name': 'hit4', 'hmm_accession': 'NF038150.1', 'hmm_len': 851, 'evalue': 6.7e-23,
-                   'bitscore': 126.8, 'direction': 'Forward', 'hmm_coord_from': 203, 'hmm_coord_to': 454,
-                   'ali_coord_from': 597, 'ali_coord_to': 843, 'env_coord_from': 582, 'env_coord_to': 880},
-                  {'hmm_name': 'hit5', 'hmm_accession': 'TIGR03903.1', 'hmm_len': 1267, 'evalue': 5.7e-23,
-                   'bitscore': 66.6, 'direction': 'Forward', 'hmm_coord_from': 3, 'hmm_coord_to': 190,
-                   'ali_coord_from': 607, 'ali_coord_to': 791, 'env_coord_from': 605, 'env_coord_to': 799},
-                  {'hmm_name': 'hit6', 'hmm_accession': 'NF033442.0', 'hmm_len': 1391, 'evalue': 5.7e-23,
-                   'bitscore': 90, 'direction': 'Forward', 'hmm_coord_from': 258, 'hmm_coord_to': 426,
-                   'ali_coord_from': 629, 'ali_coord_to': 788, 'env_coord_from': 626, 'env_coord_to': 794}]
-    hmm_pro.sort_hits(query_hits,sorting_type='bitscore',sorting_class='processor')
+    hits=[
+        ['tigrfam_merged', 't1', {'evalue': 0, 'bitscore': 20 }],
+        ['pfam', 't2', {'evalue': 1e-50, 'bitscore': 59 }],
+        ['tigrfam_merged', 't3', {'evalue': 1e-60, 'bitscore': 8 }],
+        #['tigrfam_merged', 't4', {'evalue': 1e-45, 'bitscore': 59 }],
+        #['tigrfam_merged', 't5', {'evalue': 1e-10, 'bitscore': 56}],
+        #['tigrfam_merged', 't6', {'evalue': 1e-10, 'bitscore': 58}],
+
+    ]
+    def get_min_max_alt_alg(query_hits):
+        all_bitscore,all_evalue=[],[]
+        for hit in query_hits:
+            ref_file, ref_hit, hit_info = hit
+            if hit_info['evalue']:
+                all_evalue.append(hit_info['evalue'])
+            if  hit_info['bitscore']:
+                all_bitscore.append( hit_info['bitscore'])
+        min_val_bitscore,max_val_bitscore=log10(min(all_bitscore)),log10(max(all_bitscore))
+        if all_evalue:
+            max_val_evalue,min_val_evalue=log10(min(all_evalue)),log10(max(all_evalue))
+        else:
+            min_val_evalue, max_val_evalue=0,0
+        return min_val_evalue,max_val_evalue,min_val_bitscore,max_val_bitscore
+
+    def add_scaled_values(query_hits):
+        min_val_evalue, max_val_evalue, min_val_bitscore, max_val_bitscore = get_min_max_alt_alg(query_hits)
+        for hit in query_hits:
+            ref_file, ref_hit, hit_info = hit
+            hit_weight = 1
+            hit_annotation_score = 1
+            if hit_info['evalue']:
+                hit_info['scaled_evalue'] = min_max_scale(log10(hit_info['evalue']), min_val_evalue, max_val_evalue) + 0.01
+            else:
+                hit_info['scaled_evalue']=2
+            hit_info['scaled_bitscore'] = min_max_scale(log10(hit_info['bitscore']), min_val_bitscore, max_val_bitscore) + 0.01
+
+            hit_info['scaled_evalue'] *= (hit_annotation_score + hit_weight)/2
+            hit_info['scaled_bitscore'] *=  (hit_annotation_score + hit_weight)/2
+
+    r=add_scaled_values(hits)
+    #r=hmm_pro.sort_hits(hits,sorting_type='evalue',sorting_class='consensus')
+    print(hits)

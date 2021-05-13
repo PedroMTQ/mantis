@@ -17,7 +17,7 @@ except:
                 try:
                     from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
                 except:
-                    raise CythonNotCompiled
+                    kill_switch(kill_switch)
         # when cython's version is not compatible with the current python version, we need to recompile it
         else:
             compile_cython()
@@ -27,42 +27,61 @@ except:
                 try:
                     from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
                 except:
-                    raise CythonNotCompiled
-
+                    kill_switch(kill_switch)
 
 class MANTIS_Consensus(MANTIS_NLP):
 
     def __init__(self):
         MANTIS_NLP.__init__(self)
 
-    def get_hmm_weight(self, hmm):
-        if hmm in self.mantis_hmm_weights:
-            return self.mantis_hmm_weights[hmm]
+    def get_ref_weight(self, ref):
+        '''
+        NCBI
+        NOG
+        Pfam-A
+        kofam
+        tigrfam
+        '''
+        if re.search('NCBI[GT]',ref):
+            corrected_ref='ncbi'
+        elif re.search('NOG[GT]',ref):
+            corrected_ref='nog'
+        elif 'Pfam-A' in ref:
+            corrected_ref='pfam'
+        elif ref=='kofam_merged':
+            corrected_ref='kofam'
+        elif ref=='tigrfam_merged':
+            corrected_ref='tigrfam'
         else:
-            return self.mantis_hmm_weights['else']
+            corrected_ref=str(ref)
+
+        if corrected_ref in self.mantis_ref_weights:
+            return self.mantis_ref_weights[corrected_ref]
+        else:
+            return self.mantis_ref_weights['else']
 
     #this will add the descriptions from the respective GO IDs, but we only add them if we dont have too many GO IDs
     def add_from_go_obo(self, query_dict):
-        for hmm_file in query_dict:
-            for hmm_hit in query_dict[hmm_file]:
-                clean_query_identifiers=self.remove_unspecific_identifiers(query_dict[hmm_file][hmm_hit]['identifiers'])
-                temp_hmm_hit_dict_identifiers = set(query_dict[hmm_file][hmm_hit]['identifiers'])
-                temp_hmm_hit_dict_description = set(query_dict[hmm_file][hmm_hit]['description'])
+        for ref_file in query_dict:
+            for ref_hit in query_dict[ref_file]:
+                clean_query_identifiers=self.remove_unspecific_identifiers(query_dict[ref_file][ref_hit]['identifiers'])
+                temp_ref_hit_dict_identifiers = set(query_dict[ref_file][ref_hit]['identifiers'])
+                temp_ref_hit_dict_description = set(query_dict[ref_file][ref_hit]['description'])
                 for id_str in clean_query_identifiers:
                     if 'go:' in id_str[0:3]:
                         if id_str in self.go_dict:
                             extra_info = self.go_dict[id_str]
                             for go_id in extra_info['identifiers']:
-                                temp_hmm_hit_dict_identifiers.add(go_id)
+                                temp_ref_hit_dict_identifiers.add(go_id)
                             for syn in extra_info['synonyms']:
-                                temp_hmm_hit_dict_description.add(syn)
+                                temp_ref_hit_dict_description.add(syn)
                 # we use the temp info to help matching annotations, but we dont want to add them to the final annotations
-                query_dict[hmm_file][hmm_hit]['temp_identifiers'] = set(temp_hmm_hit_dict_identifiers)
-                for id_str in temp_hmm_hit_dict_identifiers:
+                query_dict[ref_file][ref_hit]['temp_identifiers'] = set(temp_ref_hit_dict_identifiers)
+                for id_str in temp_ref_hit_dict_identifiers:
                     #some annotations have unspecific ec numbers, if so, we remove them from the similarity analysis
                     if 'enzyme_ec:' in id_str and '-' in id_str:
-                        query_dict[hmm_file][hmm_hit]['temp_identifiers'].remove(id_str)
-                query_dict[hmm_file][hmm_hit]['temp_description'] = temp_hmm_hit_dict_description
+                        query_dict[ref_file][ref_hit]['temp_identifiers'].remove(id_str)
+                query_dict[ref_file][ref_hit]['temp_description'] = temp_ref_hit_dict_description
 
     def read_interpreted_annotation(self, interpreted_annotation_tsv):
         with open(interpreted_annotation_tsv) as file:
@@ -73,34 +92,34 @@ class MANTIS_Consensus(MANTIS_NLP):
                 line = line.strip('\n')
                 line = line.strip()
                 line = line.split('\t')
-                query, hmm_file, hmm_hit, hmm_hit_accession, evalue, bitscore,direction, query_len, query_start, query_end, hmm_start, hmm_end, hmm_len = line[0:13]
+                query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore,direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line[0:13]
                 annotations = line[14:]
                 if query not in dict_annotations: dict_annotations[query] = {'query_len': int(query_len),
-                                                                             'hmm_files': {}}
+                                                                             'ref_files': {}}
                 # since the same hmm file can have different hits for the same query
-                if hmm_file not in dict_annotations[query]['hmm_files']:
-                    dict_annotations[query]['hmm_files'][hmm_file] = {}
-                dict_annotations[query]['hmm_files'][hmm_file][hmm_hit] = {'identifiers': set(), 'description': set(),
+                if ref_file not in dict_annotations[query]['ref_files']:
+                    dict_annotations[query]['ref_files'][ref_file] = {}
+                dict_annotations[query]['ref_files'][ref_file][ref_hit] = {'identifiers': set(), 'description': set(),
                                                                            'evalue': float(evalue),
                                                                            'bitscore': float(bitscore),
                                                                            'query_start': int(query_start),
                                                                            'query_end': int(query_end),
-                                                                           'hmm_start': int(hmm_start),
-                                                                           'hmm_end': int(hmm_end),
-                                                                           'hmm_len': int(hmm_len),
+                                                                           'ref_start': int(ref_start),
+                                                                           'ref_end': int(ref_end),
+                                                                           'ref_len': int(ref_len),
                                                                            }
                 for annot in annotations:
                     if 'description:' in annot[0:len('description:')]:
                         annot_text = annot.split(':')[1:]
                         annot_text = ' '.join(annot_text)
-                        dict_annotations[query]['hmm_files'][hmm_file][hmm_hit]['description'].add(annot_text)
+                        dict_annotations[query]['ref_files'][ref_file][ref_hit]['description'].add(annot_text)
                     elif 'is_essential_gene:' in annot:
                         dict_annotations[query]['is_essential_gene'] = True
                     else:
-                        dict_annotations[query]['hmm_files'][hmm_file][hmm_hit]['identifiers'].add(annot)
+                        dict_annotations[query]['ref_files'][ref_file][ref_hit]['identifiers'].add(annot)
                 line = file.readline()
         for query in dict_annotations:
-            self.add_from_go_obo(dict_annotations[query]['hmm_files'])
+            self.add_from_go_obo(dict_annotations[query]['ref_files'])
         return dict_annotations
 
     def generate_consensus(self, interpreted_annotation_tsv, stdout_file_path=None):
@@ -110,10 +129,10 @@ class MANTIS_Consensus(MANTIS_NLP):
             hits = []
             query_dict = dict_annotations[query]
             query_len = query_dict['query_len']
-            hmm_files = query_dict['hmm_files']
-            for hmm_file in hmm_files:
-                for hmm_hit in hmm_files[hmm_file]:
-                    hits.append([hmm_file, hmm_hit, hmm_files[hmm_file][hmm_hit]])
+            ref_files = query_dict['ref_files']
+            for ref_file in ref_files:
+                for ref_hit in ref_files[ref_file]:
+                    hits.append([ref_file, ref_hit, ref_files[ref_file][ref_hit]])
             if self.domain_algorithm == 'heuristic':
                 best_hits = self.get_best_hits_approximation(list(hits), sorting_class='consensus',sorting_type=self.sorting_type)
             elif self.domain_algorithm == 'bpo':
@@ -121,14 +140,14 @@ class MANTIS_Consensus(MANTIS_NLP):
             else:
                 best_hits = self.get_best_cython_consensus(list(hits), query_len, query,stdout_file_path=stdout_file_path)
             # expanding hits
-            consensus_hits, total_hits, hmm_files_consensus, hmm_names_consensus = self.expand_best_combination(best_hits,dict_annotations[query]['hmm_files'])
+            consensus_hits, total_hits, ref_files_consensus, ref_names_consensus = self.expand_best_combination(best_hits,dict_annotations[query]['ref_files'])
             if 'is_essential_gene' in dict_annotations[query]:
                 is_essential = True
             else:
                 is_essential = False
-            consensus_line = self.generate_consensus_line(query, dict_annotations[query]['hmm_files'], is_essential,
-                                                          consensus_hits, total_hits, hmm_files_consensus,
-                                                          hmm_names_consensus)
+            consensus_line = self.generate_consensus_line(query, dict_annotations[query]['ref_files'], is_essential,
+                                                          consensus_hits, total_hits, ref_files_consensus,
+                                                          ref_names_consensus)
             yield consensus_line
 
     # same method as non_overlapping hits from MANTIS_Processor , with some minor alterations to account for consensus
@@ -147,8 +166,8 @@ class MANTIS_Consensus(MANTIS_NLP):
         conversion_dict = {}
         res = set()
         for hit_i in range(len(query_hits)):
-            hmm_file = query_hits[hit_i][0]
-            hmm_hit = query_hits[hit_i][1]
+            ref_file = query_hits[hit_i][0]
+            ref_hit = query_hits[hit_i][1]
             hit_info = query_hits[hit_i][2]
             query_start,query_end=recalculate_coordinates(hit_info['query_start'],
                                                       hit_info['query_end'],
@@ -157,10 +176,76 @@ class MANTIS_Consensus(MANTIS_NLP):
                 hit_i,
                 query_start,
                 query_end,
-                hmm_hit
+                ref_hit
             ]))
-            conversion_dict[hit_i] = [hmm_file, hmm_hit, hit_info]
+            conversion_dict[hit_i] = [ref_file, ref_hit, hit_info]
         return res, conversion_dict
+
+
+
+
+    #this is for heuristic and bpo
+    def sort_scaled_hits(self,query_hits,sorting_type):
+        if not query_hits: return query_hits
+        self.add_scaled_values(query_hits)
+        #this sorting is similar to self.sort_hits but is a bit more specific
+        sorted_hits= sorted(query_hits, key=lambda k: k[2][f'scaled_{sorting_type}'],reverse=True)
+        res=[]
+        #then we separate by sorting value
+        sorted_hits_groups=[]
+        c=0
+        for i in sorted_hits:
+            hit_value = i[2][f'scaled_{sorting_type}']
+            if not sorted_hits_groups:
+                sorted_hits_groups.append([])
+                current=hit_value
+            if hit_value==current: sorted_hits_groups[c].append(i)
+            else:
+                sorted_hits_groups.append([i])
+                c+=1
+                current=hit_value
+        sec_sorting_type= 'bitscore' if sorting_type=='evalue' else 'evalue'
+        for sg in sorted_hits_groups:
+            temp= sorted(sg, key=lambda k: k[2][f'scaled_{sec_sorting_type}'],reverse=True)
+            res.extend(temp)
+        for i in res:
+            i[2].pop('scaled_evalue')
+            i[2].pop('scaled_bitscore')
+        return res
+
+
+    def get_min_max_alt_alg(self,query_hits):
+        all_bitscore,all_evalue=[],[]
+        for hit in query_hits:
+            ref_file, ref_hit, hit_info = hit
+            if hit_info['evalue']:
+                all_evalue.append(hit_info['evalue'])
+            if  hit_info['bitscore']:
+                all_bitscore.append( hit_info['bitscore'])
+        min_val_bitscore,max_val_bitscore=log10(min(all_bitscore)),log10(max(all_bitscore))
+        if all_evalue:
+            max_val_evalue,min_val_evalue=log10(min(all_evalue)),log10(max(all_evalue))
+        else:
+            min_val_evalue, max_val_evalue=0,0
+        return min_val_evalue,max_val_evalue,min_val_bitscore,max_val_bitscore
+
+
+    def add_scaled_values(self,query_hits):
+        min_val_evalue, max_val_evalue, min_val_bitscore, max_val_bitscore = self.get_min_max_alt_alg(query_hits)
+        for hit in query_hits:
+            ref_file, ref_hit, hit_info = hit
+            hit_weight = self.get_ref_weight(ref_file)
+            hit_annotation_score = self.get_annotation_score(hit_info)
+            if hit_info['evalue']:
+                hit_info['scaled_evalue'] = min_max_scale(log10(hit_info['evalue']), min_val_evalue, max_val_evalue) + 0.01
+            else:
+                hit_info['scaled_evalue']=2
+            hit_info['scaled_bitscore'] = min_max_scale(log10(hit_info['bitscore']), min_val_bitscore, max_val_bitscore) + 0.01
+
+            hit_info['scaled_evalue'] *= (hit_annotation_score + hit_weight)/2
+            hit_info['scaled_bitscore'] *=  (hit_annotation_score + hit_weight)/2
+
+
 
     def get_annotation_score(self, hit_info):
         if hit_info['temp_identifiers'] and hit_info['temp_description']:
@@ -184,15 +269,17 @@ class MANTIS_Consensus(MANTIS_NLP):
                         res += 1
         return (res + len(combo)) / len(query_hits)
 
-    def get_combo_score_Consensus(self, combo, query_length, min_val, max_val, hmm_sources):
+
+
+    def get_combo_score_Consensus(self, combo, query_length, min_val, max_val, ref_sources):
         '''
-        hmm_sources= number of intersecting sources divided by number of hits from all sources
+        ref_sources= number of intersecting sources divided by number of hits from all sources
         metrics for consensus:
         intersecting sources = amount of different sources that intersect with the combo
         combo coverage  = percentage of the sequence covered by the combo
         combo evalue = summed scaled evalue of the combo. Is averaged
-        combo weight = summed hmm weight of the combo. Better sources should give better combinations of hits . Is averaged
-        combo annotation score = score of the annotation (0.25 if just the hmm name, 0.5 if just the description, 0.75 if just identifiers, 1 if identifiers and description
+        combo weight = summed ref weight of the combo. Better sources should give better combinations of hits . Is averaged
+        combo annotation score = score of the annotation (0.25 if just the ref name, 0.5 if just the description, 0.75 if just identifiers, 1 if identifiers and description
         '''
         average_value = 0
         average_hit_coverage = 0
@@ -201,14 +288,14 @@ class MANTIS_Consensus(MANTIS_NLP):
         hit_ranges = []
 
         for hit in combo:
-            hmm_file, hmm_hit, hit_info = hit
-            hit_start, hit_end, hmm_start, hmm_end = hit_info['query_start'], hit_info['query_end'], \
-                                                     hit_info['hmm_start'], hit_info['hmm_end']
-            hmm_len = hit_info['hmm_len']
+            ref_file, ref_hit, hit_info = hit
+            hit_start, hit_end, ref_start, ref_end = hit_info['query_start'], hit_info['query_end'], \
+                                                     hit_info['ref_start'], hit_info['ref_end']
+            ref_len = hit_info['ref_len']
             hit_evalue = hit_info['evalue']
             hit_bitscore = hit_info['bitscore']
             hit_coverage = (hit_end - hit_start + 1) / query_length
-            hmm_coverage = (hmm_end - hmm_start + 1) / hmm_len
+            ref_coverage = (ref_end - ref_start + 1) / ref_len
             average_hit_coverage += hit_coverage
             # lower is best
             if self.sorting_type == 'evalue':
@@ -225,11 +312,11 @@ class MANTIS_Consensus(MANTIS_NLP):
             average_value += scaled_value
 
             hit_ranges.append([hit_start, hit_end])
-            total_weight += self.get_hmm_weight(hmm_file)
+            total_weight += self.get_ref_weight(ref_file)
             annotation_score += self.get_annotation_score(hit_info)
 
         # sources score
-        sources_score = (hmm_sources + annotation_score / len(combo) + total_weight / len(combo)) / 3
+        sources_score = (ref_sources + annotation_score / len(combo) + total_weight / len(combo)) / 3
         # sequence hit quality
         average_value = average_value / len(combo)
         # average coverage of all hits
@@ -265,6 +352,7 @@ class MANTIS_Consensus(MANTIS_NLP):
 
         return combo_score
 
+
     def get_best_hits_Consensus(self, query_hits, query_length):
         cython_hits, conversion_dict = self.query_hits_to_cython_Consensus(query_hits)
         cython_possible_combos = get_non_overlapping_hits(cython_hits, time_limit=self.time_limit)
@@ -272,14 +360,14 @@ class MANTIS_Consensus(MANTIS_NLP):
         if not cython_possible_combos: return None
         best_combo_score = 0
         best_combo = None
-        min_val, max_val = self.get_min_max(cython_possible_combos, conversion_dict, sorting_class='consensus')
+        min_val, max_val = self.get_min_max_dfs(cython_possible_combos, conversion_dict, sorting_class='consensus')
         for len_combo in cython_possible_combos:
             if len_combo:
                 for cython_combo in cython_possible_combos[len_combo]:
                     combo = self.cython_to_query_hits(cython_combo, conversion_dict)
                     # we benefit the combo which intersect with other sources
-                    hmm_sources = self.get_intersecting_sources(combo, query_hits)
-                    combo_score = self.get_combo_score_Consensus(combo, query_length, min_val, max_val, hmm_sources)
+                    ref_sources = self.get_intersecting_sources(combo, query_hits)
+                    combo_score = self.get_combo_score_Consensus(combo, query_length, min_val, max_val, ref_sources)
                     if best_combo is None:
                         best_combo = combo
                         best_combo_score = combo_score
@@ -308,34 +396,34 @@ class MANTIS_Consensus(MANTIS_NLP):
     # @timeit_function
     def expand_best_combination(self, best_hits, query_dict):
         hits_merged = set()
-        hmm_files_consensus = set()
-        hmm_names_consensus = set()
+        ref_files_consensus = set()
+        ref_names_consensus = set()
         for best_hit in best_hits:
 
             best_hit_file, best_hit_name, best_hit_info = best_hit
             hits_merged.add(best_hit_name)
-            hmm_files_consensus.add(best_hit_file)
-            hmm_names_consensus.add(best_hit_name)
+            ref_files_consensus.add(best_hit_file)
+            ref_names_consensus.add(best_hit_name)
             temp_best_hit_info = dict(best_hit_info)
             first_check = False
             # iterations might change already iterated over best_hit_info, this way we check if there is any info added, if so, we repeat the cycle one more otherwise we return
             while temp_best_hit_info != best_hit_info or not first_check:
-                for hmm_file in query_dict:
-                    for hit_to_test in query_dict[hmm_file]:
-                        if self.is_hit_match(query_dict[hmm_file][hit_to_test], hit_to_test, hmm_file, best_hit_info,
+                for ref_file in query_dict:
+                    for hit_to_test in query_dict[ref_file]:
+                        if self.is_hit_match(query_dict[ref_file][hit_to_test], hit_to_test, ref_file, best_hit_info,
                                              best_hit_name, best_hit_file):
-                            self.add_to_hit(query_dict[hmm_file][hit_to_test], best_hit_info)
+                            self.add_to_hit(query_dict[ref_file][hit_to_test], best_hit_info)
                             hits_merged.add(hit_to_test)
-                            hmm_files_consensus.add(hmm_file)
-                            hmm_names_consensus.add(hit_to_test)
+                            ref_files_consensus.add(ref_file)
+                            ref_names_consensus.add(hit_to_test)
                 first_check = True
                 temp_best_hit_info = dict(best_hit_info)
         # checking how many hits we managed to merge out of all the hits - coverage_consensus
         total_hits = 0
-        for hmm_file in query_dict:
-            for i in query_dict[hmm_file]:
+        for ref_file in query_dict:
+            for i in query_dict[ref_file]:
                 total_hits += 1
-        return str(len(hits_merged)), str(total_hits), hmm_files_consensus, hmm_names_consensus
+        return str(len(hits_merged)), str(total_hits), ref_files_consensus, ref_names_consensus
 
     def is_nlp_match(self, hit1_info_description, hit2_info_description):
         if self.no_unifunc: return False
@@ -476,20 +564,20 @@ class MANTIS_Consensus(MANTIS_NLP):
                 already_added.add(test)
         return res
 
-    def generate_consensus_line(self, query, query_dict, is_essential, consensus_hits, total_hits, hmm_files_consensus,
-                                hmm_names_consensus):
-        hmm_hits = ';'.join(hmm_names_consensus)
-        hmm_files = ';'.join(hmm_files_consensus)
+    def generate_consensus_line(self, query, query_dict, is_essential, consensus_hits, total_hits, ref_files_consensus,
+                                ref_names_consensus):
+        ref_hits = ';'.join(ref_names_consensus)
+        ref_files = ';'.join(ref_files_consensus)
         # consensus_coverage is a str with consensus sources/all sources, better as a str instead of float as its easier to understand
-        row_start = [query, hmm_files, hmm_hits, consensus_hits, total_hits, '|']
+        row_start = [query, ref_files, ref_hits, consensus_hits, total_hits, '|']
         row_start = [str(i) for i in row_start]
         all_descriptions = set()
         all_identifiers = set()
-        for hmm_file in hmm_files_consensus:
-            for hmm_hit_name in hmm_names_consensus:
-                if hmm_hit_name in query_dict[hmm_file]:
-                    description = query_dict[hmm_file][hmm_hit_name]['description']
-                    identifiers = query_dict[hmm_file][hmm_hit_name]['identifiers']
+        for ref_file in ref_files_consensus:
+            for ref_hit_name in ref_names_consensus:
+                if ref_hit_name in query_dict[ref_file]:
+                    description = query_dict[ref_file][ref_hit_name]['description']
+                    identifiers = query_dict[ref_file][ref_hit_name]['identifiers']
                     all_identifiers.update(identifiers)
                     all_descriptions.update(description)
         res = list(row_start)
@@ -518,8 +606,8 @@ class MANTIS_Consensus(MANTIS_NLP):
 
     def generate_consensus_output(self, interpreted_annotation_tsv, consensus_annotation_tsv, stdout_file_path=None):
         first_line = ['Query',
-                      'HMM_Files',
-                      'HMM_Hits',
+                      'Ref_Files',
+                      'Ref_Hits',
                       'Consensus_hits',
                       'Total_hits',
                       '|',
@@ -528,8 +616,7 @@ class MANTIS_Consensus(MANTIS_NLP):
         with open(consensus_annotation_tsv, 'w+') as file:
             first_line = '\t'.join(first_line)
             file.write(first_line + '\n')
-            consensus_annotation = self.generate_consensus(interpreted_annotation_tsv,
-                                                           stdout_file_path=stdout_file_path)
+            consensus_annotation = self.generate_consensus(interpreted_annotation_tsv,stdout_file_path=stdout_file_path)
             for consensus_query in consensus_annotation:
                 line = '\t'.join(consensus_query)
                 file.write(line + '\n')
@@ -538,8 +625,4 @@ class MANTIS_Consensus(MANTIS_NLP):
 
 
 if __name__ == '__main__':
-    f = '/home/pedroq/Desktop/test_mantis/here.tsv'
-    f2 = '/home/pedroq/Desktop/test_mantis/here_out.tsv'
-    f3 = '/home/pedroq/Desktop/test_mantis/here2.tsv'
-    f4 = '/home/pedroq/Desktop/test_mantis/here2_out.tsv'
     m = MANTIS_Consensus()

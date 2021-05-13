@@ -30,7 +30,6 @@ try:
     from string import punctuation
 except:
     import signal
-
     master_pid = os.getpid()
     print(
         '\t\t######################################################################################################################################\n'
@@ -39,6 +38,14 @@ except:
         '\t\t################## Read the setup instructions @ https://github.com/PedroMTQ/mantis/wiki/Configuration#installation ##################\n'
         '\t\t######################################################################################################################################\n',
         flush=True)
+    os.kill(master_pid, signal.SIGKILL)
+
+def kill_switch(error_type,message,flush=False, file=None):
+    import signal
+    master_pid = os.getpid()
+    if file and message:  print(message,flush=flush,file=file)
+    elif message:  print(error_type+message)
+    else: print(error_type)
     os.kill(master_pid, signal.SIGKILL)
 
 
@@ -107,10 +114,11 @@ WORKER_PER_CORE = 1
 
 MANTIS_FOLDER = os.path.abspath(os.path.dirname(__file__)).split(SPLITTER)[0:-1]
 MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER) + SPLITTER
+DIAMOND_PATH= f'{MANTIS_FOLDER}Resources{SPLITTER}Diamond/diamond'
 
 
 def estimate_number_workers_annotation(n_chunks=0,
-                                       n_hmms=0,
+                                       n_refs=0,
                                        default_workers=None,
                                        user_cores=None,
                                        minimum_jobs_per_worker=1,
@@ -126,7 +134,7 @@ def estimate_number_workers_annotation(n_chunks=0,
     maximum_overhead_workers = ceil((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
     # maximum amount of workers that could be spawning considering the ram required for the annotation and the overhead associated with spawning a process
     # total times we need to run hmmer
-    total_hmmer_runs = n_chunks * n_hmms
+    total_hmmer_runs = n_chunks * n_refs
     if split_sample: total_hmmer_runs = environment_workers
     return ceil(min([total_hmmer_runs, maximum_overhead_workers, environment_workers]) / minimum_jobs_per_worker)
 
@@ -159,25 +167,33 @@ def estimate_chunk_size(total_n_seqs,
 
 def estimate_number_workers_split_sample(minimum_worker_load,
                                          len_protein_seqs,
-                                         percentage_allowed_overhead=0.8):
+                                         percentage_allowed_overhead=0.8,
+                                         user_cores=None):
+    if user_cores:        return user_cores * WORKER_PER_CORE
     estimate_chunk_workers = ceil(len_protein_seqs / minimum_worker_load)
     # we only reserve a certain percentage for the overhead associated with spawning processes
     maximum_overhead_workers = int((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
-    return min([maximum_overhead_workers, estimate_chunk_workers])
+    environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
+    return min([maximum_overhead_workers, estimate_chunk_workers,environment_workers])
 
 
 def estimate_number_workers_setup_database(n_hmms_to_setup,
                                            percentage_allowed_overhead=0.8,
-                                           minimum_jobs_per_worker=3):
+                                           minimum_jobs_per_worker=3,
+                                           user_cores=None):
+    if user_cores:        return user_cores * WORKER_PER_CORE
     # 0.1GB RAM per hmm setup
     ram_per_setup = 0.1
     maximum_overhead_workers = ceil((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
     maximum_workers = ceil(AVAILABLE_RAM / (ram_per_setup + PROCESS_OVERHEAD))
-    return ceil(min([n_hmms_to_setup, maximum_workers, maximum_overhead_workers]) / minimum_jobs_per_worker)
+    environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
+    return ceil(min([environment_workers,n_hmms_to_setup, maximum_workers, maximum_overhead_workers]))
 
 
-def estimate_number_workers_process_output(n_chunks, domtblout_per_chunks=1):
-    return min([ENVIRONMENT_CORES * WORKER_PER_CORE, n_chunks * domtblout_per_chunks])
+def estimate_number_workers_process_output(n_chunks, searchout_per_chunks=1,user_cores=None):
+    if user_cores: return user_cores
+    environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
+    return min([environment_workers, n_chunks * searchout_per_chunks])
 
 
 def is_ec(enz_id, required_level=3):
@@ -275,38 +291,6 @@ def find_go(string_to_search):
     return res
 
 
-def convert_time(user_hours):
-    if not user_hours:
-        return None
-    elif user_hours == 'None':
-        return None
-    elif isinstance(user_hours, int) or isinstance(user_hours, float):
-        return ceil(float(user_hours))
-    else:
-        return user_hours
-
-
-def get_sample_metrics(target_sample):
-    total_sample_length = 0
-    seqs_length = []
-    with open(target_sample) as file:
-        line = file.readline()
-        # skip first line with >
-        line = file.readline()
-        seq_c = 0
-        while line:
-            if line[0] != '>':
-                line = line.strip('\n')
-                total_sample_length += len(line)
-                seq_c += len(line)
-            else:
-                seqs_length.append(seq_c)
-                seq_c = 0
-            line = file.readline()
-        seqs_length.append(seq_c)
-    return total_sample_length, total_sample_length / len(seqs_length), len(seqs_length)
-
-
 def get_seqs_count(target_sample):
     total_seqs = 0
     with open(target_sample) as file:
@@ -332,33 +316,35 @@ def read_profile(hmm_file):
         line = hmm_file.readline()
 
 
-def get_hmm_in_folder(folder_path):
+def get_ref_in_folder(folder_path):
     temp_path = add_slash(folder_path)
     if os.path.exists(temp_path):
         if temp_path[0:2] != 'NA':
             files = os.listdir(temp_path)
             for f in files:
-                if '.hmm' in f[-4:]:
+                if f.endswith('.hmm'):
+                    return temp_path + f
+                if f.endswith('.dmnd'):
                     return temp_path + f
     return None
 
 
 def get_hmm_profile_count(hmm_path, stdout=None):
     res = 0
-    with open(hmm_path) as hmm_file:
-        line = hmm_file.readline()
-        while line:
-            if 'NAME' in line:
-                res += 1
-                if stdout:
-                    if not res % 10000:
-                        print('Counted ' + str(res) + ' profiles on ' + hmm_path + ' so far.', flush=True, file=stdout)
+    if hmm_path.endswith('.hmm'):
+        with open(hmm_path) as hmm_file:
             line = hmm_file.readline()
-
+            while line:
+                if 'NAME' in line:
+                    res += 1
+                    if stdout:
+                        if not res % 10000:
+                            print('Counted ' + str(res) + ' profiles on ' + hmm_path + ' so far.', flush=True, file=stdout)
+                line = hmm_file.readline()
     return res
 
 
-def compile_hmm_chunks_path(hmm_path):
+def get_chunks_path(hmm_path):
     # this will check if the hmm have been split into chunks, if so it will retrieve the chunks instead
     res = []
     hmm_folder = get_folder(hmm_path)
@@ -418,6 +404,11 @@ def chunk_generator_load_balanced(list_ordered, chunk_size, time_limit=60):
             chunk_index += 1
     return res
 
+########Processing protein fasta
+def remove_temp_fasta(temp_fasta_path, db):
+    if f'missing_annotations.{db}.tmp' in temp_fasta_path:
+        os.remove(temp_fasta_path)
+
 
 def is_fasta(fasta_file):
     with open(fasta_file, 'r') as f:
@@ -425,6 +416,78 @@ def is_fasta(fasta_file):
         if line[0] == '>':
             return True
     return False
+
+
+def process_protein_fasta_line(res, query, fasta_line, start_recording):
+    # for the first > line
+    if '>' in fasta_line and not start_recording:
+        fasta_line = fasta_line.replace('\'', '')
+        fasta_line = fasta_line.replace('>', '')
+        fasta_line = fasta_line.replace('\"', '')
+        new_query = fasta_line.split()[0]
+        start_recording = True
+        res[new_query] = ''
+        return res, new_query, start_recording
+    # for posterior > lines
+    elif '>' in fasta_line and start_recording:
+        fasta_line = fasta_line.replace('\'', '')
+        fasta_line = fasta_line.replace('>', '')
+        fasta_line = fasta_line.replace('\"', '')
+        start_recording = True
+        new_query = fasta_line.split()[0]
+        res[new_query] = ''
+        return res, new_query, start_recording
+    # to get the sequences
+    elif start_recording:
+        fasta_line = fasta_line.replace('\"', '')
+        fasta_line = fasta_line.replace('\'', '')
+        res[query] += fasta_line.strip().upper()
+        return res, query, start_recording
+
+#this is only used for internal temporary files
+def read_protein_fasta(protein_fasta_path):
+    res = {}
+    with open(protein_fasta_path, 'r') as file:
+        line = file.readline()
+        if line[0] != '>':  raise FileNotFoundError
+        start_recording = False
+        query = None
+        while line:
+            line = line.strip('\n')
+            if line:
+                res, query, start_recording = process_protein_fasta_line(res=res,
+                                                                              query=query,
+                                                                              fasta_line=line,
+                                                                              start_recording=start_recording)
+            line = file.readline()
+    return res
+
+#low memory footprint_version
+def read_protein_fasta_generator(protein_fasta_path):
+    query=None
+    seq=[]
+    with open(protein_fasta_path, 'r') as file:
+        line = file.readline()
+        while line:
+            if line.startswith('>'):
+                if query:
+                    yield query,''.join(seq).upper()
+                    seq=[]
+                query=line.replace('>','').strip()
+            else:
+                seq.append(line.strip())
+            line = file.readline()
+        if query:
+            yield query, ''.join(seq).upper()
+
+#low memory footprint_version
+def write_fasta_generator(seqs_generator, fasta_file):
+    with open(fasta_file, 'w+') as file:
+        for query,seq in seqs_generator:
+            chunks = [seq[x:x + 60] for x in range(0, len(seq), 60)]
+            chunk_str = '\n'.join(i for i in chunks)
+            file.write('>' + query + '\n' + chunk_str + '\n')
+
 
 
 def add_slash(path_folder):
@@ -586,16 +649,6 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
         c += 1
     print('Did not manage to download the following url correctly:\n' + url)
     raise Exception
-
-
-def tail(file_path):
-    last_line = None
-    with open(file_path) as file:
-        line = file.readline()
-        while line:
-            last_line = str(line)
-            line = file.readline()
-    return last_line
 
 
 def concat_files(output_file, list_file_paths, stdout_file=None):
@@ -898,15 +951,28 @@ def yield_file(list_of_files):
         c += 1
 
 def download_unifunc():
-    unifunc_folder= MANTIS_FOLDER + 'source' + SPLITTER +'UniFunc/'
+    unifunc_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'UniFunc/'
     unifunc_url='https://github.com/PedroMTQ/UniFunc.git'
     Path(unifunc_folder).mkdir(parents=True, exist_ok=True)
     run_command('git clone '+unifunc_url+' '+unifunc_folder)
 
 
 def unifunc_downloaded():
-    unifunc_folder= MANTIS_FOLDER + 'source' + SPLITTER +'UniFunc/'
+    unifunc_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'UniFunc/'
     if not os.path.exists(unifunc_folder): return False
+    return True
+
+
+def download_diamond():
+    diamond_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'Diamond/'
+    diamond_url='http://github.com/bbuchfink/diamond/releases/download/v2.0.9/diamond-linux64.tar.gz'
+    Path(diamond_folder).mkdir(parents=True, exist_ok=True)
+    download_file(url=diamond_url,output_folder=diamond_folder)
+    uncompress_archive(f'{diamond_folder}diamond-linux64.tar.gz',remove_source=True)
+
+def diamond_downloaded():
+    diamond_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'Diamond/'
+    if not os.path.exists(diamond_folder): return False
     return True
 
 def compile_cython():
@@ -921,15 +987,6 @@ def compile_cython():
 def cython_compiled():
     cython_folder = MANTIS_FOLDER + 'source' + SPLITTER + 'cython_src' + SPLITTER
     if not os.path.exists(cython_folder + 'get_non_overlapping_hits.c'): return False
-    return True
-
-
-def is_picklable(obj):
-    import pickle
-    try:
-        pickle.dumps(obj)
-    except pickle.PicklingError:
-        return False
     return True
 
 
@@ -983,9 +1040,97 @@ def recalculate_coordinates(env_from,env_to,overlap_value):
     end = end - hit_overlap
     return start,end
 
+def create_translation_table(protein_str,base1,base2,base3):
+    res={}
+    for i in range(len(protein_str)):
+        codon=base1[i]+base2[i]+base3[i]
+        res[codon]=protein_str[i]
+    return res
 
+def parse_translation_tables(ncbi_tables):
+    # https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
+    # ftp://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt
+    res={}
+    start_recording=False
+    base3=None
+    with open(ncbi_tables) as file:
+        line=file.readline()
+        while line:
+            line=line.strip('\n')
+            line=line.strip()
+            if start_recording:
+                if line.startswith('name "') and not re.search('name "SGC',line):table_name=line.split('"')[1]
+                if line.startswith('id '):         table_id=line.split()[1].strip(',').strip('"').strip()
+                if line.startswith('ncbieaa '):    protein_str=line.split()[1].strip(',').strip('"').strip()
+                if line.startswith('-- Base1 '):   base1=line.split()[2].strip(',').strip('"').strip()
+                if line.startswith('-- Base2 '):   base2=line.split()[2].strip(',').strip('"').strip()
+                if line.startswith('-- Base3 '):   base3=line.split()[2].strip(',').strip('"').strip()
+                if base3:
+                    translation_table=create_translation_table(protein_str,base1,base2,base3)
+                    res[int(table_id)]={'name':table_name,'table':translation_table}
+                    base3=None
+            if 'Genetic-code-table' in line: start_recording=True
+            line=file.readline()
+    return res
+
+
+def translate_protein_seq(sequence,translation_table):
+    step=3
+    res=[]
+    for i in range(0,len(sequence),step):
+        codon=sequence[i:i+step]
+        try:
+            aminoacid=translation_table['table'][codon]
+        except:
+            raise Exception
+        res.append(aminoacid)
+    return ''.join(res)
+
+
+def write_translated_fasta(original_fasta_path, translated_fasta_path, translation_table,sample_type):
+    with open(translated_fasta_path, 'w+') as file:
+        for query,seq in read_protein_fasta_generator(original_fasta_path):
+            if sample_type=='rna': seq=seq.replace('U','T')
+            elif sample_type=='protein':    raise Exception
+            protein_seq = translate_protein_seq(seq, translation_table)
+            chunks = [protein_seq[x:x + 60] for x in range(0, len(protein_seq), 60)]
+            chunk_str = '\n'.join(i for i in chunks)
+            file.write('>' + query + '\n' + chunk_str + '\n')
+
+def check_sample_type(sample_path):
+    res={}
+    c=0
+    with open(sample_path) as file:
+        line=file.readline()
+        while line and c<=1000:
+            if not line.startswith('>'):
+                line=line.strip('\n')
+                line=line.strip()
+                for residue in line:
+                    residue=residue.upper()
+                    if residue not in res: res[residue]=0
+                    res[residue]+=1
+                c+=1
+            line=file.readline()
+    sorted_keys=sorted(res.keys())
+    if sorted_keys==['A', 'C', 'G', 'T']: return 'dna'
+    if sorted_keys==['A', 'C', 'G', 'U']: return 'rna'
+    else: return 'protein'
+
+def count_residues(sample_path):
+    res=0
+    with open(sample_path) as file:
+        line=file.readline()
+        while line:
+            if not line.startswith('>'):
+                line=line.strip('\n')
+                line=line.strip()
+                res+=len(line)
+            line=file.readline()
+    return res
 
 
 if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
+    print(estimate_number_workers_setup_database(214))
