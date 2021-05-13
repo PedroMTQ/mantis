@@ -1,6 +1,6 @@
 #!/bin/bash -l
-#SBATCH -J 25c250w
-#SBATCH --time=0-00:10:00
+#SBATCH -J mantis_run
+#SBATCH --time=0-02:00:00
 #SBATCH --mem=100GB
 #SBATCH -p batch
 #SBATCH --qos=qos-batch

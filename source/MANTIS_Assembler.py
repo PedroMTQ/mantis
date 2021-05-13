@@ -14,11 +14,12 @@ grep "Disk quota exceeded" *
 '''
 
 
-def setup_databases(force_download=False, chunk_size=None, mantis_config=None):
+def setup_databases(force_download=False, chunk_size=None, mantis_config=None,cores=None):
     print_cyan('Setting up databases')
     if force_download == 'None': force_download = None
     if chunk_size: chunk_size = int(chunk_size)
-    mantis = MANTIS_Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config)
+    if cores: cores=int(cores)
+    mantis = MANTIS_Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores)
     mantis.setup_databases(force_download)
 
 
@@ -44,11 +45,12 @@ def extract_nog_metadata(metadata_path):
 
 class MANTIS_Assembler(MANTIS_DB):
     def __init__(self, verbose=True, redirect_verbose=None, mantis_config=None,
-                 hmm_chunk_size=None,keep_files=False):
+                 hmm_chunk_size=None,keep_files=False,user_cores=None):
         self.redirect_verbose = redirect_verbose
         self.keep_files = keep_files
         self.verbose = verbose
         self.mantis_config = mantis_config
+        self.user_cores = user_cores
         self.broken_merged_hmms = set()
         self.clean_merged_hmms = set()
         self.start_time = time()
@@ -67,36 +69,36 @@ class MANTIS_Assembler(MANTIS_DB):
         self.queue = self.manager.list()
 
     def __str__(self):
-        custom_hmms = self.get_custom_hmms_paths(folder=True)
-        custom_hmms_str = ''
+        custom_refs = self.get_custom_refs_paths(folder=True)
+        custom_refs_str = ''
         custom_res=''
-        for chmm in custom_hmms:
-            custom_hmms_str += chmm + '\n'
-        if custom_hmms_str:
-            custom_res = 'Custom hmms folders:\n' + custom_hmms_str
+        for cref in custom_refs:
+            custom_refs_str += cref + '\n'
+        if custom_refs_str:
+            custom_res = 'Custom references:\n' + custom_refs_str
         res= 'Output folder:\n' + self.output_folder if hasattr(self, 'output_folder') else '' + \
                   '#  External data folders:' + '\n' + \
                   '------------------------------------------' + '\n' + \
-                  'Default hmms folder:\n' + \
+                  'Default references folder:\n' + \
                   self.mantis_paths['default'] + '\n' + \
-                  'Custom hmms folder:\n' + \
+                  'Custom references folder:\n' + \
                   self.mantis_paths['custom'] + '\n' + \
-                  'NCBI dump folder:\n' + \
-                  self.mantis_paths['ncbi_tax'] + '\n' + \
-                  'TAX NOG hmms folder:\n' + \
+                  'TAX NOG HMMs folder:\n' + \
                   self.mantis_paths['NOG'] + '\n' + \
-                  'TAX NCBI hmms folder:\n' + \
+                  'TAX NCBI HMMs folder:\n' + \
                   self.mantis_paths['NCBI'] + '\n' + \
-                  'Pfam hmms folder:\n' + \
+                  'Pfam HMMs folder:\n' + \
                   self.mantis_paths['pfam'] + '\n' + \
-                  'KOfam hmms folder:\n' + \
+                  'KOfam HMMs folder:\n' + \
                   self.mantis_paths['kofam'] + '\n' + \
-                  'TIGRFAM hmms folder:\n' + \
+                  'TIGRFAM HMMs folder:\n' + \
                   self.mantis_paths['tigrfam'] + '\n' + \
+                  'TCDB sequences folder:\n' + \
+                  self.mantis_paths['tcdb'] + '\n' + \
                 '------------------------------------------' + '\n'
         if custom_res: res+='\n'+custom_res
-        hmm_weights=', '.join([f'{i}:{self.mantis_hmm_weights[i]}' for i in self.mantis_hmm_weights if i!='else'])
-        res+= f'#  Weights: {hmm_weights}\n'
+        ref_weights=', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i!='else'])
+        res+= f'#  Weights: {ref_weights}\n'
 
         return res
 
@@ -106,7 +108,8 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def requirements_met(self):
         for f in [self.is_conda_available(), self.is_hmmer_available()]:
-            if not f: raise RequirementsNotMet
+            if not f:
+                kill_switch(RequirementsNotMet)
 
     def is_conda_available(self):
         process = run_command('conda -V', get_output=True)
@@ -127,6 +130,7 @@ class MANTIS_Assembler(MANTIS_DB):
             print_cyan('conda install -c bioconda hmmer')
         return check
 
+
     def check_internet_connection(self):
         try:
             requests.get("http://www.google.com")
@@ -145,7 +149,7 @@ class MANTIS_Assembler(MANTIS_DB):
                 taxa_id = re.search('<Id>\d+</Id>', webpage)
                 return re.search('\d+', taxa_id.group()).group()
             except:
-                print('Could not get connect to NCBI, trying again')
+                print('Could not get a response from NCBI, trying again')
                 c += 1
 
     def get_taxa_ncbi(self,organism_name):
@@ -157,18 +161,18 @@ class MANTIS_Assembler(MANTIS_DB):
         if not taxa_id:    print(f'Could not find taxa ID for {organism_name}')
         return taxa_id
 
-    def get_default_hmm_path(self):
+    def get_default_ref_path(self):
         file = open(self.config_file, 'r')
         line = file.readline()
         while line:
             line = line.strip('\n')
             if '#' not in line:
                 # data sources configuration
-                if 'default_hmms_folder=' in line:
-                    line_path = add_slash(line.replace('default_hmms_folder=', ''))
+                if 'default_ref_folder=' in line:
+                    line_path = add_slash(line.replace('default_ref_folder=', ''))
                     if line_path:
-                        default_hmm_path = line_path
-                        return default_hmm_path
+                        default_ref_path = line_path
+                        return default_ref_path
             line = file.readline()
         file.close()
 
@@ -197,13 +201,13 @@ class MANTIS_Assembler(MANTIS_DB):
             line = line.strip('\n')
             if '#' not in line:
                 # data sources configuration
-                if 'custom_hmms_folder=' in line:
-                    line_path = add_slash(line.replace('custom_hmms_folder=', ''))
+                if 'custom_ref_folder=' in line:
+                    line_path = add_slash(line.replace('custom_ref_folder=', ''))
                     if line_path: self.mantis_paths['custom'] = line_path
 
-                elif 'ncbi_dmp_path_folder=' in line:
-                    line_path = add_slash(line.replace('ncbi_dmp_path_folder=', ''))
-                    if line_path: self.mantis_paths['ncbi_tax'] = line_path
+                elif 'ncbi_resources_folder=' in line:
+                    line_path = add_slash(line.replace('ncbi_resources_folder=', ''))
+                    if line_path: self.mantis_paths['ncbi_res'] = line_path
 
                 elif 'nog_hmm_folder=' in line:
                     line_path = add_slash(line.replace('nog_hmm_folder=', ''))
@@ -230,15 +234,19 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = add_slash(line.replace('tigrfam_hmm_folder=', ''))
                     if line_path: self.mantis_paths['tigrfam'] = line_path
 
+                elif 'tcdb_seq_folder=' in line[:len('tcdb_seq_folder=')]:
+                    line_path = add_slash(line.replace('tcdb_seq_folder=', ''))
+                    if line_path: self.mantis_paths['tcdb'] = line_path
+
 
                 elif '_weight=' in line:
-                    hmm_source, weight = line.split('_weight=')
-                    self.mantis_hmm_weights[hmm_source] = float(weight)
+                    ref_source, weight = line.split('_weight=')
+                    self.mantis_ref_weights[ref_source] = float(weight)
             line = file.readline()
         file.close()
 
     def read_config_file(self):
-        self.mantis_hmm_weights = {'else': 0.7}
+        self.mantis_ref_weights = {'else': 0.7}
         self.mantis_nogt_tax = set()
 
         if self.mantis_config:
@@ -246,10 +254,8 @@ class MANTIS_Assembler(MANTIS_DB):
             self.config_file = self.mantis_config
         else:
             if not os.path.isdir(MANTIS_FOLDER):
-                print(
-                    'Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',
+                print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',
                     flush=True, file=self.redirect_verbose)
-                self.cancel_all_jobs()
                 raise FileNotFoundError
             self.config_file = MANTIS_FOLDER + 'MANTIS.config'
         try:
@@ -259,21 +265,21 @@ class MANTIS_Assembler(MANTIS_DB):
                   flush=True, file=self.redirect_verbose)
             raise FileNotFoundError
 
-        default_hmm_path = self.get_default_hmm_path()
+        default_ref_path = self.get_default_ref_path()
 
-        # HMMS
         # if there's no path, we just assume its in the default folder
-        if not default_hmm_path:  default_hmm_path = add_slash(MANTIS_FOLDER + 'hmm')
+        if not default_ref_path:  default_ref_path = add_slash(MANTIS_FOLDER + 'References')
         resources_path = add_slash(MANTIS_FOLDER + 'Resources')
-        self.mantis_paths = {'default': default_hmm_path,
+        self.mantis_paths = {'default': default_ref_path,
                              'resources': resources_path,
-                             'ncbi_tax': add_slash(resources_path + 'NCBI'),
-                             'custom': add_slash(default_hmm_path + 'custom_hmms'),
-                             'NOG': add_slash(default_hmm_path + 'NOG'),
-                             'pfam': add_slash(default_hmm_path + 'pfam'),
-                             'kofam': add_slash(default_hmm_path + 'kofam'),
-                             'NCBI': add_slash(default_hmm_path + 'NCBI'),
-                             'tigrfam': add_slash(default_hmm_path + 'tigrfam'),
+                             'ncbi_res': add_slash(resources_path + 'NCBI'),
+                             'custom': add_slash(default_ref_path + 'Custom_references'),
+                             'NOG': add_slash(default_ref_path + 'NOG'),
+                             'pfam': add_slash(default_ref_path + 'pfam'),
+                             'kofam': add_slash(default_ref_path + 'kofam'),
+                             'NCBI': add_slash(default_ref_path + 'NCBI'),
+                             'tigrfam': add_slash(default_ref_path + 'tigrfam'),
+                             'tcdb': add_slash(default_ref_path + 'tcdb'),
                              }
         self.setup_paths_config_file()
         if not os.path.isdir(self.mantis_paths['custom']):
@@ -281,10 +287,11 @@ class MANTIS_Assembler(MANTIS_DB):
         if self.verbose: print(self, flush=True, file=self.redirect_verbose)
 
 
-    def order_by_size_descending(self, hmms_list):
+
+    def order_by_size_descending(self, refs_list):
         res = {}
-        for hmm in hmms_list:
-            res[hmm] = os.stat(hmm).st_size
+        for ref in refs_list:
+            res[ref] = os.stat(ref).st_size
         # mixing big and low size HMMs so that we try not to run out of memory, might lead to more idle time.
         sorted_res = sorted(res, key=res.get, reverse=True)
         resorted_res = []
@@ -296,23 +303,24 @@ class MANTIS_Assembler(MANTIS_DB):
             elif c == -1:
                 resorted_res.append(sorted_res.pop(-1))
                 c = 1
-        return resorted_res, res
+        return resorted_res
 
-    def compile_hmms_list(self, folder=False):
+    def compile_refs_list(self, folder=False):
         # doesnt include NOG or NCBI
-        hmms_list = []
+        refs_list = []
         default_list = [
-            get_hmm_in_folder(self.mantis_paths['pfam']) if not folder else self.mantis_paths['pfam'],
-            get_hmm_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
-            get_hmm_in_folder(self.mantis_paths['tigrfam']) if not folder else self.mantis_paths['tigrfam'],
+            get_ref_in_folder(self.mantis_paths['pfam']) if not folder else self.mantis_paths['pfam'],
+            get_ref_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
+            get_ref_in_folder(self.mantis_paths['tigrfam']) if not folder else self.mantis_paths['tigrfam'],
+            get_ref_in_folder(self.mantis_paths['tcdb']) if not folder else self.mantis_paths['tcdb'],
         ]
-        for hmm_path in self.get_custom_hmms_paths(folder):
-            if hmm_path[0:2] != 'NA':
-                hmms_list.append(hmm_path)
-        for hmm_path in default_list:
-            if hmm_path and hmm_path[0:2] != 'NA':
-                hmms_list.append(hmm_path)
-        return hmms_list
+        for ref_path in self.get_custom_refs_paths(folder):
+            if ref_path[0:2] != 'NA':
+                refs_list.append(ref_path)
+        for ref_path in default_list:
+            if ref_path and ref_path[0:2] != 'NA':
+                refs_list.append(ref_path)
+        return refs_list
 
     #####SETTING UP DATABASE#####
 
@@ -329,30 +337,36 @@ class MANTIS_Assembler(MANTIS_DB):
             stdout_file=self.redirect_verbose)
         run_command(f'hmmpress {target_folder}{output_file}_merged.hmm', stdout_file=self.redirect_verbose)
 
-    def get_path_default_hmm(self, database, taxon_id=None):
+    def get_path_default_ref(self, database, taxon_id=None):
         target_file = None
         if 'kofam' in database.lower():
-            target_file = get_hmm_in_folder(self.mantis_paths['kofam'])
+            target_file = get_ref_in_folder(self.mantis_paths['kofam'])
         elif 'pfam' in database.lower():
-            target_file = get_hmm_in_folder(self.mantis_paths['pfam'])
+            target_file = get_ref_in_folder(self.mantis_paths['pfam'])
         elif 'tigrfam' in database.lower():
-            target_file = get_hmm_in_folder(self.mantis_paths['tigrfam'])
+            target_file = get_ref_in_folder(self.mantis_paths['tigrfam'])
+        elif 'tcdb' in database.lower():
+            target_file = get_ref_in_folder(self.mantis_paths['tcdb'])
         elif 'NOG'.lower() in database.lower():
             if not taxon_id: taxon_id = 'NOGG'
-            target_file = get_hmm_in_folder(self.mantis_paths['NOG'] + taxon_id)
+            target_file = get_ref_in_folder(self.mantis_paths['NOG'] + taxon_id)
         elif 'NCBI'.lower() in database.lower():
             if not taxon_id: taxon_id = 'NCBIG'
-            target_file = get_hmm_in_folder(self.mantis_paths['NCBI'] + taxon_id)
+            target_file = get_ref_in_folder(self.mantis_paths['NCBI'] + taxon_id)
         return target_file
 
     def check_reference_exists(self, database, taxon_id=None, force_download=False):
-        if database == 'ncbi_tax':
-            if file_exists(self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp', force_download):
+        if database == 'ncbi_res':
+            if file_exists(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp', force_download) and \
+                    file_exists(self.mantis_paths['ncbi_res'] + 'gc.prt', force_download):
                 return True
         elif database == 'NOGSQL':
             if file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
                 return True
-        target_file = self.get_path_default_hmm(database, taxon_id)
+        elif database == 'tcdb':
+            if file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd', force_download):
+                return True
+        target_file = self.get_path_default_ref(database, taxon_id)
         if target_file:
             for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
                 if not file_exists(target_file + extension, force_download=force_download):
@@ -374,13 +388,19 @@ class MANTIS_Assembler(MANTIS_DB):
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes',
                               flush=True, file=self.redirect_verbose)
-        if self.mantis_paths['ncbi_tax'][0:2] != 'NA':
-            if not file_exists(self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp'):
+        if self.mantis_paths['ncbi_res'][0:2] != 'NA':
+            if not file_exists(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp'):
                 if verbose: red(
-                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
-                res.append(self.mantis_paths['ncbi_tax'])
+                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
+                res.append(self.mantis_paths['ncbi_res'])
             else:
-                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_tax'], flush=True,file=self.redirect_verbose)
+                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_res']+ 'taxidlineage.dmp', flush=True,file=self.redirect_verbose)
+            if not file_exists(self.mantis_paths['ncbi_res'] + 'gc.prt'):
+                if verbose: red(
+                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_res'] + 'gc.prt.dmp',flush=True, file=self.redirect_verbose)
+                res.append(self.mantis_paths['ncbi_res'])
+            else:
+                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_res']+'gc.prt.dmp', flush=True,file=self.redirect_verbose)
         return res
 
     def check_chunks_dir(self,chunks_dir):
@@ -406,52 +426,66 @@ class MANTIS_Assembler(MANTIS_DB):
         return False
 
 
-    def check_installation_folder(self, hmm_folder_path, res, verbose=True, extra_requirements=[]):
-        check = 5 + len(extra_requirements)
+    def check_installation_folder(self, ref_folder_path, res, verbose=True, extra_requirements=[]):
         missing_files = set(extra_requirements)
-        missing_files.update(['.hmm', '.h3f', '.h3i', '.h3m', '.h3p'])
         try:
-            files_dir = os.listdir(hmm_folder_path)
+            files_dir = os.listdir(ref_folder_path)
         except:
-            if verbose: red(f'Failed installation check on [path unavailable]: {hmm_folder_path}', flush=True,file=self.redirect_verbose)
-            res.append(hmm_folder_path)
+            if verbose: red(f'Failed installation check on [path unavailable]: {ref_folder_path}', flush=True,file=self.redirect_verbose)
+            res.append(ref_folder_path)
             self.passed_check = False
             return
+        ref_type=None
+        for file in files_dir:
+            if file.endswith('.dmnd'):
+                ref_type='dmnd'
+                missing_files.update(['.dmnd'])
+            elif file.endswith('.hmm'):
+                ref_type='hmm'
+                missing_files.update(['.hmm', '.h3f', '.h3i', '.h3m', '.h3p'])
+
+        if not ref_type:
+            if verbose: red(f'Failed installation check on [invalid referecence type]: {ref_folder_path}', flush=True,file=self.redirect_verbose)
+            res.append(ref_folder_path)
+            self.passed_check = False
+            return
+        check = len(missing_files)
+
         if 'chunks' in files_dir:
-            if not self.check_chunks_dir(f'{hmm_folder_path}chunks'):
+            if not self.check_chunks_dir(f'{ref_folder_path}chunks'):
                 self.passed_check = False
                 return
-            else:
-                if verbose: green(f'Passed installation check on: {hmm_folder_path}', flush=True,
-                                  file=self.redirect_verbose)
-                return
         for file in files_dir:
-            if '.hmm' == file[-4:]:
-                check -= 1
-                missing_files.remove('.hmm')
-            elif '.h3f' == file[-4:]:
-                check -= 1
-                missing_files.remove('.h3f')
-            elif '.h3i' == file[-4:]:
-                check -= 1
-                missing_files.remove('.h3i')
-            elif '.h3m' == file[-4:]:
-                check -= 1
-                missing_files.remove('.h3m')
-            elif '.h3p' == file[-4:]:
-                check -= 1
-                missing_files.remove('.h3p')
-            elif file in extra_requirements:
+            if ref_type=='hmm':
+                if file.endswith('.hmm'):
+                    check -= 1
+                    missing_files.remove('.hmm')
+                elif file.endswith('.h3f'):
+                    check -= 1
+                    missing_files.remove('.h3f')
+                elif file.endswith('.h3i'):
+                    check -= 1
+                    missing_files.remove('.h3i')
+                elif file.endswith('.h3m'):
+                    check -= 1
+                    missing_files.remove('.h3m')
+                elif file.endswith('.h3p'):
+                    check -= 1
+                    missing_files.remove('.h3p')
+            elif ref_type=='dmnd':
+                if file.endswith('.dmnd'):
+                    check -= 1
+                    missing_files.remove('.dmnd')
+            if file in extra_requirements:
                 check -= 1
                 missing_files.remove(file)
-
         if check != 0:
             missing_files_str = '; '.join(missing_files)
-            red(f'Failed installation check on [files missing]: {hmm_folder_path}\n{missing_files_str}',
+            red(f'Failed installation check on [files missing]: {ref_folder_path}\n{missing_files_str}',
                 flush=True, file=self.redirect_verbose)
-            res.append(hmm_folder_path)
+            res.append(ref_folder_path)
         else:
-            if verbose: green(f'Passed installation check on: {hmm_folder_path}', flush=True,
+            if verbose: green(f'Passed installation check on: {ref_folder_path}', flush=True,
                               file=self.redirect_verbose)
 
     def check_installation(self, verbose=True):
@@ -468,11 +502,10 @@ class MANTIS_Assembler(MANTIS_DB):
 
         if verbose: yellow('Checking HMM installation', flush=True, file=self.redirect_verbose)
         requirements = {
-            self.mantis_paths['pfam']: ['pfam_metadata.tsv'],
-            self.mantis_paths['kofam']: ['ko_list', 'ko2cog.xl', 'ko2go.xl', 'ko2tc.xl', 'ko2cazy.xl', 'ko_to_path',
-                                         'map_description'],
-            self.mantis_paths['tigrfam']: ['gpl.html', 'COPYRIGHT', 'TIGRFAMS_GO_LINK', 'TIGRFAMS_ROLE_LINK',
-                                           'TIGR_ROLE_NAMES'],
+            self.mantis_paths['pfam']: ['metadata.tsv'],
+            self.mantis_paths['tcdb']: ['metadata.tsv'],
+            self.mantis_paths['kofam']: ['metadata.tsv'],
+            self.mantis_paths['tigrfam']: ['metadata.tsv'],
         }
         # per tax level FOR EGGNOG
         if self.mantis_paths['NOG'][0:2] != 'NA':
@@ -506,11 +539,11 @@ class MANTIS_Assembler(MANTIS_DB):
             if not ncbi_check:
                 if verbose: green('Passed installation check on: ' + self.mantis_paths['NCBI'], flush=True,
                                   file=self.redirect_verbose)
-        for hmm_folder in self.compile_hmms_list(folder=True):
-            if hmm_folder in requirements:
-                self.check_installation_folder(hmm_folder, res, verbose, extra_requirements=requirements[hmm_folder])
+        for ref_folder in self.compile_refs_list(folder=True):
+            if ref_folder in requirements:
+                self.check_installation_folder(ref_folder, res, verbose, extra_requirements=requirements[ref_folder])
             else:
-                self.check_installation_folder(hmm_folder, res, verbose)
+                self.check_installation_folder(ref_folder, res, verbose)
         if res:
             self.passed_check = False
             fail_res = ''
@@ -532,28 +565,28 @@ class MANTIS_Assembler(MANTIS_DB):
             else:
                 print_cyan('Installation check failed', flush=True, file=self.redirect_verbose)
 
-    def get_custom_hmms_paths(self, folder=False):
+    def get_custom_refs_paths(self, folder=False):
         try:
-            custom_hmms_folders = os.listdir(self.mantis_paths['custom'])
-            for potential_hmm_folder in custom_hmms_folders:
+            custom_refs_folders = os.listdir(self.mantis_paths['custom'])
+            for potential_ref_folder in custom_refs_folders:
                 try:
-                    files = os.listdir(self.mantis_paths['custom'] + potential_hmm_folder)
-                    for hmm in files:
-                        if hmm.endswith('.hmm'):
+                    files = os.listdir(self.mantis_paths['custom'] + potential_ref_folder)
+                    for potential_file in files:
+                        if potential_file.endswith('.hmm') or potential_file.endswith('.dmnd'):
                             if folder:
                                 try:
-                                    yield add_slash(self.mantis_paths['custom'] + potential_hmm_folder)
+                                    yield add_slash(self.mantis_paths['custom'] + potential_ref_folder)
                                 except GeneratorExit:
                                     return ''
                             else:
                                 try:
-                                    yield add_slash(self.mantis_paths['custom'] + potential_hmm_folder) + hmm
+                                    yield add_slash(self.mantis_paths['custom'] + potential_ref_folder) + potential_file
                                 except GeneratorExit:
                                     return ''
                 except:
                     pass
         except:
-            print('Custom hmms folder is missing, did you correctly set the path? If path is not set make sure you didn\'t delete the custom_hmms folder!',
+            print('Custom references folder is missing, did you correctly set the path? If path is not set make sure you didn\'t delete the custom_ref folder!',
                 flush=True, file=self.redirect_verbose)
             self.passed_check = False
             return
@@ -561,22 +594,22 @@ class MANTIS_Assembler(MANTIS_DB):
             line = file.readline()
             while line:
                 if line[0] != '#':
-                    if 'custom_hmm=' in line:
+                    if 'custom_ref=' in line:
                         line = line.strip('\n')
-                        hmm_path=line.replace('custom_hmm=', '')
-                        if not hmm_path.endswith('.hmm'):
-                            if os.path.isdir(hmm_path):
-                                for inner_file in os.listdir(hmm_path):
-                                    if inner_file.endswith('.hmm'):
-                                        hmm_path=add_slash(hmm_path)+inner_file
+                        ref_path=line.replace('custom_ref=', '')
+                        if not (ref_path.endswith('.hmm') or ref_path.endswith('.dmnd')):
+                            if os.path.isdir(ref_path):
+                                for inner_file in os.listdir(ref_path):
+                                    if inner_file.endswith('.hmm') or inner_file.endswith('.dmnd'):
+                                        ref_path=add_slash(ref_path)+inner_file
                         if folder:
                             try:
-                                yield add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
+                                yield add_slash(SPLITTER.join(ref_path.split(SPLITTER)[:-1]))
                             except GeneratorExit:
                                 return ''
                         else:
                             try:
-                                yield hmm_path
+                                yield ref_path
                             except GeneratorExit:
                                 return ''
                 line = file.readline()
@@ -623,12 +656,11 @@ class MANTIS_Assembler(MANTIS_DB):
             return None
 
     def get_organism_lineage(self, taxon_id, stdout_file=None):
-        lineage_file_path = self.mantis_paths['ncbi_tax'] + 'taxidlineage.dmp'
+        lineage_file_path = self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp'
         try:
             lineage_file = open(lineage_file_path, 'r')
         except:
-            print_cyan(
-                'Lineage dump is not present! If you\'d like to run taxonomic lineage annotation, please run < setup_databases >',
+            print_cyan('Lineage dump is not present! If you\'d like to run taxonomic lineage annotation, please run < setup_databases >',
                 flush=True, file=stdout_file)
             return []
         line = lineage_file.readline().strip('\n').replace('|', '')
@@ -668,3 +700,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
 if __name__ == '__main__':
     p = MANTIS_Assembler()
+    print(p.mantis_paths)
+    #p.mantis_paths['tcdb']='/home/pedroq/Desktop/test_mantis/tcdb/'
+    #test=p.compile_tcdb_metadata()
+    p.get_essential_genes_pfam(['P05652','P05649'])

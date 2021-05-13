@@ -62,6 +62,9 @@ if __name__ == '__main__':
                              '\t\t\ttaxon name, e.g. "Proteobacteria" or "Escherichia coli"\n'
                              '\t\t\tNCBI taxon ID, e.g.: 561 for Escherichia coli\n'
                              'Providing NCBI IDs is faster and safer.')
+    parser.add_argument('-gc', '--genetic_code',
+                        help='[optional]\tIf you want Mantis to translate your target fasta, please provide a genetic code. Default is 11. \n'
+                             '\t\tFor further details please see https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/index.cgi?chapter=cgencodes\n')
     parser.add_argument('-k', '--keep_files', action='store_true',
                         help='[optional]\tKeep intermediary output files')
     parser.add_argument('-sc', '--skip_consensus', action='store_true',
@@ -113,6 +116,7 @@ if __name__ == '__main__':
         overlap_value = args.overlap_value
         minimum_consensus_overlap = args.minimum_consensus_overlap
         organism_details = args.organism_details
+        genetic_code = args.genetic_code
         domain_algorithm = args.domain_algorithm
         best_combo_formula = args.best_combo_formula
         sorting_type = args.sorting_type
@@ -150,6 +154,7 @@ if __name__ == '__main__':
                            overlap_value=overlap_value,
                            minimum_consensus_overlap=minimum_consensus_overlap,
                            organism_details=organism_details,
+                           genetic_code=genetic_code,
                            domain_algorithm=domain_algorithm,
                            best_combo_formula=best_combo_formula,
                            sorting_type=sorting_type,
@@ -175,7 +180,8 @@ if __name__ == '__main__':
         mantis_config = args.mantis_config
         force_download = args.force_download
         chunk_size = args.chunk_size
-        setup_databases(force_download=force_download, chunk_size=chunk_size, mantis_config=mantis_config)
+        cores = args.cores
+        setup_databases(force_download=force_download, chunk_size=chunk_size, mantis_config=mantis_config,cores=cores)
     elif args.execution_type == 'merge_hmm_folder':
         target = args.target
         merge_hmm_folder(target_folder=target)

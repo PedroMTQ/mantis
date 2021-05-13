@@ -11,6 +11,7 @@ def run_mantis(target_path,
                overlap_value=None,
                minimum_consensus_overlap=None,
                organism_details=None,
+               genetic_code=None,
                domain_algorithm=None,
                best_combo_formula=None,
                sorting_type=None,
@@ -39,6 +40,7 @@ def run_mantis(target_path,
     if hmmer_threads:                       hmmer_threads = int(hmmer_threads)
     if cores:                               cores = int(cores)
     if memory:                              memory = int(memory)
+    if genetic_code:                        genetic_code = int(genetic_code)
     mantis = MANTIS(
         target_path=target_path,
         output_folder=output_folder,
@@ -47,6 +49,7 @@ def run_mantis(target_path,
         overlap_value=overlap_value,
         minimum_consensus_overlap=minimum_consensus_overlap,
         organism_details=organism_details,
+        genetic_code=genetic_code,
         domain_algorithm=domain_algorithm,
         best_combo_formula=best_combo_formula,
         sorting_type=sorting_type,
@@ -112,6 +115,7 @@ class MANTIS(MANTIS_MP):
                  sorting_type=None,
                  best_combo_formula=None,
                  organism_details={},
+                 genetic_code=None,
                  redirect_verbose=None,
                  keep_files=False,
                  skip_consensus=False,
@@ -136,8 +140,8 @@ class MANTIS(MANTIS_MP):
         self.mantis_config = mantis_config
 
         #Prediction parameters
-        if evalue_threshold:            self.evalue_threshold = evalue_threshold
-        else:                           self.evalue_threshold = 1e-3
+        self.evalue_threshold = evalue_threshold
+        self.default_evalue_threshold = 1e-3
 
         if overlap_value:               self.overlap_value = overlap_value
         else:                           self.overlap_value = 0.1
@@ -160,6 +164,7 @@ class MANTIS(MANTIS_MP):
             if self.domain_algorithm =='dfs':   self.sorting_type='bitscore'
             else:                               self.sorting_type='evalue'
         self.organism_details = organism_details
+        self.genetic_code = genetic_code
         #Execution parameters
         self.skip_consensus = skip_consensus
         self.skip_managed_memory = skip_managed_memory
@@ -167,7 +172,6 @@ class MANTIS(MANTIS_MP):
         self.no_unifunc = no_unifunc
         self.kegg_matrix = kegg_matrix
         self.default_workers = default_workers
-        self.user_cores = user_cores
         self.user_memory = user_memory
         # chunk size is highly relevant in the execution time
         self.chunk_size = chunk_size
@@ -175,9 +179,11 @@ class MANTIS(MANTIS_MP):
             self.time_limit = time_limit
         else:
             self.time_limit = 60
+        #diamond db size for scaling. we increase the db size to avoid overly good e-values, i.e., 0 where sample scaling by multiplication wouldn't change anything
+        self.diamond_db_size=1e6
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
         MANTIS_Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
-                                  mantis_config=mantis_config,keep_files=keep_files)
+                                  mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.target_path:
             print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
@@ -203,14 +209,15 @@ class MANTIS(MANTIS_MP):
             'Mantis config:\t\t\t' + str(self.mantis_config) + '\n' if self.mantis_config else '',
             'Target path:\t\t\t' + str(self.target_path) + '\n' if self.target_path else '',
             'E-value threshold:\t\t' + str(self.evalue_threshold) + '\n' if self.evalue_threshold else '',
+            'E-value threshold:\t\t' + str(self.default_evalue_threshold) + '\n' if not self.evalue_threshold else '',
             'Overlap value:\t\t\t' + str(self.overlap_value) + '\n' if self.overlap_value else '',
             'Default workers:\t\t' + str(self.default_workers) + '\n' if self.default_workers else '',
-            'User cores:\t\t\t\t' + str(self.user_cores) + '\n' if self.user_cores else '',
+            'User cores:\t\t\t' + str(self.user_cores) + '\n' if self.user_cores else '',
             'HMMER threads:\t\t\t' + str(self.hmmer_threads) + '\n' if self.hmmer_threads else '',
             'Chunk size:\t\t\t' + str(self.chunk_size) + '\n' if self.chunk_size else '',
             'Algorithm:\t\t\t' + str(self.domain_algorithm) + '\n' if self.domain_algorithm else '',
-            'Formula:\t\t\t' + str(self.best_combo_formula) + '\n' if self.best_combo_formula else '',
-            'Sorting type:\t\t\t' + str(self.sorting_type) + '\n' if self.sorting_type else '',
+            #'Formula:\t\t\t' + str(self.best_combo_formula) + '\n' if self.best_combo_formula else '',
+            #'Sorting type:\t\t\t' + str(self.sorting_type) + '\n' if self.sorting_type else '',
             'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
             'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
             'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
@@ -221,8 +228,7 @@ class MANTIS(MANTIS_MP):
 
     def generate_fastas_to_annotate(self):
         if '.' not in self.target_path:
-            print('Your file does not have an extension, so Mantis can\'t detect the file format',flush=True, file=self.redirect_verbose)
-            raise InvalidTargetFile
+            kill_switch(InvalidTargetFile,'Your file does not have an extension, so Mantis can\'t detect the file format.\nPlease provide a valid target file',flush=True, file=self.redirect_verbose)
         else:
             if os.path.isdir(self.target_path):
                 self.annotate_directory()
@@ -235,11 +241,11 @@ class MANTIS(MANTIS_MP):
             elif is_fasta(self.target_path):
                 self.annotate_one_sample()
             else:
-                print('Your file does not appear to be a fasta. If you want to annotate multiple samples, make sure your file has the <.tsv> extension.',flush=True, file=self.redirect_verbose)
-                raise InvalidTargetFile
-        if not self.fastas_to_annotate: raise InvalidTargetFile
-        for file_path, output_path, organism_details, count_seqs_original_file in self.fastas_to_annotate:
+                kill_switch(InvalidTargetFile,'Your file does not appear to be a fasta. If you want to annotate multiple samples, make sure your file has the <.tsv> extension.',flush=True, file=self.redirect_verbose)
+        if not self.fastas_to_annotate: kill_switch(NoValidFiles)
+        for file_path, output_path, organism_details, genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
             Path(output_path).mkdir(parents=True, exist_ok=True)
+
 
     def annotate_multiple_samples(self):
         try:
@@ -252,18 +258,26 @@ class MANTIS(MANTIS_MP):
                     if len(line) >= 2:
                         query_name = line[0]
                         line_path = line[1]
-                        if len(line) > 2:
+                        if len(line) > 3:
+                            genetic_code = ' '.join(line[-1])
+                            organism_details = ' '.join(line[2:-1])
+                            if organism_details=='None': organism_details=''
+                        elif len(line) > 2:
                             organism_details = ' '.join(line[2:])
                             if organism_details=='None': organism_details=''
+                            genetic_code=None
                         else:
-                            organism_details = ''
+                            organism_details = None
+                            genetic_code = None
                         count_seqs_original_file = get_seqs_count(line_path)
-                        self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name), organism_details,count_seqs_original_file])
+                        count_residues_original_file = count_residues(line_path)
+                        self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name),
+                                                        organism_details,genetic_code,
+                                                        count_seqs_original_file,count_residues_original_file])
                     line = file.readline()
         except:
-            print('If you want to annotate multiple samples, make sure your file is correctly formatted. Please see the examples in the <tests> folder.',
+            kill_switch(InvalidTargetFile,'If you want to annotate multiple samples, make sure your file is correctly formatted. Please see the examples in the <tests> folder.',
                 flush=True, file=self.redirect_verbose)
-            raise InvalidTargetFile
 
     def annotate_directory(self):
         try:
@@ -273,10 +287,11 @@ class MANTIS(MANTIS_MP):
                     query_name = '.'.join(file.split('.')[0:-1])
                     query_path = self.target_path + file
                     count_seqs_original_file = get_seqs_count(query_path)
-                    self.fastas_to_annotate.append(
-                        [query_path, add_slash(self.output_folder + query_name), None, count_seqs_original_file])
+                    count_residues_original_file = count_residues(query_path)
+                    self.fastas_to_annotate.append([query_path, add_slash(self.output_folder + query_name), None,None,
+                                                    count_seqs_original_file,count_residues_original_file])
         except:
-            raise InvalidTargetFile
+            kill_switch(InvalidTargetFile,'Something went wrong when annotating the provided directory!',flush=True, file=self.redirect_verbose)
 
     def annotate_compressed_sample(self):
         try:
@@ -293,22 +308,27 @@ class MANTIS(MANTIS_MP):
                             query_name = '.'.join(sub_file.split('.')[0:-1])
                             query_path = add_slash(uncompressed_path + file) + sub_file
                             count_seqs_original_file = get_seqs_count(query_path)
+                            count_residues_original_file = count_residues(query_path)
                             self.fastas_to_annotate.append(
-                                [query_path, add_slash(self.output_folder + query_name), None,
-                                 count_seqs_original_file])
+                                [query_path, add_slash(self.output_folder + query_name), None,None,
+                                 count_seqs_original_file,count_residues_original_file])
                 if 'faa' in file.split('.')[-1]:
                     query_name = '.'.join(file.split('.')[0:-1])
                     query_path = uncompressed_path + file
                     count_seqs_original_file = get_seqs_count(query_path)
+                    count_residues_original_file = count_residues(query_path)
                     self.fastas_to_annotate.append(
-                        [query_path, add_slash(self.output_folder + query_name), None, count_seqs_original_file])
+                        [query_path, add_slash(self.output_folder + query_name), None, None,
+                         count_seqs_original_file,count_residues_original_file])
         except:
-            raise InvalidTargetFile
+            kill_switch(InvalidTargetFile,'Something went wrong when annotating the provided compressed file!',flush=True, file=self.redirect_verbose)
 
     def annotate_one_sample(self):
         count_seqs_original_file = get_seqs_count(self.target_path)
+        count_residues_original_file = count_residues(self.target_path)
         self.fastas_to_annotate.append(
-            [self.target_path, self.output_folder, self.organism_details, count_seqs_original_file])
+            [self.target_path, self.output_folder, self.organism_details,self.genetic_code,
+             count_seqs_original_file,count_residues_original_file])
 
     def setup_organism_lineage(self, organism_details, stdout_file):
         # when running with DRAX
@@ -332,9 +352,28 @@ class MANTIS(MANTIS_MP):
             organism_lineage = []
         return organism_lineage
 
+
+
+    def generate_translated_sample(self):
+        translation_tables = parse_translation_tables(self.mantis_paths['ncbi_res'] + 'gc.prt')
+        for i in range(len(self.fastas_to_annotate)):
+            file_path, output_path, organism_details,genetic_code, count_seqs_original_file , count_residues_original_file = self.fastas_to_annotate[i]
+            sample_type = check_sample_type(file_path)
+            if sample_type=='dna' or sample_type=='rna':
+                if not genetic_code:
+                    genetic_code=11
+                translated_fasta_path = f'{output_path}translated_gc_{genetic_code}.fasta'
+                try:
+                    write_translated_fasta(original_fasta_path=file_path, translated_fasta_path=translated_fasta_path, translation_table=translation_tables[genetic_code],sample_type=sample_type)
+                    self.fastas_to_annotate[i][0] = translated_fasta_path
+                    self.fastas_to_annotate[i][5] = count_residues(translated_fasta_path)
+                except Exception as e:
+                    kill_switch(InvalidTranslation,file_path)
+
+
     def generate_sample_lineage(self):
         for i in range(len(self.fastas_to_annotate)):
-            file_path, output_path, organism_details, count_seqs_original_file = self.fastas_to_annotate[i]
+            file_path, output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file = self.fastas_to_annotate[i]
             if not organism_details:
                 organism_details_dict = {}
             elif re.match('\d+', organism_details):
@@ -355,7 +394,7 @@ class MANTIS(MANTIS_MP):
             stdout_file.close()
 
     def remove_non_essential_files(self):
-        for file_path, output_path, organism_details, count_seqs_original_file in self.fastas_to_annotate:
+        for file_path, output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
             if os.path.exists(output_path + 'fasta_chunks/'):
                 shutil.rmtree(output_path + 'fasta_chunks/')
 
@@ -368,6 +407,7 @@ class MANTIS(MANTIS_MP):
         self.mantis_paths['custom']=MANTIS_FOLDER + 'tests/test_hmm/'
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
         self.generate_fastas_to_annotate()
+        self.generate_translated_sample()
         self.generate_sample_lineage()
         self.split_sample()
 
@@ -375,12 +415,12 @@ class MANTIS(MANTIS_MP):
 
         worker_count = 1
         for hmm_path in [MANTIS_FOLDER + 'tests/test_hmm/test1/test1.hmm', MANTIS_FOLDER + 'tests/test_hmm/test2/test2.hmm']:
-            for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
-                self.create_chunk_hmmer_dirs(current_chunk_dir)
+            for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
+                self.create_chunk_output_dirs(current_chunk_dir)
                 command, output_file = self.compile_annotation_job(hmm_path, target_path=chunk_path,output_folder=current_chunk_dir)
                 self.queue.append(['General', command, output_path + 'Mantis.out'])
 
-        self.processes_handler(self.worker_hmmer, worker_count)
+        self.processes_handler(self.worker_annotation, worker_count)
 
         self.prepare_queue_split_hits(worker_count)
         self.processes_handler(self.worker_split_hits, worker_count)
@@ -391,11 +431,11 @@ class MANTIS(MANTIS_MP):
         self.prepare_queue_merge_output()
         self.processes_handler(self.worker_merge_output, worker_count)
 
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             output_annotation_tsv = current_chunk_dir + 'output_annotation.tsv'
             self.queue.append([output_annotation_tsv, current_chunk_dir])
         self.processes_handler(self.worker_interpret_output, worker_count)
-        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file, output_path in self.chunks_to_annotate:
+        for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             interepreted_annotation_tsv = current_chunk_dir + 'integrated_annotation.tsv'
             stdout_file_path = output_path + 'Mantis.out'
             self.queue.append([interepreted_annotation_tsv, current_chunk_dir, stdout_file_path])
@@ -414,25 +454,25 @@ class MANTIS(MANTIS_MP):
     def run_mantis(self):
         self.check_installation(verbose=False)
         if not self.passed_check:
-            raise InstallationCheckNotPassed
+            kill_switch(InstallationCheckNotPassed)
 
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
         print_cyan('Reading input file', flush=True, file=self.redirect_verbose)
         self.generate_fastas_to_annotate()
         print_cyan('Determining lineage', flush=True, file=self.redirect_verbose)
+        self.generate_translated_sample()
         self.generate_sample_lineage()
         self.split_sample()
         self.set_chunks_to_annotate()
         start_time = time()
-        self.run_hmmer()
-        print(f'HMMER took {int(time() - start_time)} seconds to run', flush=True, file=self.redirect_verbose)
+        self.run_homology_search()
+        print(f'Homology search took {int(time() - start_time)} seconds to run', flush=True, file=self.redirect_verbose)
         processing_start_time = time()
         start_time = time()
         self.process_output()
         print(f'Output processing took {int(time() - start_time)} seconds to run', flush=True,
               file=self.redirect_verbose)
         start_time = time()
-
         self.interpret_output()
         print(f'Output interpretation took {int(time() - start_time)} seconds to run', flush=True,
               file=self.redirect_verbose)
