@@ -332,12 +332,8 @@ class MANTIS_Assembler(MANTIS_DB):
         print_cyan(f'Merging hmm folder:\n{target_folder}', flush=True, file=self.redirect_verbose)
         output_file = get_path_level(target_folder)
         print(f'Merging hmm folder: {target_folder}', flush=True, file=self.redirect_verbose)
-        run_command(
-            f'[ -f {target_folder}{output_file}_merged.hmm ] && rm {target_folder}{output_file}_merged.hmm*',
-            stdout_file=self.redirect_verbose)
-        run_command(
-            'for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',
-            stdout_file=self.redirect_verbose)
+        run_command(f'[ -f {target_folder}{output_file}_merged.hmm ] && rm {target_folder}{output_file}_merged.hmm*',stdout_file=self.redirect_verbose)
+        run_command('for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',stdout_file=self.redirect_verbose,shell=True,join_command=True)
         run_command(f'hmmpress {target_folder}{output_file}_merged.hmm', stdout_file=self.redirect_verbose)
 
     def get_path_default_ref(self, database, taxon_id=None):
