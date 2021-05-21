@@ -731,14 +731,7 @@ def remove_file(source_file):
     if os.path.exists(source_file): os.remove(source_file)
 
 
-def run_command_simple(command, get_output=False, stdout_file=None):
-    if get_output:
-        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    elif stdout_file:
-        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file)
-    else:
-        process = subprocess.run(command)
-    return process
+
 
 
 def get_available_ram_percentage(worker_status, user_memory=None):
@@ -859,13 +852,15 @@ def suspend_workers(child_status, n_workers):
 
 
 # in order to not run out of memory when running HMMER we control how the processes are running, suspending them if needed
-def run_command_managed(command, master_pid, get_output=False, stdout_file=None, wanted_child=None, user_memory=None):
+def run_command_managed(command, master_pid, get_output=False, stdout_file=None, wanted_child=None, user_memory=None,shell=False,join_command=False):
+    if join_command:        command=' '.join(command)
     if get_output:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        #popen launches and doesnt wait for finish
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=shell)
     elif stdout_file:
-        process = subprocess.Popen(command, stdout=stdout_file, stderr=stdout_file)
+        process = subprocess.Popen(command, stdout=stdout_file, stderr=stdout_file,shell=shell)
     else:
-        process = subprocess.Popen(command)
+        process = subprocess.Popen(command,shell=shell)
     process_pid = process.pid
     psProcess = psutil.Process(pid=process_pid)
     #hmmsearch uses a lot of ram when starting up. we need to avoid suspending them when that happens, otherwise we spike memory due to a lot of suspended workers
@@ -932,14 +927,24 @@ def run_command_managed(command, master_pid, get_output=False, stdout_file=None,
         sleep(1)
     return process
 
+def run_command_simple(command, get_output=False, stdout_file=None,shell=False,join_command=False):
+    if join_command:        command=' '.join(command)
+    if get_output:
+        #run launches popen and waits for finish
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=shell)
+    elif stdout_file:
+        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file,shell=shell)
+    else:
+        process = subprocess.run(command,shell=shell)
+    return process
 
-def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None):
+def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None,shell=False,join_command=False):
     command_list = command.split()
     if master_pid:
         return run_command_managed(command=command_list, get_output=get_output, stdout_file=stdout_file,
-                                   master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory)
+                                   master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory,shell=shell,join_command=join_command)
     else:
-        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file)
+        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file,shell=shell,join_command=join_command)
 
 
 def yield_file(list_of_files):
