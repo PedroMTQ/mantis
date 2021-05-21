@@ -102,9 +102,12 @@ class MANTIS_Assembler(MANTIS_DB):
 
         return res
 
-    def print_citation(self):
+    def print_citation_mantis(self):
+        paper_doi=''
+        separator='#####################################################################################################################'
+        res=f'{separator}\n# Thank you for using Mantis, please make sure you cite the respective paper {paper_doi} #\n{separator}'
+        print(res)
 
-        return
 
     def requirements_met(self):
         for f in [self.is_conda_available(), self.is_hmmer_available()]:
@@ -428,6 +431,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def check_installation_folder(self, ref_folder_path, res, verbose=True, extra_requirements=[]):
         missing_files = set(extra_requirements)
+
         try:
             files_dir = os.listdir(ref_folder_path)
         except:
@@ -455,23 +459,31 @@ class MANTIS_Assembler(MANTIS_DB):
             if not self.check_chunks_dir(f'{ref_folder_path}chunks'):
                 self.passed_check = False
                 return
+            else:
+                missing_files = set(extra_requirements)
+                check = len(missing_files)
         for file in files_dir:
             if ref_type=='hmm':
                 if file.endswith('.hmm'):
-                    check -= 1
-                    missing_files.remove('.hmm')
+                    if '.hmm' in missing_files:
+                        check -= 1
+                        missing_files.remove('.hmm')
                 elif file.endswith('.h3f'):
-                    check -= 1
-                    missing_files.remove('.h3f')
+                    if '.h3f' in missing_files:
+                        check -= 1
+                        missing_files.remove('.h3f')
                 elif file.endswith('.h3i'):
-                    check -= 1
-                    missing_files.remove('.h3i')
+                    if '.h3i' in missing_files:
+                        check -= 1
+                        missing_files.remove('.h3i')
                 elif file.endswith('.h3m'):
-                    check -= 1
-                    missing_files.remove('.h3m')
+                    if '.h3m' in missing_files:
+                        check -= 1
+                        missing_files.remove('.h3m')
                 elif file.endswith('.h3p'):
-                    check -= 1
-                    missing_files.remove('.h3p')
+                    if '.h3p' in missing_files:
+                        check -= 1
+                        missing_files.remove('.h3p')
             elif ref_type=='dmnd':
                 if file.endswith('.dmnd'):
                     check -= 1

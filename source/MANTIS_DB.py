@@ -367,7 +367,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def download_pfam(self, force_download=False, stdout_file=None):
         Path(self.mantis_paths['pfam']).mkdir(parents=True, exist_ok=True)
-        if self.check_reference_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm', force_download) and \
+        if self.check_reference_exists('pfam', force_download) and \
                 file_exists(self.mantis_paths['pfam'] + 'metadata.tsv', force_download):
             print('Pfam hmm already exists! Skipping...', flush=True, file=stdout_file)
             return
@@ -550,7 +550,8 @@ class MANTIS_DB(MANTIS_NLP):
         metadata = 'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv'
         # we cant verify a priori which foulders we should have, so you need to delete the folder to restart
 
-        if file_exists(self.mantis_paths['NCBI'] + 'readme.md', force_download):
+        if self.check_reference_exists('NCBI', force_download) and \
+                file_exists(self.mantis_paths['NCBI'] + 'readme.md', force_download):
             print('NCBI hmm folder already exists! Skipping...', flush=True, file=stdout_file)
             return
 
