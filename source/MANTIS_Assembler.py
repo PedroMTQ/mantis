@@ -623,9 +623,10 @@ class MANTIS_Assembler(MANTIS_DB):
                 line = file.readline()
 
     def get_hmm_taxon_ids(self, db):
-        res=[]
         if not os.path.exists(self.mantis_paths[db]): return res
+        passed=False
         if db=='NOG':
+            res = []
             available_taxon_ids = self.get_taxon_ids_NOGT()
             if self.mantis_nogt_tax:
                 for tax_id in self.mantis_nogt_tax:
@@ -635,7 +636,9 @@ class MANTIS_Assembler(MANTIS_DB):
             res = set(res)
             if db == 'NOG':
                 res = res.intersection(available_taxon_ids)
-        else:
+            if res: passed=True
+        if not passed:
+            res = []
             for i in os.listdir(self.mantis_paths[db]):
                 if re.search('\d+',i): res.append(i)
         if not os.path.exists(self.mantis_paths[db]): return []

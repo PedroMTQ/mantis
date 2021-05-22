@@ -1014,8 +1014,8 @@ class MANTIS_DB(MANTIS_NLP):
         webpage = None
         c = 0
         while not webpage and c <= 10:
-            req = requests.get(url)
             try:
+                req = requests.get(url)
                 webpage = req.text
             except:
                 c += 1
