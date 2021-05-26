@@ -623,7 +623,7 @@ class MANTIS_Assembler(MANTIS_DB):
                 line = file.readline()
 
     def get_hmm_taxon_ids(self, db):
-        if not os.path.exists(self.mantis_paths[db]): return res
+        if not os.path.exists(self.mantis_paths[db]): return []
         passed=False
         if db=='NOG':
             res = []
