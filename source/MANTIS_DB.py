@@ -310,7 +310,11 @@ class MANTIS_DB(MANTIS_NLP):
                     go_annots = line[1].split(';')
                     go_description = [i.replace('GO:', '').strip() for i in go_annots if not re.search('GO:\d{3,}', i)]
                     go_ids = [i.replace('GO:', '').strip() for i in go_annots if re.search('GO:\d{3,}', i)]
-                    res[pfam_id] = {'go': set(go_ids), 'description': set(go_description)}
+                    if pfam_id not in res:
+                        res[pfam_id] = {'go': set(go_ids), 'description': set(go_description)}
+                    else:
+                        res[pfam_id]['go'].update(go_ids)
+                        res[pfam_id]['description'].update(go_description)
                 line = pfam2go_file.readline()
         return res
 
