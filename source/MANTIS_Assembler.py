@@ -711,7 +711,5 @@ class MANTIS_Assembler(MANTIS_DB):
 
 if __name__ == '__main__':
     p = MANTIS_Assembler()
-    print(p.mantis_paths)
-    #p.mantis_paths['tcdb']='/home/pedroq/Desktop/test_mantis/tcdb/'
-    #test=p.compile_tcdb_metadata()
-    p.get_essential_genes_pfam(['P05652','P05649'])
+    p.mantis_paths['pfam']='/media/HDD/data/mantis_hmm/pfam/'
+    p.compile_pfam_metadata()
