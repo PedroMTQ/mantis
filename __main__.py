@@ -4,7 +4,7 @@ from datetime import datetime
 import sys
 import uuid
 
-from source.MANTIS import run_mantis, run_mantis_test
+from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis
 from source.MANTIS_NLP import test_nlp
 from source.MANTIS_Assembler import add_slash, \
     get_path_level, \
@@ -41,7 +41,7 @@ if __name__ == '__main__':
                              '\tquery_name_3\ttarget_path_3\t\n' +
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
-                                 'extract_nog_metadata','test_nlp'])
+                                 'extract_nog_metadata','test_nlp','citation'])
     parser.add_argument('-t', '--target', help='[required]\tAnnotation target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
@@ -171,6 +171,7 @@ if __name__ == '__main__':
                            cores=cores,
                            memory=memory,
                            )
+                print_citation_mantis()
 
             else:
                 print('Target path not found, quitting now!')
@@ -182,19 +183,25 @@ if __name__ == '__main__':
         chunk_size = args.chunk_size
         cores = args.cores
         setup_databases(force_download=force_download, chunk_size=chunk_size, mantis_config=mantis_config,cores=cores)
+        print_citation_mantis()
+    elif args.execution_type == 'citation':
+        print_citation_mantis()
     elif args.execution_type == 'merge_hmm_folder':
         target = args.target
         merge_hmm_folder(target_folder=target)
+        print_citation_mantis()
     elif args.execution_type == 'check_installation':
         mantis_config = args.mantis_config
         check_installation(mantis_config=mantis_config)
     elif args.execution_type == 'extract_nog_metadata':
         output_folder = args.output_folder
         if not output_folder:
-            output_folder = add_slash(os.getcwd()) + 'test_run'
+            output_folder = add_slash(os.getcwd()) + 'metadata_extraction'
             print(f'No output folder provided! Saving data to: {output_folder}')
         output_folder = add_slash(output_folder)
         extract_nog_metadata(metadata_path=output_folder)
+        print_citation_mantis()
+
     elif args.execution_type == 'test_nlp':
         test_nlp()
     elif args.execution_type == 'run_test':
@@ -213,3 +220,5 @@ if __name__ == '__main__':
                         output_folder=output_folder,
                         mantis_config=add_slash(MANTIS_FOLDER + 'tests')+ 'test_MANTIS.config',
                         )
+        print_citation_mantis()
+

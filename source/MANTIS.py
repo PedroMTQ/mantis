@@ -4,6 +4,14 @@ except:
     from MANTIS_MP import *
 
 
+
+def print_citation_mantis():
+    paper_doi='https://doi.org/10.1093/gigascience/giab042'
+    separator='##########################################################################################################################'
+    res=f'{separator}\n# Thank you for using Mantis, please make sure you cite the respective paper {paper_doi} #\n{separator}'
+    print(res)
+
+
 def run_mantis(target_path,
                output_folder,
                mantis_config=None,

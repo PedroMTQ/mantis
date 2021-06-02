@@ -2,7 +2,7 @@
 ![mantis_icon_small](./Images/mantis_icon_small.png)
 
 
-This tool can be used for protein function annotation, it is a standalone tool that uses HMMER to match sequences against multiple reference datasets. It accepts as input an aminoacids sequence fasta.  
+This tool can be used for protein function annotation, it is a standalone tool that uses HMMER or Diamond to match sequences against multiple reference datasets. It accepts as input an aminoacids sequence fasta.  
 The main goals of this tool are to:
 - consider multiple protein domains
 - annotate with taxonomy resolution
@@ -19,6 +19,9 @@ If you have only loose reads, you need to assemble them first; when you have ass
 - [Quick configuration](#quick-configuration)
 - [Functions](#functions)
 - [Further details](#further-details)
+# Citation
+If you use Mantis, please make sure you cite the respective paper https://doi.org/10.1093/gigascience/giab042
+
 
 # Workflow overview
 
