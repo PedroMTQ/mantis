@@ -86,13 +86,13 @@ python  mantis/  merge_hmm_folder -t target
 ````
 **5. Annotate one sample**  
 ````
-python mantis/ run_mantis -t target.faa -o output_folder-od organism_details -et evalue_threshold -ar acceptable_range -ov overlap_value -mc custom_MANTIS.config    
+python mantis/ run_mantis -t target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config    
 ````
 *example*: `python mantis run_mantis -t mantis/tests/test_sample.faa -od "Escherichia coli"`
 
 **6. Annotate multiple samples**  
 ````
-python mantis/ run_mantis -t target.tsv -o output_folder -et evalue_threshold -ar acceptable_range -ov overlap_value -mc custom_MANTIS.config
+python mantis/ run_mantis -t target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config
 ````
 *example*: `python mantis run_mantis -t mantis/tests/test_file.tsv`
 
