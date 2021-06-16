@@ -89,12 +89,8 @@ class MANTIS_DB(MANTIS_NLP):
         if file_exists(self.mantis_out):
             os.remove(self.mantis_out)
         stdout_file = open(self.mantis_out, 'a+')
-
-        taxon_ids = self.get_taxon_ids_NOGT()
-        url = 'http://eggnogdb.embl.de/download/emapperdb-5.0.1/eggnog.db.gz'
-        download_file(url, output_folder=self.mantis_paths['default'], stdout_file=stdout_file)
-        uncompress_archive(source_filepath=self.mantis_paths['default'] + 'eggnog.db.gz', stdout_file=stdout_file,
-                           remove_source=False)
+        taxon_ids = self.get_ref_taxon_ids('NOG')
+        self.download_and_unzip_eggnogdb()
 
         for t in taxon_ids:
             Path(self.mantis_paths['NOG'] + t).mkdir(parents=True, exist_ok=True)
@@ -102,7 +98,6 @@ class MANTIS_DB(MANTIS_NLP):
             download_file(url, output_folder=add_slash(self.mantis_paths['NOG'] + t), stdout_file=stdout_file)
             uncompress_archive(source_filepath=add_slash(self.mantis_paths['NOG'] + t) + f'{t}_annotations.tsv.gz',
                                stdout_file=stdout_file, remove_source=True)
-
         self.prepare_queue_extract_metadata()
         worker_count = estimate_number_workers_setup_database(len(self.queue), minimum_jobs_per_worker=2, user_cores=self.user_cores)
         print(f'Metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
@@ -409,7 +404,6 @@ class MANTIS_DB(MANTIS_NLP):
         self.get_link_kofam_ko_to_binary(metadata_to_write, target_file='ko2go.xl')
         self.get_link_kofam_ko_to_binary(metadata_to_write, target_file='ko2tc.xl')
         self.get_link_kofam_ko_to_binary(metadata_to_write, target_file='ko2cazy.xl')
-        self.get_link_kofam_ko_to_pathway(metadata_to_write)
         self.write_metadata(metadata_to_write, self.mantis_paths['kofam'] + 'metadata.tsv')
         remove_file(self.mantis_paths['kofam'] + 'ko_list')
         remove_file(self.mantis_paths['kofam'] + 'ko2cazy.xl')
@@ -417,7 +411,6 @@ class MANTIS_DB(MANTIS_NLP):
         remove_file(self.mantis_paths['kofam'] + 'ko2go.xl')
         remove_file(self.mantis_paths['kofam'] + 'ko2tc.xl')
         remove_file(self.mantis_paths['kofam'] + 'ko_to_path')
-        remove_file(self.mantis_paths['kofam'] + 'map_description')
 
     def get_link_kofam_ko_list(self, res):
         file_path = self.mantis_paths['kofam'] + 'ko_list'
@@ -457,62 +450,6 @@ class MANTIS_DB(MANTIS_NLP):
                 res[ko][target_link].update(link)
                 line = file.readline()
 
-    def get_link_kofam_ko_to_pathway(self, res):
-        file_path = self.mantis_paths['kofam'] + 'ko_to_path'
-        map_description = self.get_kofam_pathway_description()
-        with open(file_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                ko, link = line
-                ko = ko.split(':')[1]
-                link = link.split(':')[1]
-                if ko not in res: res[ko]={}
-                if 'map' in link:
-                    if 'kegg_map' not in res[ko]: res[ko]['kegg_map'] = set()
-                    res[ko]['kegg_map'].add(link)
-                    if link in map_description:
-                        link_id = str(link)
-                    else:
-                        link_id = 'kegg_ko' + str(link)[3:]
-                    if link_id in map_description:
-                        if 'kegg_map_lineage' not in res[ko]: res[ko]['kegg_map_lineage'] = set()
-                        res[ko]['kegg_map_lineage'].add(
-                                         map_description[link_id]['grand_parent'] + ' -> ' +
-                                         map_description[link_id]['parent'] + '-> ' +
-                                         map_description[link_id]['description'] +
-                                         ' (' + link + ')'
-                        )
-
-                line = file.readline()
-
-    def get_kofam_pathway_description(self):
-        file_path = self.mantis_paths['kofam'] + 'map_description'
-        res = {}
-        with open(file_path) as file:
-            line = file.readline()
-            while line:
-                main_search = re.search('<h4>', line)
-                if main_search:
-                    main_tile = line.replace('<h4>', '').replace('</h4>', '').split()
-                    main_tile = ' '.join(main_tile[1:])
-                sub_search = re.search('<b>', line)
-                if sub_search:
-                    sub_title = line.replace('<b>', '').replace('</b>', '').split()
-                    sub_title = ' '.join(sub_title[1:])
-                map_search = re.search('show_pathway\?map', line)
-                if map_search:
-                    kegg_map = re.search('show_pathway\?map.*\d+', line).group()
-                    kegg_map = kegg_map.split('&amp')[0]
-                    if 'map=' in kegg_map:
-                        kegg_map = kegg_map.split('map=')[-1]
-                    else:
-                        kegg_map = kegg_map.split('show_pathway?')[-1]
-                    description = re.search('<a href=.*>.*<\/a>', line).group()
-                    description = description.split('>')[1].split('<')[0]
-                    res[kegg_map] = {'description': description, 'parent': sub_title, 'grand_parent': main_tile}
-                line = file.readline()
-        return res
 
 
     def download_kofam(self, force_download=False, stdout_file=None):
@@ -528,19 +465,17 @@ class MANTIS_DB(MANTIS_NLP):
         ko_to_tc = 'https://www.kegg.jp/kegg/files/ko2tc.xl'
         ko_to_cazy = 'https://www.kegg.jp/kegg/files/ko2cazy.xl'
         ko_to_path = 'http://rest.kegg.jp/link/pathway/ko'
-        map_description = 'https://www.genome.jp/kegg/pathway.html'
         with open(self.mantis_paths['kofam'] + 'readme.md', 'w+') as file:
             datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             file.write(f'This hmm was downloaded on {datetime_str} from:\n{kofam_hmm}\nMetadata was downloaded from:\n{ko_list}\n{ko_to_cog}\n{ko_to_go}\n{ko_to_tc}\n{ko_to_cazy}')
         print_cyan('Downloading and unzipping KOfam hmms ', flush=True, file=stdout_file)
-        for url in [kofam_hmm, ko_list, ko_to_cog, ko_to_go, ko_to_tc, ko_to_cazy, ko_to_path, map_description]:
+        for url in [kofam_hmm, ko_list, ko_to_cog, ko_to_go, ko_to_tc, ko_to_cazy, ko_to_path]:
             download_file(url, output_folder=self.mantis_paths['kofam'], stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['kofam'] + 'profiles.tar.gz',
                            extract_path=self.mantis_paths['kofam'], stdout_file=stdout_file, remove_source=True)
         uncompress_archive(source_filepath=self.mantis_paths['kofam'] + 'ko_list.gz', stdout_file=stdout_file,
                            remove_source=True)
         move_file(self.mantis_paths['kofam'] + 'ko', self.mantis_paths['kofam'] + 'ko_to_path')
-        move_file(self.mantis_paths['kofam'] + 'pathway.html', self.mantis_paths['kofam'] + 'map_description')
         merge_profiles(self.mantis_paths['kofam'] + 'profiles/', self.mantis_paths['kofam'] + 'kofam_merged.hmm',stdout_file=stdout_file)
         run_command('hmmpress ' + self.mantis_paths['kofam'] + 'kofam_merged.hmm', stdout_file=stdout_file)
         self.compile_kofam_metadata()
@@ -552,6 +487,8 @@ class MANTIS_DB(MANTIS_NLP):
         Path(self.mantis_paths['NCBI']).mkdir(parents=True, exist_ok=True)
         ncbi_hmm = 'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz'
         metadata = 'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv'
+        tigrfam_go_link = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMS_GO_LINK'
+
         # we cant verify a priori which foulders we should have, so you need to delete the folder to restart
 
         if self.check_reference_exists('NCBI', force_download) and \
@@ -564,19 +501,19 @@ class MANTIS_DB(MANTIS_NLP):
             file.write(f'This hmm was downloaded on {datetime_str} from:\n{ncbi_hmm}\nMetadata was downloaded from:\n{metadata}')
 
         print_cyan('Downloading and unzipping NCBI hmms ', flush=True, file=stdout_file)
-        for url in [ncbi_hmm, metadata]:
+        for url in [ncbi_hmm, metadata,tigrfam_go_link]:
             download_file(url, output_folder=self.mantis_paths['NCBI'], stdout_file=stdout_file)
-
         move_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tgz', self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tar.gz')
         uncompress_archive(source_filepath=self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tar.gz',
                            extract_path=self.mantis_paths['NCBI'], stdout_file=stdout_file, remove_source=True)
         self.compile_hmms_NCBI(stdout_file=stdout_file)
         remove_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv')
+        remove_file(self.mantis_paths['NCBI'] + 'TIGRFAMS_GO_LINK')
         if os.path.exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
             shutil.rmtree(self.mantis_paths['NCBI'] + 'hmm_PGAP')
 
     # sorting profiles by the taxonomic id from ncbi metadata file
-    def compile_hmms_NCBI(self, stdout_file=None):
+    def compile_hmms_NCBI(self,stdout_file=None):
         sorted_metadata = self.sort_hmms_NCBI()
         self.write_metadata_ncbi(sorted_metadata)
         self.assign_hmm_profiles(sorted_metadata, stdout_file=stdout_file)
@@ -596,18 +533,45 @@ class MANTIS_DB(MANTIS_NLP):
             else:
                 shutil.rmtree(self.mantis_paths['NCBI'] + taxa)
 
+    def get_tigrfam_go_link(self):
+        res={}
+        go_link_path = self.mantis_paths['NCBI'] + 'TIGRFAMS_GO_LINK'
+        with open(go_link_path) as file:
+            line = file.readline()
+            while line:
+                line = line.strip('\n').split('\t')
+                tigrfam_id=line[0]
+                if tigrfam_id not in res: res[tigrfam_id]=set()
+                res[tigrfam_id].add(line[1].split(':')[-1])
+                line = file.readline()
+        return res
+
+
     def write_metadata_ncbi(self, sorted_metadata):
+        tigrfam_go_link=self.get_tigrfam_go_link()
         for taxa in sorted_metadata:
             Path(self.mantis_paths['NCBI'] + taxa).mkdir(parents=True, exist_ok=True)
             Path(add_slash(self.mantis_paths['NCBI'] + taxa) + 'to_merge').mkdir(parents=True, exist_ok=True)
             with open(add_slash(self.mantis_paths['NCBI'] + taxa) + 'metadata.tsv', 'w+') as metadata_file:
                 for hmm, hmm_label, description, enzyme_ec,common_links in sorted_metadata[taxa]:
                     line = [hmm_label, '|', f'description:{description}']
+
                     for db in common_links:
                         for db_id in common_links[db]:
-                            line.append(f'{db}:{db_id}')
+                            if f'{db}:{db_id}' not in line:
+                                line.append(f'{db}:{db_id}')
                     for ec in enzyme_ec:
-                        line.append(f'enzyme_ec:{ec}')
+                        if f'enzyme_ec:{ec}' not in line:
+                            line.append(f'enzyme_ec:{ec}')
+                    #ncbi also contains tigrfam hmms
+                    if hmm_label.startswith('TIGR'):
+                        if hmm_label in tigrfam_go_link:
+                            for go_id in tigrfam_go_link[hmm_label]:
+                                if f'go:{go_id}' not in line:
+                                    line.append(f'go:{go_id}')
+                        if f'tigrfam:{hmm_label}' not in line:
+                            line.append(f'tigrfam:{hmm_label}')
+
                     line = '\t'.join(line) + '\n'
                     metadata_file.write(line)
 
@@ -710,6 +674,7 @@ class MANTIS_DB(MANTIS_NLP):
         remove_file(self.mantis_paths['tigrfam'] + 'TIGRFAMS_ROLE_LINK')
 
     def download_tigrfam(self, force_download=False, stdout_file=None):
+        #redundant, should remove
         Path(self.mantis_paths['tigrfam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('tigrfam', force_download) and \
                 file_exists(self.mantis_paths['tigrfam'] + 'COPYRIGHT', force_download) and \
@@ -951,7 +916,7 @@ class MANTIS_DB(MANTIS_NLP):
         if file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
             print('eggnog.db already exists! Skipping...', flush=True, file=stdout_file)
             return
-        url = 'http://eggnogdb.embl.de/download/emapperdb-5.0.1/eggnog.db.gz'
+        url = 'http://eggnogdb.embl.de/download/emapperdb-'+self.get_latest_version_eggnog()+'/eggnog.db.gz'
         download_file(url, output_folder=self.mantis_paths['default'], stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['default'] + 'eggnog.db.gz', stdout_file=stdout_file,
                            remove_source=True)
@@ -1013,7 +978,32 @@ class MANTIS_DB(MANTIS_NLP):
 
     ### Support functions for setting up queue to download NOGT hmms
 
-    def get_taxon_ids_NOGT(self):
+    def get_latest_version_eggnog(self):
+        url = 'http://eggnog5.embl.de/download/'
+        webpage = None
+        c = 0
+        while not webpage and c <= 10:
+            try:
+                req = requests.get(url)
+                webpage = req.text
+            except:
+                c += 1
+        versions_id = re.findall('href="emapperdb-.*"', webpage)
+        res=[]
+        for v in versions_id:
+            version_id=v.replace('href="emapperdb-','')
+            version_id=version_id.replace('/"','')
+            res.append(version_id)
+        if res:
+            return max(res)
+        else:
+            #hard coded just in case the user doesnt have access to internet, should be updated
+            current_version='5.0.2'
+            print(f'eggNOG database version retrieval failed, so returning hardcoded eggnog database version {current_version}, please change <current_version> if a newer version is available')
+            return current_version
+
+    def get_taxon_ids_eggNOG(self):
+        #this will get all available taxon ids from the eggnog webpage
         url = 'http://eggnog5.embl.de/download/latest/per_tax_level/'
         webpage = None
         c = 0
@@ -1025,6 +1015,8 @@ class MANTIS_DB(MANTIS_NLP):
                 c += 1
         taxons_search = re.findall('href="\d+/"', webpage)
         taxons = [re.search('\d+', i).group() for i in taxons_search]
+        #if no connection is established, we just return the local taxon ids (will be empty if no connection is available during setup)
+        if not taxons: return self.get_local_ref_taxon_ids('NOG')
         return taxons
 
     def get_taxon_for_queue_NOGT(self, force_download=False, stdout_file=None):
@@ -1034,14 +1026,10 @@ class MANTIS_DB(MANTIS_NLP):
             with open(self.mantis_paths['NOG'] + 'readme.md', 'w+') as file:
                 datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 file.write(f'These hmms were downloaded on {datetime_str} from:\nhttp://eggnog5.embl.de/download/latest/per_tax_level/')
-        available_taxon_ids = self.get_taxon_ids_NOGT()
-        if self.mantis_nogt_tax:
-            taxon_ids = self.mantis_nogt_tax
-        else:
-            taxon_ids=available_taxon_ids
+        taxon_ids = self.get_ref_taxon_ids('NOG')
         res = []
         for taxon_id in taxon_ids:
-            if taxon_id != '1' and taxon_id in available_taxon_ids:
+            if taxon_id != '1':
                 target_annotation_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + taxon_id + '_annotations.tsv'
                 if self.check_reference_exists('NOG', taxon_id, force_download) and file_exists(target_annotation_file,force_download):
                     hmm_path = get_ref_in_folder(self.mantis_paths['NOG'] + taxon_id)
@@ -1064,8 +1052,7 @@ class MANTIS_DB(MANTIS_NLP):
         res = []
         stdout_file = open(self.mantis_out, 'a+')
         if self.mantis_paths['NOG'][0:2] != 'NA':
-            taxon_ids = os.listdir(self.mantis_paths['NOG'])
-            for taxon_id in taxon_ids:
+            for taxon_id in self.get_ref_taxon_ids('NOG'):
                 if taxon_id != '1' and os.path.isdir(self.mantis_paths['NOG'] + taxon_id):
                     hmm_path = get_ref_in_folder(self.mantis_paths['NOG'] + taxon_id)
                     print('Checking NOG for splitting:', hmm_path, flush=True, file=stdout_file)
@@ -1084,8 +1071,7 @@ class MANTIS_DB(MANTIS_NLP):
         res = []
         stdout_file = open(self.mantis_out, 'a+')
         if self.mantis_paths['NCBI'][0:2] != 'NA':
-            taxon_ids = os.listdir(self.mantis_paths['NCBI'])
-            for taxon_id in taxon_ids:
+            for taxon_id in self.get_ref_taxon_ids('NCBI'):
                 if os.path.isdir(self.mantis_paths['NCBI'] + taxon_id):
                     hmm_path = get_ref_in_folder(self.mantis_paths['NCBI'] + taxon_id)
                     print(f'Checking NCBI for splitting: {hmm_path} {taxon_id}', flush=True, file=stdout_file)
@@ -1254,7 +1240,6 @@ class MANTIS_DB(MANTIS_NLP):
                         for tpi in temp_pfam_ids:
                             if tpi in pfam_id_to_acc:
                                 res['pfam'].add(pfam_id_to_acc[tpi])
-                        res['enzyme_ec'].update(kegg_ec.split(','))
                     if kegg_ec: res['enzyme_ec'].update(kegg_ec.split(','))
                     if kegg_ko: res['kegg_ko'].update(kegg_ko.split(','))
                     if kegg_pathway: res['kegg_pathway'].update(kegg_pathway.split(','))
@@ -1327,3 +1312,6 @@ class MANTIS_DB(MANTIS_NLP):
                     file.write(hmm + '\t|' + link_line + '\n')
         print(f'Finished exporting metadata for NOGT {taxon_id}', flush=True, file=stdout_file)
         stdout_file.close()
+
+
+

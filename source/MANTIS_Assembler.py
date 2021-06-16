@@ -102,13 +102,6 @@ class MANTIS_Assembler(MANTIS_DB):
 
         return res
 
-    def print_citation_mantis(self):
-        paper_doi=''
-        separator='#####################################################################################################################'
-        res=f'{separator}\n# Thank you for using Mantis, please make sure you cite the respective paper {paper_doi} #\n{separator}'
-        print(res)
-
-
     def requirements_met(self):
         for f in [self.is_conda_available(), self.is_hmmer_available()]:
             if not f:
@@ -517,7 +510,7 @@ class MANTIS_Assembler(MANTIS_DB):
         }
         # per tax level FOR EGGNOG
         if self.mantis_paths['NOG'][0:2] != 'NA':
-            tax_hmms = self.get_taxon_hmms(db='NOG', folder=True)
+            tax_hmms = self.get_taxon_refs(db='NOG', folder=True)
             if not tax_hmms:
                 if verbose: red('Failed installation check on [path unavailable]: ' + self.mantis_paths['NOG'],
                                 flush=True, file=self.redirect_verbose)
@@ -535,7 +528,7 @@ class MANTIS_Assembler(MANTIS_DB):
         # per tax level FOR NCBI
         if self.mantis_paths['NCBI'][0:2] != 'NA':
             #checking those already present
-            tax_hmms = self.get_taxon_hmms(db='NCBI', folder=True)
+            tax_hmms = self.get_taxon_refs(db='NCBI', folder=True)
             if not tax_hmms:
                 if verbose: red('Failed installation check on [path unavailable]: ' + self.mantis_paths['NCBI'],
                                 flush=True, file=self.redirect_verbose)
@@ -622,49 +615,60 @@ class MANTIS_Assembler(MANTIS_DB):
                                 return ''
                 line = file.readline()
 
-    def get_hmm_taxon_ids(self, db):
-        if not os.path.exists(self.mantis_paths[db]): return []
-        passed=False
-        if db=='NOG':
-            res = []
-            available_taxon_ids = self.get_taxon_ids_NOGT()
-            if self.mantis_nogt_tax:
-                for tax_id in self.mantis_nogt_tax:
-                    res.append(tax_id)
-            else:
-                res.extend(available_taxon_ids)
-            res = set(res)
-            if db == 'NOG':
-                res = res.intersection(available_taxon_ids)
-            if res: passed=True
-        if not passed:
-            res = []
-            for i in os.listdir(self.mantis_paths[db]):
-                if re.search('\d+',i): res.append(i)
-        if not os.path.exists(self.mantis_paths[db]): return []
-        res = set(res)
-        return list(res)
-
-    def get_taxon_hmms(self, db, folder=False):
-        taxon_ids = self.get_hmm_taxon_ids(db)
-        res = []
-        for t in taxon_ids:
-            if folder:
-                res.append(add_slash(self.mantis_paths[db] + t))
-            else:
-                res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
-        if folder:
-            res.append(add_slash(self.mantis_paths[db] + db + 'G'))
-        else:
-            res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
-        return res
-
-    def get_lineage_hmm_path(self, taxon_id, db):
-        tax_hmms = self.get_hmm_taxon_ids(db=db)
+    def get_taxon_ref_path(self, taxon_id, db):
+        tax_hmms = self.get_local_ref_taxon_ids(db=db)
         if taxon_id in tax_hmms:
             return add_slash(self.mantis_paths[db] + taxon_id) + f'{taxon_id}_merged.hmm'
         else:
             return None
+
+
+    def get_ref_taxon_ids(self, db):
+        res = set()
+        if not os.path.exists(self.mantis_paths[db]): return res
+        if db=='NOG':
+            available_taxon_ids = self.get_taxon_ids_eggNOG()
+            if self.mantis_nogt_tax:
+                for tax_id in self.mantis_nogt_tax:
+                    if tax_id in available_taxon_ids:
+                        res.add(tax_id)
+                return res
+            else:
+                return set(available_taxon_ids)
+        else:
+            for i in os.listdir(self.mantis_paths[db]):
+                if re.search('\d+',i): res.add(i)
+            return res
+
+    def get_local_ref_taxon_ids(self,db):
+        res = set()
+        if os.path.exists(self.mantis_paths[db]):
+            if db=='NOG':
+                if self.mantis_nogt_tax:
+                    for i in self.mantis_nogt_tax:
+                        res.add(i)
+            for i in os.listdir(self.mantis_paths[db]):
+                if re.search('\d+', i): res.add(i)
+        return res
+
+    def get_taxon_refs(self, db, folder=False):
+        #locally available taxon ids
+        local_taxon_ids = self.get_local_ref_taxon_ids(db)
+        #all taxon ids
+        taxon_ids=self.get_ref_taxon_ids(db)
+        res = []
+        for t in taxon_ids:
+            if t in local_taxon_ids:
+                if folder:
+                    res.append(add_slash(self.mantis_paths[db] + t))
+                else:
+                    res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
+            if folder:
+                res.append(add_slash(self.mantis_paths[db] + db + 'G'))
+            else:
+                res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
+        return res
+
 
     def get_organism_lineage(self, taxon_id, stdout_file=None):
         lineage_file_path = self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp'
@@ -710,6 +714,5 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
 if __name__ == '__main__':
-    p = MANTIS_Assembler()
-    p.mantis_paths['pfam']='/media/HDD/data/mantis_hmm/pfam/'
-    p.compile_pfam_metadata()
+    p = MANTIS_Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.config')
+    print(p.get_tigrfam_go_link())

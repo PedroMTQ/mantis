@@ -614,7 +614,7 @@ class MANTIS_Processor():
             stdout_file = stdout_path
         print('------------------------------------------', flush=True, file=stdout_file)
         print('Processing hits for:\n' + output_path, flush=True, file=stdout_file)
-        queries_domtblout, hit_counter = self.read_searchout(output_path=output_path, count_seqs_chunk=count_seqs_chunk,
+        queries_searchout, hit_counter = self.read_searchout(output_path=output_path, count_seqs_chunk=count_seqs_chunk,
                                                              count_seqs_original_file=count_seqs_original_file,
                                                              count_residues_original_file=count_residues_original_file)
         hit_counter = len(hit_counter)
@@ -623,22 +623,22 @@ class MANTIS_Processor():
         approximated_hits = []
         hmm = get_path_level(output_path, remove_extension=True)
         res_annotation = {}
-        for query in queries_domtblout:
+        for query in queries_searchout:
             if query not in res_annotation: res_annotation[query] = {}
-            list_hits = queries_domtblout[query].pop('hits')
+            list_hits = queries_searchout[query].pop('hits')
             if self.domain_algorithm == 'heuristic':
                 best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',sorting_type=self.sorting_type)
             elif self.domain_algorithm == 'bpo':
                 best_hit = self.get_lowest_hit(list(list_hits), sorting_class='processor',sorting_type=self.sorting_type)
             else:
                 try:
-                    best_hit = self.get_best_hits(list(list_hits), queries_domtblout[query]['query_len'])
+                    best_hit = self.get_best_hits(list(list_hits), queries_searchout[query]['query_len'])
                 except (TimeoutError, RecursionError) as e:
                     #heuristic with bitscore produces bad results, so we force evalue sorting
                     best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',sorting_type='evalue')
                     approximated_hits.append(query)
-            queries_domtblout[query]['best_hit'] = best_hit
-            res_annotation[query][hmm] = queries_domtblout[query]
+            queries_searchout[query]['best_hit'] = best_hit
+            res_annotation[query][hmm] = queries_searchout[query]
         if approximated_hits:
             approximated_hits = ' ; '.join(approximated_hits)
             print(f'Some hits in the output file:\n{output_path} were approximated. They were:\n{approximated_hits}',flush=True, file=stdout_file)

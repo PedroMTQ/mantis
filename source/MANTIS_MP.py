@@ -188,13 +188,13 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 organism_lineage_temp = list(organism_lineage)
                 if organism_lineage_temp:
                     current_taxon = organism_lineage_temp.pop(-1)
-                    hmm_path = self.get_lineage_hmm_path(current_taxon, db=db)
+                    hmm_path = self.get_taxon_ref_path(current_taxon, db=db)
                     # to skip taxons without an hmm
                     while not hmm_path and organism_lineage_temp:
                         current_taxon = organism_lineage_temp.pop(-1)
-                        hmm_path = self.get_lineage_hmm_path(current_taxon, db=db)
+                        hmm_path = self.get_taxon_ref_path(current_taxon, db=db)
                     if hmm_path:
-                        chunks_path = compile_hmm_chunks_path(hmm_path)
+                        chunks_path = get_chunks_path(hmm_path)
                         tax_hmms += len(chunks_path)
             res = int(tax_hmms / len(self.fastas_to_annotate))
         return res
@@ -362,11 +362,11 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 if current_lineage and original_lineage:
                     if self.mantis_paths[path_tax][0:2] != 'NA':
                         current_taxon = current_lineage.pop(-1)
-                        hmm_path = self.get_lineage_hmm_path(current_taxon, db=path_tax)
+                        hmm_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
                         # to skip taxons without an hmm
                         while not hmm_path and current_lineage:
                             current_taxon = current_lineage.pop(-1)
-                            hmm_path = self.get_lineage_hmm_path(current_taxon, db=path_tax)
+                            hmm_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
                         if hmm_path:
                             chunks_path = get_chunks_path(hmm_path)
                             for chunk_hmm in chunks_path:
