@@ -1159,4 +1159,4 @@ def count_residues(sample_path):
 if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
-    print(estimate_number_workers_setup_database(214))
+    print(estimate_chunk_size(500000,24))
