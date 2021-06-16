@@ -46,6 +46,7 @@ def kill_switch(error_type,message,flush=False, file=None):
     if file and message:  print(message,flush=flush,file=file)
     elif message:  print(error_type+message)
     else: print(error_type)
+    sleep(5)
     os.kill(master_pid, signal.SIGKILL)
 
 
@@ -417,6 +418,18 @@ def is_fasta(fasta_file):
             return True
     return False
 
+def get_seq_names(protein_fasta_path):
+    res=set()
+    with open(protein_fasta_path, 'r') as file:
+        line = file.readline()
+        while line:
+            if line.startswith('>'):
+                query = line.replace('>', '').strip()
+                print(query)
+                res.add(query)
+            line=file.readline()
+    return res
+
 
 def process_protein_fasta_line(res, query, fasta_line, start_recording):
     # for the first > line
@@ -641,9 +654,17 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     c = 0
     while c <= retry_limit:
         if 'ftp' in url:
-            download_file_ftp(url, file_path)
+            try:
+                download_file_ftp(url, file_path)
+            except:
+                try:
+                    download_file_http(url, file_path, c)
+                except: pass
         else:
-            download_file_http(url, file_path, c)
+            try:
+                download_file_http(url, file_path, c)
+            except:
+                pass
         if transfer_encoding == 'chunked': return
         if os.stat(file_path).st_size == target_size: return
         c += 1
