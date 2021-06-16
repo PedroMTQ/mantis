@@ -85,13 +85,17 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         print_cyan('Splitting samples into chunks!', flush=True, file=self.redirect_verbose)
         worker_count = 1
         n_chunks = 0
+        total_n_seqs=0
+        for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
+            total_n_seqs += get_seqs_count(file_path)
         for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
             protein_seqs = read_protein_fasta(file_path)
             chunk_dir = add_slash(f'{output_path}fasta_chunks')
             if not os.path.exists(chunk_dir):
                 Path(chunk_dir).mkdir(parents=True, exist_ok=True)
             current_worker_count = estimate_number_workers_split_sample(minimum_worker_load, len(protein_seqs))
-            chunk_size = estimate_chunk_size(total_n_seqs=len(protein_seqs),
+            #here we use the total amount of sequences to avoid generating too many small files for long runs
+            chunk_size = estimate_chunk_size(total_n_seqs=total_n_seqs,
                                              annotation_workers=self.estimate_number_workers_annotation(split_sample=True),
                                              chunk_size=self.chunk_size
                                              )
