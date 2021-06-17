@@ -666,7 +666,8 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
             except:
                 pass
         if transfer_encoding == 'chunked': return
-        if os.stat(file_path).st_size == target_size: return
+        if file_exists(file_path):
+            if os.stat(file_path).st_size == target_size: return
         c += 1
     print('Did not manage to download the following url correctly:\n' + url)
     raise Exception
