@@ -625,7 +625,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def get_ref_taxon_ids(self, db):
         res = set()
-        if not os.path.exists(self.mantis_paths[db]): return res
+        if not file_exists(self.mantis_paths[db]): return res
         if db=='NOG':
             available_taxon_ids = self.get_taxon_ids_eggNOG()
             if self.mantis_nogt_tax:
@@ -642,7 +642,7 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def get_local_ref_taxon_ids(self,db):
         res = set()
-        if os.path.exists(self.mantis_paths[db]):
+        if file_exists(self.mantis_paths[db]):
             if db=='NOG':
                 if self.mantis_nogt_tax:
                     for i in self.mantis_nogt_tax:

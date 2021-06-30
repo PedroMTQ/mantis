@@ -38,7 +38,7 @@ class MANTIS_Processor():
         if self.keep_files:
             to_create.append('output_hmmer')
         for hmmer_dir in to_create:
-            if not os.path.exists(chunk_dir + hmmer_dir):
+            if not file_exists(chunk_dir + hmmer_dir):
                 Path(chunk_dir + hmmer_dir).mkdir(parents=True, exist_ok=True)
 
     ######SPLITTING TARGET FASTA INTO CHUNKS######
@@ -167,7 +167,7 @@ class MANTIS_Processor():
 
     def generate_temp_fasta(self, missing_queries, output_folder, db):
         temp_path = f'{output_folder}missing_annotations.{db}.tmp'
-        if os.path.exists(temp_path):
+        if file_exists(temp_path):
             remove_temp_fasta(temp_path, db)
         with open(temp_path, 'w+') as file:
             for mq in missing_queries:

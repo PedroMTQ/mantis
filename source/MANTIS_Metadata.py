@@ -80,7 +80,7 @@ class MANTIS_Metadata():
             file_path = custom_ref_path.replace('.dmnd', '.tsv')
 
         headers = {}
-        if not os.path.exists(file_path): return
+        if not file_exists(file_path): return
         with open(file_path) as file:
             line = file.readline()
             while line:
@@ -129,7 +129,7 @@ class MANTIS_Metadata():
 
     def get_essential_genes_list(self) -> object:
         essential_genes = self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'
-        if os.path.exists(essential_genes):
+        if file_exists(essential_genes):
             with open(essential_genes) as file: lines = file.readlines()
             lines = [l.strip('\n') for l in lines]
             return lines

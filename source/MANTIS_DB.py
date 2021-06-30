@@ -509,7 +509,7 @@ class MANTIS_DB(MANTIS_NLP):
         self.compile_hmms_NCBI(stdout_file=stdout_file)
         remove_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv')
         remove_file(self.mantis_paths['NCBI'] + 'TIGRFAMS_GO_LINK')
-        if os.path.exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
+        if file_exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
             shutil.rmtree(self.mantis_paths['NCBI'] + 'hmm_PGAP')
 
     # sorting profiles by the taxonomic id from ncbi metadata file
@@ -760,9 +760,10 @@ class MANTIS_DB(MANTIS_NLP):
             response=requests.post(url, data=post_obj,headers=headers)
             while response.status_code!=200:
                 response = requests.post(url, data=post_obj, headers=headers)
-                c+=1
-            if c==10:
-                kill_switch(ConnectionError,url)
+                if c==10:
+                    kill_switch(ConnectionError,url)
+                c += 1
+
             response_text=response.text
             for seq in seqs_chunk:
                 if seq in response_text:
@@ -837,7 +838,7 @@ class MANTIS_DB(MANTIS_NLP):
     def check_completeness_NOGG(self, nogg_file, list_file_paths, force_download):
         if force_download:
             return False
-        if not os.path.exists(nogg_file):
+        if not file_exists(nogg_file):
             return False
         nogg_hmms = set()
         nogt_hmms = set()
@@ -878,7 +879,7 @@ class MANTIS_DB(MANTIS_NLP):
 
             if not self.check_completeness_NOGG(target_annotation_file, all_sql,force_download) or\
                     not self.check_reference_exists('NOGG',force_download):
-                if os.path.exists(self.mantis_paths['NOG'] + 'NOGG'): shutil.rmtree(self.mantis_paths['NOG'] + 'NOGG')
+                if file_exists(self.mantis_paths['NOG'] + 'NOGG'): shutil.rmtree(self.mantis_paths['NOG'] + 'NOGG')
                 Path(self.mantis_paths['NOG'] + 'NOGG').mkdir(parents=True, exist_ok=True)
             else:
                 print('NOGG already compiled, skipping...', flush=True, file=stdout_file)
@@ -899,7 +900,7 @@ class MANTIS_DB(MANTIS_NLP):
         for file in ['_annotations.tsv.gz', '_hmms.tar.gz']:
             url = f'{eggnog_downloads_page}{taxon_id}{file}'
             download_file(url, output_folder=folder_path, stdout_file=stdout_file)
-        if os.path.exists(f'{folder_path}profiles'): shutil.rmtree(f'{folder_path}profiles')
+        if file_exists(f'{folder_path}profiles'): shutil.rmtree(f'{folder_path}profiles')
         uncompress_archive(source_filepath= f'{folder_path}{taxon_id}_hmms.tar.gz', extract_path= f'{folder_path}profiles',stdout_file=stdout_file, remove_source=True)
         uncompress_archive(source_filepath= f'{folder_path}{taxon_id}_annotations.tsv.gz', stdout_file=stdout_file,remove_source=True)
         # removing gz extension
@@ -908,7 +909,7 @@ class MANTIS_DB(MANTIS_NLP):
             if '.hmm' in hmm_profile: move_file(hmm_profile, hmm_profile.strip('.gz'))
         merge_profiles(f'{folder_path}profiles/{taxon_id}', f'{folder_path}{taxon_id}_merged.hmm',
                        stdout_file=stdout_file)
-        if os.path.exists(f'{folder_path}profiles'):      shutil.rmtree(f'{folder_path}profiles')
+        if file_exists(f'{folder_path}profiles'):      shutil.rmtree(f'{folder_path}profiles')
         run_command(f'hmmpress {target_merged_hmm}', stdout_file=stdout_file)
 
     def download_and_unzip_eggnogdb(self, force_download=False, stdout_file=None):
@@ -941,7 +942,7 @@ class MANTIS_DB(MANTIS_NLP):
         if self.mantis_paths['NOG'][0:2] == 'NA': return
         if self.mantis_nogt_tax:
             for tax_id in self.mantis_nogt_tax:
-                if not os.path.exists(add_slash(self.mantis_paths['NOG'] + str(tax_id)) + f'{tax_id}_sql_annotations.tsv'): passed = False
+                if not file_exists(add_slash(self.mantis_paths['NOG'] + str(tax_id)) + f'{tax_id}_sql_annotations.tsv'): passed = False
             if passed:
                 print('All chosen NOGT were already extracted! Skipping...', flush=True, file=stdout_file)
                 return
@@ -952,7 +953,7 @@ class MANTIS_DB(MANTIS_NLP):
         Path(NOG_sql_resources_folder).mkdir(parents=True, exist_ok=True)
 
 
-        if not os.path.exists(NOG_sql_resources_folder): return
+        if not file_exists(NOG_sql_resources_folder): return
         for compressed_sql in os.listdir(NOG_sql_resources_folder):
             if 'NOG' in compressed_sql and '.tar.gz' in compressed_sql:
                 uncompress_archive(source_filepath=NOG_sql_resources_folder + compressed_sql,
@@ -973,7 +974,7 @@ class MANTIS_DB(MANTIS_NLP):
                         move_file(add_slash(NOGT_sql_folder + sql_folder) + tax_sql,
                                   add_slash(self.mantis_paths['NOG'] + tax_id) + tax_sql)
         # removing empty folders
-        if os.path.exists(NOGT_sql_folder):
+        if file_exists(NOGT_sql_folder):
             shutil.rmtree(NOGT_sql_folder)
 
     ### Support functions for setting up queue to download NOGT hmms
@@ -1013,8 +1014,10 @@ class MANTIS_DB(MANTIS_NLP):
                 webpage = req.text
             except:
                 c += 1
-        taxons_search = re.findall('href="\d+/"', webpage)
-        taxons = [re.search('\d+', i).group() for i in taxons_search]
+        if isinstance(webpage,str):
+            taxons_search = re.findall('href="\d+/"', webpage)
+            taxons = [re.search('\d+', i).group() for i in taxons_search]
+        else: taxons=[]
         #if no connection is established, we just return the local taxon ids (will be empty if no connection is available during setup)
         if not taxons: return self.get_local_ref_taxon_ids('NOG')
         return taxons
@@ -1110,7 +1113,7 @@ class MANTIS_DB(MANTIS_NLP):
         print(f'{hmm_path} has {profile_count} profiles', flush=True, file=stdout_file)
         hmm_folder = get_folder(hmm_path)
         hmm_chunks_folder = f'{hmm_folder}chunks/'
-        if os.path.exists(hmm_chunks_folder):
+        if file_exists(hmm_chunks_folder):
             shutil.rmtree(hmm_chunks_folder)
         Path(hmm_chunks_folder).mkdir(parents=True, exist_ok=True)
         print('Load balancing chunks', flush=True, file=stdout_file)
@@ -1267,7 +1270,7 @@ class MANTIS_DB(MANTIS_NLP):
         hmm_list = self.get_hmms_annotation_file(target_annotation_file, hmm_col=1)
         stdout_file = open(stdout_path, 'a+')
 
-        if os.path.exists(target_sql_file):
+        if file_exists(target_sql_file):
             already_compiled_hmms_list = self.get_hmms_annotation_file(target_sql_file, hmm_col=0)
             if len(already_compiled_hmms_list) == len(hmm_list):
                 print('Target sql annotation file already finished, skipping!', target_sql_file, flush=True,
@@ -1287,7 +1290,7 @@ class MANTIS_DB(MANTIS_NLP):
 
         print('Starting metadata extraction into', target_sql_file, flush=True, file=stdout_file)
         # http://geneontology.org/docs/guide-go-evidence-codes/
-        while not os.path.exists(self.mantis_paths['default'] + "eggnog.db"): sleep(5)
+        while not file_exists(self.mantis_paths['default'] + "eggnog.db"): sleep(5)
         print(f'Exporting metadata for NOG {taxon_id}', flush=True, file=stdout_file)
         hmm_annotations_path = self.mantis_paths['NOG'] + f'{taxon_id}/{taxon_id}_annotations.tsv'
         pool_args = []
@@ -1312,6 +1315,5 @@ class MANTIS_DB(MANTIS_NLP):
                     file.write(hmm + '\t|' + link_line + '\n')
         print(f'Finished exporting metadata for NOGT {taxon_id}', flush=True, file=stdout_file)
         stdout_file.close()
-
 
 

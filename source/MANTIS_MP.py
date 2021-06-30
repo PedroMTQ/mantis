@@ -91,7 +91,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         for file_path, output_path, organism_lineage,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
             protein_seqs = read_protein_fasta(file_path)
             chunk_dir = add_slash(f'{output_path}fasta_chunks')
-            if not os.path.exists(chunk_dir):
+            if not file_exists(chunk_dir):
                 Path(chunk_dir).mkdir(parents=True, exist_ok=True)
             current_worker_count = estimate_number_workers_split_sample(minimum_worker_load, len(protein_seqs))
             #here we use the total amount of sequences to avoid generating too many small files for long runs
@@ -498,7 +498,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             searchout_path = add_slash(f'{current_chunk_dir}searchout')
             all_searchout = os.listdir(searchout_path)
-            if not os.path.exists(add_slash(add_slash(current_chunk_dir) + 'processed_output')):
+            if not file_exists(add_slash(add_slash(current_chunk_dir) + 'processed_output')):
                 Path(add_slash(add_slash(current_chunk_dir) + 'processed_output')).mkdir(parents=True, exist_ok=True)
             for searchout in all_searchout:
                 if 'NOG' in searchout:
