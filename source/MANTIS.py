@@ -403,11 +403,11 @@ class MANTIS(MANTIS_MP):
 
     def remove_non_essential_files(self):
         for file_path, output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file in self.fastas_to_annotate:
-            if os.path.exists(output_path + 'fasta_chunks/'):
+            if file_exists(output_path + 'fasta_chunks/'):
                 shutil.rmtree(output_path + 'fasta_chunks/')
 
     def remove_uncompressed_files(self):
-        if os.path.exists(self.output_folder + 'uncompressed_samples/'):
+        if file_exists(self.output_folder + 'uncompressed_samples/'):
             shutil.rmtree(self.output_folder + 'uncompressed_samples/')
 
     @timeit_class
@@ -453,8 +453,6 @@ class MANTIS(MANTIS_MP):
         for output_path in self.chunks_to_fasta:
             self.queue.append([output_path, self.chunks_to_fasta[output_path]])
         self.processes_handler(self.worker_merge_mantis_output, worker_count)
-        # if os.path.exists(self.output_folder):
-        #    shutil.rmtree(self.output_folder)
 
         print('Mantis ran sucessfully!', flush=True)
 

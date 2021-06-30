@@ -40,6 +40,7 @@ except:
         flush=True)
     os.kill(master_pid, signal.SIGKILL)
 
+
 def kill_switch(error_type,message,flush=False, file=None):
     import signal
     master_pid = os.getpid()
@@ -319,7 +320,7 @@ def read_profile(hmm_file):
 
 def get_ref_in_folder(folder_path):
     temp_path = add_slash(folder_path)
-    if os.path.exists(temp_path):
+    if file_exists(temp_path):
         if temp_path[0:2] != 'NA':
             files = os.listdir(temp_path)
             for f in files:
@@ -642,7 +643,7 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     target_size = target_file.info()['Content-Length']
     transfer_encoding = target_file.info()['Transfer-Encoding']
     if target_size: target_size = int(target_size)
-    if os.path.exists(file_path):
+    if file_exists(file_path):
         if transfer_encoding == 'chunked':
             return
         elif os.stat(file_path).st_size == target_size:
@@ -694,7 +695,7 @@ def merge_profiles(folder_path, output_file, stdout_file=None):
     list_dir = os.listdir(folder_path)
     profiles = [folder_path + SPLITTER + i for i in list_dir if '.hmm' in i.lower()]
     concat_files(output_file, profiles, stdout_file=stdout_file)
-    if os.path.exists(folder_path):      shutil.rmtree(folder_path)
+    if file_exists(folder_path):      shutil.rmtree(folder_path)
 
 
 def merge_redundant_profiles(output_file, list_file_paths, stdout_file=None):
@@ -736,7 +737,7 @@ def merge_redundant_sql_annotations(output_file, list_file_paths, stdout_file=No
 
 def move_file(source_file, dest_file):
     if not os.path.isdir(dest_file):
-        if os.path.exists(dest_file): os.remove(dest_file)
+        if file_exists(dest_file): os.remove(dest_file)
     try:
         os.rename(source_file, dest_file)
     except:
@@ -745,12 +746,12 @@ def move_file(source_file, dest_file):
 
 def copy_file(source_file, dest_file):
     if not os.path.isdir(dest_file):
-        if os.path.exists(dest_file): os.remove(dest_file)
+        if file_exists(dest_file): os.remove(dest_file)
     shutil.copyfile(source_file, dest_file)
 
 
 def remove_file(source_file):
-    if os.path.exists(source_file): os.remove(source_file)
+    if file_exists(source_file): os.remove(source_file)
 
 
 
@@ -986,7 +987,7 @@ def download_unifunc():
 
 def unifunc_downloaded():
     unifunc_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'UniFunc/'
-    if not os.path.exists(unifunc_folder): return False
+    if not file_exists(unifunc_folder): return False
     return True
 
 
@@ -999,7 +1000,7 @@ def download_diamond():
 
 def diamond_downloaded():
     diamond_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'Diamond/'
-    if not os.path.exists(diamond_folder): return False
+    if not file_exists(diamond_folder): return False
     return True
 
 def compile_cython():
@@ -1013,7 +1014,7 @@ def compile_cython():
 
 def cython_compiled():
     cython_folder = MANTIS_FOLDER + 'source' + SPLITTER + 'cython_src' + SPLITTER
-    if not os.path.exists(cython_folder + 'get_non_overlapping_hits.c'): return False
+    if not file_exists(cython_folder + 'get_non_overlapping_hits.c'): return False
     return True
 
 
@@ -1048,7 +1049,7 @@ def save_metrics(pickle_path, to_pickle):
 
 
 def load_metrics(pickle_path):
-    if os.path.exists(pickle_path):
+    if file_exists(pickle_path):
         with open(pickle_path, 'rb') as handle:
             pickled_results = pickle_load(handle)
             return pickled_results
@@ -1160,4 +1161,4 @@ def count_residues(sample_path):
 if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
-    print(estimate_chunk_size(500000,24))
+    print(MANTIS_FOLDER)
