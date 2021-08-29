@@ -1,18 +1,24 @@
-import argparse
-import os
-from datetime import datetime
-import sys
-import uuid
+try:
+    import argparse
+    import os
+    from datetime import datetime
+    import sys
+    import uuid
 
-from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis
-from source.MANTIS_NLP import test_nlp
-from source.MANTIS_Assembler import add_slash, \
-    get_path_level, \
-    check_installation, \
-    extract_nog_metadata, \
-    setup_databases, \
-    merge_hmm_folder
-from source.utils import MANTIS_FOLDER
+    from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis
+    from source.MANTIS_NLP import test_nlp
+    from source.MANTIS_Assembler import add_slash, \
+        get_path_level, \
+        check_installation, \
+        extract_nog_metadata, \
+        setup_databases, \
+        merge_hmm_folder
+    from source.utils import MANTIS_FOLDER
+except ImportError as e:
+    import signal
+    master_pid = os.getpid()
+    print('Import Error!')
+    os.kill(master_pid, signal.SIGKILL)
 
 
 if __name__ == '__main__':
@@ -75,6 +81,8 @@ if __name__ == '__main__':
                         help='[optional]\tdo not expand hits during consensus generation.')
     parser.add_argument('-km', '--kegg_matrix', action='store_true',
                         help='[optional]\tgenerate KEGG modules completeness matrix.')
+    parser.add_argument('-vkm', '--verbose_kegg_matrix', action='store_true',
+                        help='[optional]\tgenerate KEGG modules completeness matrix in verbose mode. Verbose mode gives, in addition to the default matrix, complete module name and missing KOs; it also exports a summary figure.')
     parser.add_argument('-fo', '--force_output', action='store_true',
                         help='[optional]\tIf you would like to force the output to the folder you specified. This may result in errrors!')
     #setup databases
@@ -126,6 +134,7 @@ if __name__ == '__main__':
         no_consensus_expansion = args.no_consensus_expansion
         no_unifunc = args.no_unifunc
         kegg_matrix = args.kegg_matrix
+        verbose_kegg_matrix = args.verbose_kegg_matrix
         force_output = args.force_output
         default_workers = args.default_workers
         chunk_size = args.chunk_size
@@ -164,6 +173,7 @@ if __name__ == '__main__':
                            no_consensus_expansion=no_consensus_expansion,
                            no_unifunc=no_unifunc,
                            kegg_matrix=kegg_matrix,
+                           verbose_kegg_matrix=verbose_kegg_matrix,
                            default_workers=default_workers,
                            chunk_size=chunk_size,
                            time_limit=time_limit,

@@ -304,10 +304,24 @@ class MANTIS_Metadata():
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
                 for sm in sorted_modules:
-                    res.append(sm)
+                    module_name,module_paths = tree_modules[sk][ssp][sm]
+                    res.append([sm,module_name])
         return res
 
-    def generate_sample_col(self, sample_kos, tree_modules):
+    def get_best_sample_module_path(self,sample_kos,all_paths):
+        best=[0,set()]
+        for current_path in all_paths:
+            available_kos=current_path.intersection(sample_kos)
+            current_score=len(available_kos)/len(current_path)
+            if current_score>best[0]: best=[current_score,current_path]
+        if best[1]:
+            missing=best[1].difference(available_kos)
+            missing=','.join(missing)
+        else: missing='NA'
+        return best[0],missing
+
+
+    def generate_sample_col_verbose(self, sample_kos, tree_modules):
         sorted_keys = [
             'Carbohydrate metabolism',
             'Energy metabolism',
@@ -320,16 +334,65 @@ class MANTIS_Metadata():
             'Biosynthesis of other secondary metabolites',
             'Xenobiotics biodegradation',
         ]
-        res = []
+        res = {}
+
+        print(sample_kos)
         for sk in sorted_keys:
             sorted_sub_paths = sorted(tree_modules[sk].keys())
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
                 for sm in sorted_modules:
-                    sm_kos = tree_modules[sk][ssp][sm]
-                    module_perc = len(sm_kos.intersection(sample_kos)) / len(sm_kos)
-                    res.append(str(round(module_perc, 3)))
+                    module_name,module_paths = tree_modules[sk][ssp][sm]
+                    module_perc,best_path = self.get_best_sample_module_path(sample_kos,module_paths)
+                    module_perc=str(round(module_perc,3))
+                    res[sm]=[module_perc,best_path]
         return res
+
+    def generate_sample_col_non_verbose(self, sample_kos, tree_modules):
+        sorted_keys = [
+            'Carbohydrate metabolism',
+            'Energy metabolism',
+            'Lipid metabolism',
+            'Nucleotide metabolism',
+            'Amino acid metabolism',
+            'Glycan metabolism',
+            'Metabolism of cofactors and vitamins',
+            'Biosynthesis of terpenoids and polyketides',
+            'Biosynthesis of other secondary metabolites',
+            'Xenobiotics biodegradation',
+        ]
+        res = {}
+        for sk in sorted_keys:
+            sorted_sub_paths = sorted(tree_modules[sk].keys())
+            for ssp in sorted_sub_paths:
+                sorted_modules = sorted(tree_modules[sk][ssp])
+                for sm in sorted_modules:
+                    module_name,module_paths = tree_modules[sk][ssp][sm]
+                    module_perc,best_path = self.get_best_sample_module_path(sample_kos,module_paths)
+                    module_perc=str(round(module_perc,3))
+                    res[sm]=[module_perc]
+
+        return res
+
+    def generate_sample_col(self, sample_kos, tree_modules):
+        if self.verbose_kegg_matrix:
+            return self.generate_sample_col_verbose(sample_kos, tree_modules)
+        else:
+            return self.generate_sample_col_non_verbose(sample_kos,tree_modules)
+
+    def generate_kegg_matrix_figure(self,figure_info):
+        colors= {
+            'Carbohydrate metabolism':'',
+            'Energy metabolism':'',
+            'Lipid metabolism':'',
+            'Nucleotide metabolism':'',
+            'Amino acid metabolism':'',
+            'Glycan metabolism':'',
+            'Metabolism of cofactors and vitamins':'',
+            'Biosynthesis of terpenoids and polyketides':'',
+            'Biosynthesis of other secondary metabolites':'',
+            'Xenobiotics biodegradation':'',
+    }
 
     def get_sample_kos(self, annotation_file):
         res = set()
@@ -346,6 +409,7 @@ class MANTIS_Metadata():
 
     def generate_matrix(self):
         sample_paths = []
+        figure_info={}
         out_file = self.output_folder + 'kegg_modules.tsv'
         for i in self.fastas_to_annotate:
             file_path, sample_output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file = i
@@ -356,20 +420,30 @@ class MANTIS_Metadata():
         if tree:
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
-                top_line = [s['sample'] for s in samples_info]
+                if self.verbose_kegg_matrix:
+                    top_line = [f'{s["sample"]}\tMissing KOs {s["sample"]}' for s in samples_info]
+                else:
+                    top_line = [s['sample'] for s in samples_info]
                 top_line.insert(0, 'Module')
                 top_line = '\t'.join(top_line) + '\n'
                 file.write(top_line)
-                samples_perc = [self.generate_sample_col(s['kegg_ko'], tree) for s in samples_info]
+                samples_perc = [[s['sample'],self.generate_sample_col(s['kegg_ko'], tree)] for s in samples_info]
                 for i in range(len(module_col)):
-                    module_line = [module_col[i]]
-                    for s in samples_perc:
-                        module_line.append(s[i])
+                    module_id,module_name=module_col[i]
+                    if self.verbose_kegg_matrix: module_key=f'{module_id} {module_name}'
+                    else:module_key=module_id
+                    module_line=[module_key]
+                    for sample_names,s in samples_perc:
+                        module_line.extend(s[module_id])
+                        if sample_names not in figure_info: figure_info[sample_names]={}
+                        figure_info[sample_names][module_id] = s[module_id][0]
+
                     if i == len(module_col) - 1:
                         module_line = '\t'.join(module_line)
                     else:
                         module_line = '\t'.join(module_line) + '\n'
                     file.write(module_line)
+            self.generate_kegg_matrix_figure(figure_info)
         else:
             print('KEGG modules pickle is not present, so Mantis cannot create the KEGG matrix', flush=True,file=self.redirect_verbose)
 

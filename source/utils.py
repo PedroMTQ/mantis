@@ -2,7 +2,7 @@ import os
 
 try:
     import requests
-    from sys import platform, argv
+    from sys import argv
     import subprocess
     import re
     import psutil
@@ -13,10 +13,7 @@ try:
     from math import ceil, log10
     from pickle import load as pickle_load
     from pickle import dump as pickle_dump
-    if platform.startswith('win'):
-        SPLITTER = '\\'
-    else:
-        SPLITTER = '/'
+    SPLITTER = '/'
     from pathlib import Path
     import shutil
     import urllib.request as request
@@ -24,7 +21,7 @@ try:
     from functools import wraps
     import csv
     import sqlite3
-    from multiprocessing import Process, current_process, cpu_count, Manager, Pool
+    from multiprocessing import Process, current_process, cpu_count, Manager
     from multiprocessing.dummy import Pool as IO_Pool
     from zipfile import ZipFile
     from string import punctuation
@@ -463,7 +460,7 @@ def read_protein_fasta(protein_fasta_path):
     res = {}
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
-        if line[0] != '>':  raise FileNotFoundError
+        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
         start_recording = False
         query = None
         while line:
@@ -482,6 +479,7 @@ def read_protein_fasta_generator(protein_fasta_path):
     seq=[]
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
+        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
         while line:
             if line.startswith('>'):
                 if query:

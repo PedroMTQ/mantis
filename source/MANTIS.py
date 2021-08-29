@@ -29,6 +29,7 @@ def run_mantis(target_path,
                no_consensus_expansion=False,
                no_unifunc=False,
                kegg_matrix=False,
+               verbose_kegg_matrix=False,
                verbose=True,
                default_workers=None,
                chunk_size=None,
@@ -67,6 +68,7 @@ def run_mantis(target_path,
         no_consensus_expansion=no_consensus_expansion,
         no_unifunc=no_unifunc,
         kegg_matrix=kegg_matrix,
+        verbose_kegg_matrix=verbose_kegg_matrix,
         verbose=verbose,
         default_workers=default_workers,
         chunk_size=chunk_size,
@@ -131,6 +133,7 @@ class MANTIS(MANTIS_MP):
                  no_consensus_expansion=False,
                  no_unifunc=False,
                  kegg_matrix=False,
+                 verbose_kegg_matrix=False,
                  verbose=True,
                  default_workers=None,
                  chunk_size=None,
@@ -179,6 +182,8 @@ class MANTIS(MANTIS_MP):
         self.no_consensus_expansion = no_consensus_expansion
         self.no_unifunc = no_unifunc
         self.kegg_matrix = kegg_matrix
+        self.verbose_kegg_matrix = verbose_kegg_matrix
+        if self.verbose_kegg_matrix: self.kegg_matrix=True
         self.default_workers = default_workers
         self.user_memory = user_memory
         # chunk size is highly relevant in the execution time
@@ -212,6 +217,14 @@ class MANTIS(MANTIS_MP):
         print(f'Workers per core: {WORKER_PER_CORE}')
 
     def __str__(self):
+        if self.kegg_matrix and not self.verbose_kegg_matrix:
+            kegg_matrix_str='Generate KEGG modules matrix:\t' + str(self.kegg_matrix) + '\n'
+        elif self.kegg_matrix and self.verbose_kegg_matrix:
+            kegg_matrix_str='Generate KEGG modules matrix in verbose mode:\t' + str(self.verbose_kegg_matrix) + '\n'
+        else:
+            kegg_matrix_str=''
+
+
         output_list = [
             'Output folder:\t\t\t' + str(self.output_folder) + '\n' if self.output_folder else '',
             'Mantis config:\t\t\t' + str(self.mantis_config) + '\n' if self.mantis_config else '',
@@ -230,7 +243,7 @@ class MANTIS(MANTIS_MP):
             'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
             'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
             'Skip text similarity analysis:\t' + str(self.no_unifunc) + '\n' if self.no_unifunc else '',
-            'Generate KEGG modules matrix:\t' + str(self.kegg_matrix) + '\n' if self.kegg_matrix else '',
+            kegg_matrix_str,
             '------------------------------------------']
         return 'User configuration:' + '\n' + '------------------------------------------' + '\n' + ''.join(output_list)
 
@@ -503,5 +516,4 @@ class MANTIS(MANTIS_MP):
 
 if __name__ == '__main__':
     m = MANTIS()
-    essential_genes = m.get_essential_genes_list()
-    print(essential_genes)
+

@@ -1,6 +1,3 @@
-import os
-import re
-
 try:
     from source.Exceptions import *
     from source.utils import *
@@ -134,9 +131,11 @@ class MANTIS_DB(MANTIS_NLP):
         for hmm_path in self.get_custom_refs_paths(folder=False):
             if hmm_path.endswith('.hmm'):
                 hmm_folder=add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
+                hmm_name=hmm_path.split(SPLITTER)[-1]
                 if 'chunks' not in os.listdir(hmm_folder):
                     if hmm_folder[0:2] != 'NA':
-                        hmms_list.append(hmm_path)
+                        if not self.check_missing_chunk_files(hmm_name,hmm_folder):
+                            hmms_list.append(hmm_path)
         print(f'Will hmmpress: {hmms_list}', flush=True,file=self.redirect_verbose)
         for hmm_path in hmms_list:
             self.queue.append([hmm_path, self.mantis_out])
@@ -1138,6 +1137,12 @@ class MANTIS_DB(MANTIS_NLP):
 
     def press_custom_hmms(self, hmm_path, stdout_path=None):
         stdout_file = open(stdout_path, 'a+')
+        hmm_folder = add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
+        old_files=['h3f', 'h3i', 'h3m', 'h3p']
+        for inner_file in os.listdir(hmm_folder):
+            inner_file_ending=inner_file.split('.')[-1]
+            if inner_file_ending in old_files:
+                os.remove(hmm_folder+inner_file)
         run_command(f'hmmpress {hmm_path}', stdout_file=stdout_file)
         stdout_file.close()
 
@@ -1315,5 +1320,4 @@ class MANTIS_DB(MANTIS_NLP):
                     file.write(hmm + '\t|' + link_line + '\n')
         print(f'Finished exporting metadata for NOGT {taxon_id}', flush=True, file=stdout_file)
         stdout_file.close()
-
 
