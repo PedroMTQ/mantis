@@ -312,13 +312,17 @@ class MANTIS_Metadata():
         best=[0,set()]
         for current_path in all_paths:
             available_kos=current_path.intersection(sample_kos)
+            missing_kos=best[1].difference(available_kos)
+
             current_score=len(available_kos)/len(current_path)
-            if current_score>best[0]: best=[current_score,current_path]
+            if current_score>best[0]: best=[current_score,current_path,available_kos,missing_kos]
         if best[1]:
-            missing=best[1].difference(available_kos)
-            missing=','.join(missing)
-        else: missing='NA'
-        return best[0],missing
+            available=','.join(best[2])
+            missing=','.join(best[3])
+        else:
+            available='NA'
+            missing='NA'
+        return best[0],available,missing
 
 
     def generate_sample_col_verbose(self, sample_kos, tree_modules):
@@ -335,17 +339,15 @@ class MANTIS_Metadata():
             'Xenobiotics biodegradation',
         ]
         res = {}
-
-        print(sample_kos)
         for sk in sorted_keys:
             sorted_sub_paths = sorted(tree_modules[sk].keys())
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
                 for sm in sorted_modules:
                     module_name,module_paths = tree_modules[sk][ssp][sm]
-                    module_perc,best_path = self.get_best_sample_module_path(sample_kos,module_paths)
+                    module_perc,available,missing = self.get_best_sample_module_path(sample_kos,module_paths)
                     module_perc=str(round(module_perc,3))
-                    res[sm]=[module_perc,best_path]
+                    res[sm]=[module_perc,available,missing]
         return res
 
     def generate_sample_col_non_verbose(self, sample_kos, tree_modules):
@@ -368,7 +370,7 @@ class MANTIS_Metadata():
                 sorted_modules = sorted(tree_modules[sk][ssp])
                 for sm in sorted_modules:
                     module_name,module_paths = tree_modules[sk][ssp][sm]
-                    module_perc,best_path = self.get_best_sample_module_path(sample_kos,module_paths)
+                    module_perc,available,missing = self.get_best_sample_module_path(sample_kos,module_paths)
                     module_perc=str(round(module_perc,3))
                     res[sm]=[module_perc]
 
@@ -421,16 +423,18 @@ class MANTIS_Metadata():
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
                 if self.verbose_kegg_matrix:
-                    top_line = [f'{s["sample"]}\tMissing KOs {s["sample"]}' for s in samples_info]
+                    top_line = [f'Completeness_score_{s["sample"]}\tKOs_{s["sample"]}\tMissing_KOs_{s["sample"]}' for s in samples_info]
+                    top_line.insert(0, 'Module_ID\tModule_name')
+
                 else:
                     top_line = [s['sample'] for s in samples_info]
-                top_line.insert(0, 'Module')
+                    top_line.insert(0, 'Module_ID')
                 top_line = '\t'.join(top_line) + '\n'
                 file.write(top_line)
                 samples_perc = [[s['sample'],self.generate_sample_col(s['kegg_ko'], tree)] for s in samples_info]
                 for i in range(len(module_col)):
                     module_id,module_name=module_col[i]
-                    if self.verbose_kegg_matrix: module_key=f'{module_id} {module_name}'
+                    if self.verbose_kegg_matrix: module_key=f'{module_id}\t{module_name}'
                     else:module_key=module_id
                     module_line=[module_key]
                     for sample_names,s in samples_perc:
