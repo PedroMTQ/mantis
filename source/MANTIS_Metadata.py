@@ -419,7 +419,6 @@ class MANTIS_Metadata():
         samples_info = [self.get_sample_kos(i) for i in sample_paths]
         tree = load_metrics(add_slash(self.mantis_paths['resources'] + 'KEGG') + 'modules.pickle')
         self.export_sample_kos(samples_info)
-
         if tree:
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
