@@ -382,19 +382,7 @@ class MANTIS_Metadata():
         else:
             return self.generate_sample_col_non_verbose(sample_kos,tree_modules)
 
-    def generate_kegg_matrix_figure(self,figure_info):
-        colors= {
-            'Carbohydrate metabolism':'',
-            'Energy metabolism':'',
-            'Lipid metabolism':'',
-            'Nucleotide metabolism':'',
-            'Amino acid metabolism':'',
-            'Glycan metabolism':'',
-            'Metabolism of cofactors and vitamins':'',
-            'Biosynthesis of terpenoids and polyketides':'',
-            'Biosynthesis of other secondary metabolites':'',
-            'Xenobiotics biodegradation':'',
-    }
+
 
     def get_sample_kos(self, annotation_file):
         res = set()
@@ -409,6 +397,17 @@ class MANTIS_Metadata():
                 line = file.readline()
         return {'sample': sample_name, 'kegg_ko': res}
 
+    def export_sample_kos(self,samples_info):
+        out_file = self.output_folder + 'sample_kos.tsv'
+        with open(out_file,'w+') as file:
+            firstline='Sample\tKOs\n'
+            file.write(firstline)
+            for sample_dict in samples_info:
+                sample_name=sample_dict['sample']
+                kos=','.join(sample_dict['kegg_ko'])
+                line=f'{sample_name}\t{kos}\n'
+                file.write(line)
+
     def generate_matrix(self):
         sample_paths = []
         figure_info={}
@@ -419,6 +418,8 @@ class MANTIS_Metadata():
 
         samples_info = [self.get_sample_kos(i) for i in sample_paths]
         tree = load_metrics(add_slash(self.mantis_paths['resources'] + 'KEGG') + 'modules.pickle')
+        self.export_sample_kos(samples_info)
+
         if tree:
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
@@ -447,7 +448,6 @@ class MANTIS_Metadata():
                     else:
                         module_line = '\t'.join(module_line) + '\n'
                     file.write(module_line)
-            self.generate_kegg_matrix_figure(figure_info)
         else:
             print('KEGG modules pickle is not present, so Mantis cannot create the KEGG matrix', flush=True,file=self.redirect_verbose)
 
