@@ -409,7 +409,6 @@ class MANTIS_DB(MANTIS_NLP):
         remove_file(self.mantis_paths['kofam'] + 'ko2cog.xl')
         remove_file(self.mantis_paths['kofam'] + 'ko2go.xl')
         remove_file(self.mantis_paths['kofam'] + 'ko2tc.xl')
-        remove_file(self.mantis_paths['kofam'] + 'ko_to_path')
 
     def get_link_kofam_ko_list(self, res):
         file_path = self.mantis_paths['kofam'] + 'ko_list'
@@ -463,18 +462,16 @@ class MANTIS_DB(MANTIS_NLP):
         ko_to_go = 'https://www.kegg.jp/kegg/files/ko2go.xl'
         ko_to_tc = 'https://www.kegg.jp/kegg/files/ko2tc.xl'
         ko_to_cazy = 'https://www.kegg.jp/kegg/files/ko2cazy.xl'
-        ko_to_path = 'http://rest.kegg.jp/link/pathway/ko'
         with open(self.mantis_paths['kofam'] + 'readme.md', 'w+') as file:
             datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             file.write(f'This hmm was downloaded on {datetime_str} from:\n{kofam_hmm}\nMetadata was downloaded from:\n{ko_list}\n{ko_to_cog}\n{ko_to_go}\n{ko_to_tc}\n{ko_to_cazy}')
         print_cyan('Downloading and unzipping KOfam hmms ', flush=True, file=stdout_file)
-        for url in [kofam_hmm, ko_list, ko_to_cog, ko_to_go, ko_to_tc, ko_to_cazy, ko_to_path]:
+        for url in [kofam_hmm, ko_list, ko_to_cog, ko_to_go, ko_to_tc, ko_to_cazy]:
             download_file(url, output_folder=self.mantis_paths['kofam'], stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['kofam'] + 'profiles.tar.gz',
                            extract_path=self.mantis_paths['kofam'], stdout_file=stdout_file, remove_source=True)
         uncompress_archive(source_filepath=self.mantis_paths['kofam'] + 'ko_list.gz', stdout_file=stdout_file,
                            remove_source=True)
-        move_file(self.mantis_paths['kofam'] + 'ko', self.mantis_paths['kofam'] + 'ko_to_path')
         merge_profiles(self.mantis_paths['kofam'] + 'profiles/', self.mantis_paths['kofam'] + 'kofam_merged.hmm',stdout_file=stdout_file)
         run_command('hmmpress ' + self.mantis_paths['kofam'] + 'kofam_merged.hmm', stdout_file=stdout_file)
         self.compile_kofam_metadata()
@@ -1320,4 +1317,5 @@ class MANTIS_DB(MANTIS_NLP):
                     file.write(hmm + '\t|' + link_line + '\n')
         print(f'Finished exporting metadata for NOGT {taxon_id}', flush=True, file=stdout_file)
         stdout_file.close()
+
 
