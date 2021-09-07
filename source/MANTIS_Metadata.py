@@ -167,7 +167,14 @@ class MANTIS_Metadata():
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['tigrfam'] + 'metadata.tsv')
             self.is_essential(dict_hits)
         else:
-            self.get_link_custom_ref(dict_hits, self.get_target_custom_ref_paths(ref_file, folder=False))
+            custom_ref_path=self.get_target_custom_ref_paths(ref_file, folder=False)
+            if custom_ref_path:
+                if custom_ref_path.endswith('.hmm'):
+                    file_path = custom_ref_path.replace('.hmm', '.tsv')
+                elif custom_ref_path.endswith('.dmnd'):
+                    file_path = custom_ref_path.replace('.dmnd', '.tsv')
+            if file_exists(file_path):
+                self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
         for hit in dict_hits:
             self.get_common_links(hit, dict_hits[hit])
             if 'accession' in dict_hits[hit]['link']:   self.get_common_links(dict_hits[hit]['link']['accession'], dict_hits[hit])
