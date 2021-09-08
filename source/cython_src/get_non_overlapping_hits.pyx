@@ -22,9 +22,9 @@ def already_added(set all_combos,set new_combo):
 
 def is_overlap(set temp_queries, tuple current_query):
     if not temp_queries or not current_query: return False
-    #'env_coord_from'=1
-    #'env_coord_to'=2
-    #'hmm_name'=3
+    #'hit_end'=1
+    #'hit_start'=2
+    #'hit_name'=3
     if current_query[1]< current_query[2]+1:
         y_start =   current_query[1]
         y_end   =   current_query[2]+1

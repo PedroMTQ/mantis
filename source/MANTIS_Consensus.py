@@ -40,7 +40,6 @@ class MANTIS_Consensus(MANTIS_NLP):
         NOG
         Pfam-A
         kofam
-        tigrfam
         '''
         if re.search('NCBI[GT]',ref):
             corrected_ref='ncbi'
@@ -50,8 +49,6 @@ class MANTIS_Consensus(MANTIS_NLP):
             corrected_ref='pfam'
         elif ref=='kofam_merged':
             corrected_ref='kofam'
-        elif ref=='tigrfam_merged':
-            corrected_ref='tigrfam'
         else:
             corrected_ref=str(ref)
 

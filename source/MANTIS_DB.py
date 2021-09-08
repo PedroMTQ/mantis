@@ -34,7 +34,6 @@ class MANTIS_DB(MANTIS_NLP):
             'ncbi_res' if self.mantis_paths['ncbi_res'][0:2] != 'NA' else None,
             'pfam' if self.mantis_paths['pfam'][0:2] != 'NA' else None,
             'kofam' if self.mantis_paths['kofam'][0:2] != 'NA' else None,
-            'tigrfam' if self.mantis_paths['tigrfam'][0:2] != 'NA' else None,
             'tcdb' if self.mantis_paths['tcdb'][0:2] != 'NA' else None,
             'NCBI' if self.mantis_paths['NCBI'][0:2] != 'NA' else None,
         ]
@@ -210,7 +209,6 @@ class MANTIS_DB(MANTIS_NLP):
         if database == 'ncbi_res':      self.download_ncbi_resources(force_download=force_download, stdout_file=stdout_file)
         elif database == 'pfam':        self.download_pfam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'kofam':       self.download_kofam(force_download=force_download, stdout_file=stdout_file)
-        elif database == 'tigrfam':     self.download_tigrfam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'tcdb':        self.download_tcdb(force_download=force_download, stdout_file=stdout_file)
         elif database == 'NCBI':        self.download_NCBI(force_download=force_download, stdout_file=stdout_file)
         elif database == 'NOG':         self.download_NOGT(taxon_id=taxon_id, stdout_file=stdout_file)
@@ -483,7 +481,6 @@ class MANTIS_DB(MANTIS_NLP):
         Path(self.mantis_paths['NCBI']).mkdir(parents=True, exist_ok=True)
         ncbi_hmm = 'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz'
         metadata = 'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv'
-        tigrfam_go_link = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMS_GO_LINK'
 
         # we cant verify a priori which foulders we should have, so you need to delete the folder to restart
 
@@ -497,14 +494,13 @@ class MANTIS_DB(MANTIS_NLP):
             file.write(f'This hmm was downloaded on {datetime_str} from:\n{ncbi_hmm}\nMetadata was downloaded from:\n{metadata}')
 
         print_cyan('Downloading and unzipping NCBI hmms ', flush=True, file=stdout_file)
-        for url in [ncbi_hmm, metadata,tigrfam_go_link]:
+        for url in [ncbi_hmm, metadata]:
             download_file(url, output_folder=self.mantis_paths['NCBI'], stdout_file=stdout_file)
         move_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tgz', self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tar.gz')
         uncompress_archive(source_filepath=self.mantis_paths['NCBI'] + 'hmm_PGAP.HMM.tar.gz',
                            extract_path=self.mantis_paths['NCBI'], stdout_file=stdout_file, remove_source=True)
         self.compile_hmms_NCBI(stdout_file=stdout_file)
         remove_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv')
-        remove_file(self.mantis_paths['NCBI'] + 'TIGRFAMS_GO_LINK')
         if file_exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
             shutil.rmtree(self.mantis_paths['NCBI'] + 'hmm_PGAP')
 
@@ -516,7 +512,7 @@ class MANTIS_DB(MANTIS_NLP):
 
     def assign_hmm_profiles(self, sorted_metadata, stdout_file=None):
         for taxa in sorted_metadata:
-            for hmm, hmm_label, description, enzyme_ec,common_links in sorted_metadata[taxa]:
+            for hmm, hmm_label, description, enzyme_ec,go_terms,common_links in sorted_metadata[taxa]:
                 try:
                     copy_file(add_slash(self.mantis_paths['NCBI'] + 'hmm_PGAP') + hmm + '.HMM',
                               add_slash(add_slash(self.mantis_paths['NCBI'] + taxa) + 'to_merge') + hmm + '.hmm')
@@ -529,27 +525,15 @@ class MANTIS_DB(MANTIS_NLP):
             else:
                 shutil.rmtree(self.mantis_paths['NCBI'] + taxa)
 
-    def get_tigrfam_go_link(self):
-        res={}
-        go_link_path = self.mantis_paths['NCBI'] + 'TIGRFAMS_GO_LINK'
-        with open(go_link_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                tigrfam_id=line[0]
-                if tigrfam_id not in res: res[tigrfam_id]=set()
-                res[tigrfam_id].add(line[1].split(':')[-1])
-                line = file.readline()
-        return res
+
 
 
     def write_metadata_ncbi(self, sorted_metadata):
-        tigrfam_go_link=self.get_tigrfam_go_link()
         for taxa in sorted_metadata:
             Path(self.mantis_paths['NCBI'] + taxa).mkdir(parents=True, exist_ok=True)
             Path(add_slash(self.mantis_paths['NCBI'] + taxa) + 'to_merge').mkdir(parents=True, exist_ok=True)
             with open(add_slash(self.mantis_paths['NCBI'] + taxa) + 'metadata.tsv', 'w+') as metadata_file:
-                for hmm, hmm_label, description, enzyme_ec,common_links in sorted_metadata[taxa]:
+                for hmm, hmm_label, description, enzyme_ec,go_terms,common_links in sorted_metadata[taxa]:
                     line = [hmm_label, '|', f'description:{description}']
 
                     for db in common_links:
@@ -559,12 +543,11 @@ class MANTIS_DB(MANTIS_NLP):
                     for ec in enzyme_ec:
                         if f'enzyme_ec:{ec}' not in line:
                             line.append(f'enzyme_ec:{ec}')
+                    for go_term in go_terms:
+                        if f'go:{go_term}' not in line:
+                            line.append(f'go:{go_term}')
                     #ncbi also contains tigrfam hmms
                     if hmm_label.startswith('TIGR'):
-                        if hmm_label in tigrfam_go_link:
-                            for go_id in tigrfam_go_link[hmm_label]:
-                                if f'go:{go_id}' not in line:
-                                    line.append(f'go:{go_id}')
                         if f'tigrfam:{hmm_label}' not in line:
                             line.append(f'tigrfam:{hmm_label}')
 
@@ -592,7 +575,7 @@ class MANTIS_DB(MANTIS_NLP):
             while line:
                 line = line.strip('\n')
                 line = line.split('\t')
-                hmm, hmm_label, description, enzyme_ec, taxa_id = line[0], line[2], line[10], line[12], line[14]
+                hmm, hmm_label, description, enzyme_ec, go_terms, taxa_id = line[0], line[2], line[10], line[12], line[13], line[15]
                 common_links={}
                 self.get_common_links_metadata(description,common_links)
                 for db in common_links:
@@ -601,105 +584,16 @@ class MANTIS_DB(MANTIS_NLP):
                 description = description.replace('(Provisional)', '')
                 description = description.strip()
                 enzyme_ec = [i for i in enzyme_ec.split(',') if i]
+                go_terms = [i.replace('GO:','') for i in go_terms.split(',') if i]
                 line = file.readline()
                 if taxa_id:
                     if taxa_id not in res: res[taxa_id] = []
-                    res[taxa_id].append([hmm, hmm_label, description, enzyme_ec,common_links])
+                    res[taxa_id].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
                     if taxa_id in general_taxon_ids:
-                        res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,common_links])
+                        res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
                 else:
-                    res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,common_links])
+                    res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
         return res
-
-#####################   TIGRFAM
-
-
-    def add_tigrfam_go_link(self, res):
-        go_link_path = self.mantis_paths['tigrfam'] + 'TIGRFAMS_GO_LINK'
-        with open(go_link_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                tigrfam_id=line[0]
-                if tigrfam_id not in res: res[tigrfam_id]={}
-                if 'go' not in res[tigrfam_id]: res[tigrfam_id]['go']=set()
-                res[tigrfam_id]['go'].add(line[1].split(':')[-1])
-                if 'tigrfam' not in res[tigrfam_id]: res[tigrfam_id]['tigrfam']=set()
-                res[tigrfam_id]['tigrfam'].add(tigrfam_id)
-                line = file.readline()
-
-    def get_tigrfam_role_link_id(self):
-        role_link_path = self.mantis_paths['tigrfam'] + 'TIGRFAMS_ROLE_LINK'
-        role_links = {}
-        with open(role_link_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                tigrfam_id=line[0]
-                role_link_id=line[1]
-                if role_link_id not in role_links: role_links[role_link_id] = []
-                role_links[role_link_id].append(tigrfam_id)
-                line = file.readline()
-        return role_links
-
-    def add_tigrfam_role_names(self, res):
-        role_links = self.get_tigrfam_role_link_id()
-        role_names_path = self.mantis_paths['tigrfam'] + 'TIGR_ROLE_NAMES'
-        with open(role_names_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                role_link_id=line[1]
-                link_type=line[2][:-1]
-                link_description=line[3]
-                if role_link_id in role_links:
-                    for tigrfam_id in role_links[role_link_id]:
-                        if tigrfam_id in res:
-                            if not re.search('[Uu]nknown|[Oo]ther|[Gg]eneral|[Hh]ypothetical',link_description):
-                                if 'description' not in res[tigrfam_id]: res[tigrfam_id]['description']=set()
-                                res[tigrfam_id]['description'].add(f'{link_description} ({link_type})')
-                line = file.readline()
-
-    def compile_tigrfam_metadata(self):
-        metadata_to_write={}
-        self.add_tigrfam_go_link(metadata_to_write)
-        self.add_tigrfam_role_names(metadata_to_write)
-        self.write_metadata(metadata_to_write, self.mantis_paths['tigrfam'] + 'metadata.tsv')
-        remove_file(self.mantis_paths['tigrfam'] + 'TIGRFAMS_GO_LINK')
-        remove_file(self.mantis_paths['tigrfam'] + 'TIGR_ROLE_NAMES')
-        remove_file(self.mantis_paths['tigrfam'] + 'TIGRFAMS_ROLE_LINK')
-
-    def download_tigrfam(self, force_download=False, stdout_file=None):
-        #redundant, should remove
-        Path(self.mantis_paths['tigrfam']).mkdir(parents=True, exist_ok=True)
-        if self.check_reference_exists('tigrfam', force_download) and \
-                file_exists(self.mantis_paths['tigrfam'] + 'COPYRIGHT', force_download) and \
-                file_exists(self.mantis_paths['tigrfam'] + 'metadata.tsv', force_download):
-            print('TIGRfam hmm already exists! Skipping...', flush=True, file=stdout_file)
-            return
-        tigrfam_hmm = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMs_15.0_HMM.tar.gz'
-        tigrfam_go_link = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMS_GO_LINK'
-        tigrfam_role_link = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGRFAMS_ROLE_LINK'
-        tigrfam_role_names = 'ftp://ftp.tigr.org/pub/data/TIGRFAMs/TIGR_ROLE_NAMES'
-        copyright = 'ftp://ftp.jcvi.org/pub/data/TIGRFAMs/COPYRIGHT'
-        with open(self.mantis_paths['tigrfam'] + 'readme.md', 'w+') as  file:
-            datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            file.write(f'This hmm was downloaded on {datetime_str} from:\n{tigrfam_hmm}\nMetadata was downloaded from:\n{tigrfam_go_link}\n{tigrfam_role_link}\n{tigrfam_role_names}\n{copyright}\n')
-        print_cyan('Downloading and unzipping TIGRfam hmms', flush=True, file=stdout_file)
-        for link in [tigrfam_hmm,
-                     tigrfam_go_link,
-                     tigrfam_role_link,
-                     tigrfam_role_names,
-                     copyright,
-                     ]:
-            download_file(link, output_folder=self.mantis_paths['tigrfam'], stdout_file=stdout_file)
-        uncompress_archive(source_filepath=self.mantis_paths['tigrfam'] + 'TIGRFAMs_15.0_HMM.tar.gz',
-                           extract_path=self.mantis_paths['tigrfam'] + 'profiles', stdout_file=stdout_file,
-                           remove_source=True)
-        merge_profiles(self.mantis_paths['tigrfam'] + 'profiles/', self.mantis_paths['tigrfam'] + 'tigrfam_merged.hmm',
-                       stdout_file=stdout_file)
-        run_command('hmmpress ' + self.mantis_paths['tigrfam'] + 'tigrfam_merged.hmm ', stdout_file=stdout_file)
-        self.compile_tigrfam_metadata()
 
 #####################   TCDB
 
@@ -1318,4 +1212,152 @@ class MANTIS_DB(MANTIS_NLP):
         print(f'Finished exporting metadata for NOGT {taxon_id}', flush=True, file=stdout_file)
         stdout_file.close()
 
+    ###### NOG diamond (not implemented yet)
+
+    def download_and_unzip_eggnogdmnd(self, force_download=False, stdout_file=None):
+        folder_path = add_slash(self.mantis_paths['NOG'])
+        if file_exists(folder_path + 'eggnog_proteins.dmnd', force_download):
+            print('eggnog_proteins.dmnd already exists! Skipping...', flush=True, file=stdout_file)
+            return
+        url = 'http://eggnogdb.embl.de/download/emapperdb-'+self.get_latest_version_eggnog()+'/eggnog_proteins.dmnd.gz'
+        download_file(url, output_folder=folder_path, stdout_file=stdout_file)
+        uncompress_archive(source_filepath= f'{folder_path}eggnog_proteins.dmnd.gz', extract_path= folder_path,stdout_file=stdout_file, remove_source=False)
+
+
+
+    def download_NOGT_diamond(self, stdout_file=None):
+        folder_path = add_slash(self.mantis_paths['NOG'])
+        Path(folder_path).mkdir(parents=True, exist_ok=True)
+        self.download_and_unzip_eggnogdb()
+        self.download_and_unzip_eggnogdmnd()
+        diamond_db=f'{folder_path}eggnog_proteins'
+        extract_seqs_command= f'{DIAMOND_PATH} getseq -d {diamond_db} > {folder_path}eggnog_seqs.faa'
+        eggnog_proteins_path=f'{folder_path}eggnog_seqs.faa'
+        print('Extracting seqs from Diamond database')
+        #run_command(extract_seqs_command,join_command=True,shell=True)
+        #self.get_metadata_diamond(eggnog_proteins_path)
+        print('Making taxa specific dmnds')
+        for taxon_id in os.listdir(self.mantis_paths['NOG']):
+            taxon_folder = self.mantis_paths['NOG'] + taxon_id + SPLITTER
+            if re.search('\d+',taxon_id) and os.path.isdir(taxon_folder):
+                if taxon_id!='1':
+                    taxon_folder = self.mantis_paths['NOG'] + taxon_id + SPLITTER
+                    taxon_dmnd=f'{taxon_folder}{taxon_id}'
+                    taxon_faa=f'{taxon_folder}{taxon_id}.faa'
+                    if not file_exists(self.mantis_paths['tcdb'] + taxon_dmnd):
+                        print(f'Creating dmnd with {taxon_faa}')
+                        run_command(f'{DIAMOND_PATH} makedb --in {taxon_faa} -d {taxon_dmnd}', stdout_file=stdout_file)
+
+
+    def export_metadata_and_seqs_nog_diamond(self,all_seqs,sequence,taxons,metadata):
+        for taxon_id in taxons:
+            if taxon_id != '1':
+                taxon_folder=self.mantis_paths['NOG'] + taxon_id + SPLITTER
+                if not file_exists(taxon_folder): Path(taxon_folder).mkdir(parents=True, exist_ok=True)
+                if sequence in all_seqs:
+                    with open(f'{taxon_folder}{taxon_id}.faa','a+') as seq_file:
+                        seq_file.write(f'>{sequence}\n{all_seqs[sequence]}\n')
+                    with open(f'{taxon_folder}metadata.tsv','a+') as metadata_file:
+                        link_line=f'{sequence}\t|\t'
+                        for link_type in metadata:
+                            for inner_link in metadata[link_type]:
+                                link_line += '\t' + link_type + ':' + inner_link
+                        metadata_file.write(f'{link_line}\n')
+
+    def get_metadata_diamond(self,eggnog_proteins_path,stdout_path=None):
+        print('Reading eggNOG protein fasta')
+        eggnog_proteins=read_protein_fasta(eggnog_proteins_path)
+        eggnog_db_path = self.mantis_paths['default'] + "eggnog.db"
+        target_sql_file=self.mantis_paths['NOG']+'metadata.tsv'
+        #stdout_file = open(stdout_path, 'a+')
+        print('Generating metadata tsv')
+        self.generate_metadata_diamond(eggnog_db_path,target_sql_file)
+        print('Generating taxon specific metadata tsvs')
+        with open(target_sql_file) as file:
+            line=file.readline()
+            while line:
+                current_metadata={}
+                line = line.strip('\n')
+                line = line.split('\t')
+                current_seq = line[0]
+                current_taxons=set()
+                annotations = line[1:]
+                for link in annotations:
+                    if link:
+                        temp_link = link.split(':')
+                        link_type = temp_link[0]
+                        if link_type == 'kegg_cazy': link_type = 'cazy'
+                        if link_type == 'kegg_ec': link_type = 'enzyme_ec'
+                        link_text = ':'.join(temp_link[1:])
+                        link_text = link_text.strip()
+                        if link_type=='taxon': current_taxons.add(link_text)
+                        else:
+                            if link_type not in current_metadata: current_metadata[link_type] = set()
+                            if link_type == 'description' and link_text == 'NA':   link_text = ''
+                            if link_text and link_type == 'description': self.get_common_links(link_text, res=current_metadata)
+                            current_metadata[link_type].add(link_text)
+                self.export_metadata_and_seqs_nog_diamond(all_seqs=eggnog_proteins,sequence=current_seq,taxons=current_taxons,metadata=current_metadata)
+                line = file.readline()
+
+
+
+
+
+    #we generate a metadata.tsv with the functional annotation of each sequence
+    def generate_metadata_diamond(self,eggnog_db,target_sql_file):
+        codes_to_exclude = ['IEA','ND']
+        #this will convert protein names to pfam ids (which is typically what is used with mantis)
+        pfam_id_to_acc=self.pfam_id_to_acc()
+        print('Querying SQL')
+        connection = sqlite3.connect(eggnog_db)
+        sql_command = 'SELECT eggnog.name, eggnog.groups,pfam.pfam,gene_ontology.gos,kegg.ec, kegg.ko, kegg.pathway, kegg.module, kegg.reaction, kegg.rclass, kegg.brite, kegg.tc, kegg.cazy, bigg.reaction FROM eggnog ' \
+                      ' LEFT JOIN gene_ontology on gene_ontology.name = eggnog.name ' \
+                      ' LEFT JOIN kegg on kegg.name = eggnog.name ' \
+                      ' LEFT JOIN bigg on bigg.name = eggnog.name ' \
+                      ' LEFT JOIN pfam on pfam.name = eggnog.name '
+        print(f'SQL command:\n{sql_command}')
+        cursor = connection.cursor()
+        cursor.execute(sql_command)
+        rows = cursor.fetchall()
+        print('Reading SQL results')
+        with open(target_sql_file,'w+') as file:
+            for row in rows:
+                res = {'go': set(), 'enzyme_ec': set(), 'kegg_ko': set(), 'kegg_pathway': set(), 'kegg_module': set(),
+                       'kegg_reaction': set(), 'kegg_rclass': set(), 'kegg_brite': set(), 'kegg_cazy': set(),
+                       'bigg_reaction': set(), 'description': set(), 'pfam': set()}
+                seq_name,hmms, pfam_ids,gene_ontology_gos, kegg_ec, kegg_ko, kegg_pathway, kegg_module, kegg_reaction, kegg_rclass, kegg_brite, kegg_tc, kegg_cazy, bigg_reaction = row
+                if kegg_ko: kegg_ko = kegg_ko.replace('ko:', '')
+                taxon_ids=set()
+                for query_hmm_taxon in hmms.split(','):
+                    query_hmm, query_taxon = query_hmm_taxon.split('@')
+                    taxon_ids.add(query_taxon)
+                if gene_ontology_gos:
+                    gene_ontology_gos_copy = str(gene_ontology_gos)
+                    gene_ontology_gos_copy = gene_ontology_gos_copy.split(',')
+                    for go_group in gene_ontology_gos_copy:
+                        if '|' not in go_group: print(sql_command, '\n', go_group)
+                        _, go, evidence_code = go_group.split('|')
+                        if evidence_code not in codes_to_exclude:
+                            res['go'].add(go.split(':')[1])
+                if pfam_ids:
+                    temp_pfam_ids=pfam_ids.split(',')
+                    for tpi in temp_pfam_ids:
+                        if tpi in pfam_id_to_acc:
+                            res['pfam'].add(pfam_id_to_acc[tpi])
+                if kegg_ec: res['enzyme_ec'].update(kegg_ec.split(','))
+                if kegg_ko: res['kegg_ko'].update(kegg_ko.split(','))
+                if kegg_pathway: res['kegg_pathway'].update(kegg_pathway.split(','))
+                if kegg_module: res['kegg_module'].update(kegg_module.split(','))
+                if kegg_reaction: res['kegg_reaction'].update(kegg_reaction.split(','))
+                if kegg_rclass: res['kegg_rclass'].update(kegg_rclass.split(','))
+                if kegg_brite: res['kegg_brite'].update(kegg_brite.split(','))
+                if kegg_cazy: res['kegg_cazy'].update(kegg_cazy.split(','))
+                if bigg_reaction: res['bigg_reaction'].update(bigg_reaction.split(','))
+                link_line = f'{seq_name}'
+                for taxon_id in taxon_ids:
+                    link_line+=f'\ttaxon:{taxon_id}'
+                for link_type in res:
+                    for inner_link in res[link_type]:
+                        link_line += '\t' + link_type + ':' + inner_link
+                file.write(f'{link_line}\n')
 

@@ -91,8 +91,6 @@ class MANTIS_Assembler(MANTIS_DB):
                   self.mantis_paths['pfam'] + '\n' + \
                   'KOfam HMMs folder:\n' + \
                   self.mantis_paths['kofam'] + '\n' + \
-                  'TIGRFAM HMMs folder:\n' + \
-                  self.mantis_paths['tigrfam'] + '\n' + \
                   'TCDB sequences folder:\n' + \
                   self.mantis_paths['tcdb'] + '\n' + \
                 '------------------------------------------' + '\n'
@@ -226,10 +224,6 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = add_slash(line.replace('ncbi_hmm_folder=', ''))
                     if line_path: self.mantis_paths['NCBI'] = line_path
 
-                elif 'tigrfam_hmm_folder=' in line[:len('tigrfam_hmm_folder=')]:
-                    line_path = add_slash(line.replace('tigrfam_hmm_folder=', ''))
-                    if line_path: self.mantis_paths['tigrfam'] = line_path
-
                 elif 'tcdb_seq_folder=' in line[:len('tcdb_seq_folder=')]:
                     line_path = add_slash(line.replace('tcdb_seq_folder=', ''))
                     if line_path: self.mantis_paths['tcdb'] = line_path
@@ -274,7 +268,6 @@ class MANTIS_Assembler(MANTIS_DB):
                              'pfam': add_slash(default_ref_path + 'pfam'),
                              'kofam': add_slash(default_ref_path + 'kofam'),
                              'NCBI': add_slash(default_ref_path + 'NCBI'),
-                             'tigrfam': add_slash(default_ref_path + 'tigrfam'),
                              'tcdb': add_slash(default_ref_path + 'tcdb'),
                              }
         self.setup_paths_config_file()
@@ -307,7 +300,6 @@ class MANTIS_Assembler(MANTIS_DB):
         default_list = [
             get_ref_in_folder(self.mantis_paths['pfam']) if not folder else self.mantis_paths['pfam'],
             get_ref_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
-            get_ref_in_folder(self.mantis_paths['tigrfam']) if not folder else self.mantis_paths['tigrfam'],
             get_ref_in_folder(self.mantis_paths['tcdb']) if not folder else self.mantis_paths['tcdb'],
         ]
         for ref_path in self.get_custom_refs_paths(folder):
@@ -335,8 +327,6 @@ class MANTIS_Assembler(MANTIS_DB):
             target_file = get_ref_in_folder(self.mantis_paths['kofam'])
         elif 'pfam' in database.lower():
             target_file = get_ref_in_folder(self.mantis_paths['pfam'])
-        elif 'tigrfam' in database.lower():
-            target_file = get_ref_in_folder(self.mantis_paths['tigrfam'])
         elif 'tcdb' in database.lower():
             target_file = get_ref_in_folder(self.mantis_paths['tcdb'])
         elif 'NOG'.lower() in database.lower():
@@ -506,7 +496,6 @@ class MANTIS_Assembler(MANTIS_DB):
             self.mantis_paths['pfam']: ['metadata.tsv'],
             self.mantis_paths['tcdb']: ['metadata.tsv'],
             self.mantis_paths['kofam']: ['metadata.tsv'],
-            self.mantis_paths['tigrfam']: ['metadata.tsv'],
         }
         # per tax level FOR EGGNOG
         if self.mantis_paths['NOG'][0:2] != 'NA':
@@ -715,4 +704,3 @@ class MANTIS_Assembler(MANTIS_DB):
 
 if __name__ == '__main__':
     p = MANTIS_Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.config')
-    print(p.get_tigrfam_go_link())
