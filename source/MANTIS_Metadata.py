@@ -156,6 +156,8 @@ class MANTIS_Metadata():
                 taxon_id = re.search('NCBIT\d+', ref_file).group().replace('NCBIT', '')
             metadata_file = add_slash(self.mantis_paths['NCBI'] + taxon_id) + 'metadata.tsv'
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
+            self.is_essential(dict_hits)
+
         elif ref_file == 'Pfam-A':
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['pfam'] + 'metadata.tsv')
             self.is_essential(dict_hits)
@@ -163,9 +165,6 @@ class MANTIS_Metadata():
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['kofam'] + 'metadata.tsv')
         elif ref_file=='tcdb':
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['tcdb'] + 'metadata.tsv')
-        elif ref_file == 'tigrfam_merged':
-            self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['tigrfam'] + 'metadata.tsv')
-            self.is_essential(dict_hits)
         else:
             custom_ref_path=self.get_target_custom_ref_paths(ref_file, folder=False)
             if custom_ref_path:
