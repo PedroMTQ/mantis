@@ -123,14 +123,14 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
 
     ####To run HMMER
 
-    def compile_annotation_job(self,ref_path, target_path, output_folder, output_initials=''):
+    def compile_annotation_job(self,ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials=''):
         if ref_path.endswith('.hmm'):
-            return self.compile_annotation_job_hmmer(ref_path, target_path, output_folder, output_initials)
+            return self.compile_annotation_job_hmmer(ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials,)
         elif ref_path.endswith('.dmnd'):
-            return self.compile_annotation_job_diamond(ref_path, target_path, output_folder, output_initials)
+            return self.compile_annotation_job_diamond(ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials)
 
 
-    def compile_annotation_job_hmmer(self, hmm_path, target_path, output_folder, output_initials=''):
+    def compile_annotation_job_hmmer(self, hmm_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials=''):
         hmm = get_path_level(hmm_path)
         hmm = hmm.split('.')[0]
         # what is more efficient? hmmsearch or hmmscan? hmmsearch: https://cryptogenomicon.org/2011/05/27/hmmscan-vs-hmmsearch-speed-the-numerology/
@@ -150,21 +150,22 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         # since we split the original fasta into chunks, hmmer might remove some hits ( I correct for this further down the line, but not in hmmer)
         # even when using the default evalue threshold, there isn't much of a loss
         # we use domE because we accept multiple hits with these two algorithms
+        scaling_multiplier=count_seqs_chunk/count_seqs_original_file
         if self.domain_algorithm in ['dfs', 'heuristic']:
             threshold_type = '--domE'
         # whereas bpo we only accept one
         else:
             threshold_type = '-E'
         if self.evalue_threshold == 'dynamic':
-            command += f' {threshold_type} {self.default_evalue_threshold * 10}'
+            command += f' {threshold_type} {10*self.default_evalue_threshold/scaling_multiplier}'
         elif not self.evalue_threshold:
-            command += f' {threshold_type} {self.default_evalue_threshold * 10}'
+            command += f' {threshold_type} {10*self.default_evalue_threshold/scaling_multiplier}'
         else:
-            command += f' {threshold_type} {self.evalue_threshold * 10}'
+            command += f' {threshold_type} {10*self.evalue_threshold/scaling_multiplier}'
         command += f' --notextw {hmm_path} {target_path}'
         return command, domtblout_path
 
-    def compile_annotation_job_diamond(self, ref_path, target_path, output_folder, output_initials=''):
+    def compile_annotation_job_diamond(self, ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials=''):
         ref = get_path_level(ref_path)
         ref = ref.split('.')[0]
         #dbsize is set so we can scale it  to sample size
@@ -346,7 +347,10 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             for ref_path in chunked_refs_list:
                 # full hmmer command to be run with subprocess
-                command, output_file = self.compile_annotation_job(ref_path, target_path=chunk_path,output_folder=current_chunk_dir)
+                command, output_file = self.compile_annotation_job(ref_path, target_path=chunk_path,
+                                                                   output_folder=current_chunk_dir,
+                                                                   count_seqs_chunk=count_seqs_chunk,
+                                                                   count_seqs_original_file=count_seqs_original_file)
                 # adding our hmmer command to be consumed by the hmmer processes later on
                 self.queue.append(['General', command, f'{output_path}Mantis.out'])
 
@@ -377,7 +381,9 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                    target_path=fasta_path,
                                                                                    output_initials=db_tax,
-                                                                                   output_folder=current_chunk_dir)
+                                                                                   output_folder=current_chunk_dir,
+                                                                                   count_seqs_chunk=count_seqs_chunk,
+                                                                                   count_seqs_original_file=count_seqs_original_file)
                                 self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                             # will be used for checking whether chunks have been annotated
                             self.queue.insert(len(chunks_path),
@@ -394,8 +400,10 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                                 chunks_path = get_chunks_path(hmm_path)
                                 for chunk_hmm in chunks_path:
                                     command, output_file = self.compile_annotation_job(chunk_hmm,
-                                                                                                       target_path=fasta_path,
-                                                                                                       output_folder=current_chunk_dir)
+                                                                                       target_path=fasta_path,
+                                                                                       output_folder=current_chunk_dir,
+                                                                                       count_seqs_chunk=count_seqs_chunk,
+                                                                                       count_seqs_original_file=count_seqs_original_file)
                                     self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                                 self.queue.insert(len(chunks_path),
                                                   [f'{db_general}_checkpoint', current_chunk_dir, fasta_path,
@@ -410,8 +418,10 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                             chunks_path = get_chunks_path(hmm_path)
                             for chunk_hmm in chunks_path:
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
-                                                                                                   target_path=fasta_path,
-                                                                                                   output_folder=current_chunk_dir)
+                                                                                   target_path=fasta_path,
+                                                                                   output_folder=current_chunk_dir,
+                                                                                   count_seqs_chunk=count_seqs_chunk,
+                                                                                   count_seqs_original_file=count_seqs_original_file)
                                 self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                             self.queue.insert(len(chunks_path),
                                               [f'{db_general}_checkpoint', current_chunk_dir, fasta_path,
