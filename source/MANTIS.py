@@ -438,7 +438,11 @@ class MANTIS(MANTIS_MP):
         for hmm_path in [MANTIS_FOLDER + 'tests/test_hmm/test1/test1.hmm', MANTIS_FOLDER + 'tests/test_hmm/test2/test2.hmm']:
             for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
                 self.create_chunk_output_dirs(current_chunk_dir)
-                command, output_file = self.compile_annotation_job(hmm_path, target_path=chunk_path,output_folder=current_chunk_dir)
+                command, output_file = self.compile_annotation_job(hmm_path,
+                                                                   target_path=chunk_path,
+                                                                   output_folder=current_chunk_dir,
+                                                                   count_seqs_chunk=count_seqs_chunk,
+                                                                   count_seqs_original_file=count_seqs_original_file)
                 self.queue.append(['General', command, output_path + 'Mantis.out'])
 
         self.processes_handler(self.worker_annotation, worker_count)
