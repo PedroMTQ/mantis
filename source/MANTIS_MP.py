@@ -150,18 +150,17 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         # since we split the original fasta into chunks, hmmer might remove some hits ( I correct for this further down the line, but not in hmmer)
         # even when using the default evalue threshold, there isn't much of a loss
         # we use domE because we accept multiple hits with these two algorithms
-        scaling_multiplier=count_seqs_chunk/count_seqs_original_file
         if self.domain_algorithm in ['dfs', 'heuristic']:
             threshold_type = '--domE'
         # whereas bpo we only accept one
         else:
             threshold_type = '-E'
         if self.evalue_threshold == 'dynamic':
-            command += f' {threshold_type} {10*self.default_evalue_threshold/scaling_multiplier}'
+            command += f' {threshold_type} {10*self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
         elif not self.evalue_threshold:
-            command += f' {threshold_type} {10*self.default_evalue_threshold/scaling_multiplier}'
+            command += f' {threshold_type} {10*self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
         else:
-            command += f' {threshold_type} {10*self.evalue_threshold/scaling_multiplier}'
+            command += f' {threshold_type} {10*self.recalculate_evalue(self.evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
         command += f' --notextw {hmm_path} {target_path}'
         return command, domtblout_path
 
