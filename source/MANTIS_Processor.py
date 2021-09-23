@@ -305,9 +305,9 @@ class MANTIS_Processor():
         the user is not meant to choose a formula, this was written for internal quality testing
         for 1e-3 formula 1 with bitscore and dfs algorithm produced the best results
         '''
-        if self.best_combo_formula==1: #best
+        if self.best_combo_formula==1: #default
             combo_score = average_value
-        elif self.best_combo_formula==2:    #default
+        elif self.best_combo_formula==2:
             combo_score = average_value * combination_coverage * average_hit_coverage
         elif self.best_combo_formula==3:
             combo_score = (average_value * combination_coverage * average_hit_coverage)**(1/3)
@@ -452,7 +452,7 @@ class MANTIS_Processor():
         else:
             return self.default_evalue_threshold
 
-    def recalculate_evalue(self, i_evalue, to_divide, to_multiply):
+    def recalculate_evalue(self, original_evalue, to_divide, to_multiply):
         '''
         keep in mind these calculations will result in minor rounding errors!
         For example in 3 different executions for the same query:
@@ -462,10 +462,16 @@ class MANTIS_Processor():
          - when the fasta was not split we got 5.8 e-52
         Ideally we would not split the fasta into chunks; this would avoid rounding errors but would not allow parallelization
         '''
-        evalue = float(i_evalue)
-        evalue /= to_divide
-        evalue *= to_multiply
-        return evalue
+        if self.force_evalue:
+            return original_evalue
+        else:
+            evalue = float(original_evalue)
+            evalue /= to_divide
+            evalue *= to_multiply
+            evalue *= 10
+            if evalue>=self.minimum_evalue_threshold:
+                evalue=self.minimum_evalue_threshold
+            return evalue
 
     def read_searchout(self, output_path, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, get_output=True):
         if '.dmndout' in output_path:

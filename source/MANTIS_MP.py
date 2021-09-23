@@ -156,11 +156,12 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         else:
             threshold_type = '-E'
         if self.evalue_threshold == 'dynamic':
-            command += f' {threshold_type} {10*self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
+            evalue=self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)
         elif not self.evalue_threshold:
-            command += f' {threshold_type} {10*self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
+            evalue=self.recalculate_evalue(self.default_evalue_threshold,count_seqs_chunk,count_seqs_original_file)
         else:
-            command += f' {threshold_type} {10*self.recalculate_evalue(self.evalue_threshold,count_seqs_chunk,count_seqs_original_file)}'
+            evalue=self.recalculate_evalue(self.evalue_threshold,count_seqs_chunk,count_seqs_original_file)
+        command += f' {threshold_type} {evalue}'
         command += f' --notextw {hmm_path} {target_path}'
         return command, domtblout_path
 

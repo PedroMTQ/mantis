@@ -321,9 +321,9 @@ class MANTIS_Consensus(MANTIS_NLP):
         # coverage of combination
         combination_coverage = get_combination_ranges(hit_ranges)
         combination_coverage /= query_length
-        if self.best_combo_formula==1:
+        if self.best_combo_formula==1: #default
             combo_score = sources_score * average_value
-        elif self.best_combo_formula==2: #default
+        elif self.best_combo_formula==2:
             combo_score = sources_score * average_value * combination_coverage * average_hit_coverage
         elif self.best_combo_formula==3:
             combo_score = (sources_score * average_value * combination_coverage * average_hit_coverage)**(1/4)
