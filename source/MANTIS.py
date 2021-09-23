@@ -155,7 +155,7 @@ class MANTIS(MANTIS_MP):
 
         #Prediction parameters
         self.evalue_threshold = evalue_threshold
-        self.default_evalue_threshold = 1e-6
+        self.default_evalue_threshold = 1e-3 #1e-6 might be better a better default
         self.minimum_evalue_threshold=1e-2
         self.force_evalue=force_evalue
 
