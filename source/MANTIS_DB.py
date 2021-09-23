@@ -46,7 +46,6 @@ class MANTIS_DB(MANTIS_NLP):
         self.processes_handler(self.worker_setup_databases, worker_count)
         print_cyan('Finished downloading all data!', flush=True, file=self.redirect_verbose)
         # METADATA
-        print_cyan('Will now extract metadata from NOG!', flush=True, file=self.redirect_verbose)
         self.prepare_queue_extract_metadata()
         worker_count = estimate_number_workers_setup_database(len(self.queue), minimum_jobs_per_worker=2, user_cores=self.user_cores)
         if worker_count:print(f'Metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
@@ -135,17 +134,18 @@ class MANTIS_DB(MANTIS_NLP):
                     if hmm_folder[0:2] != 'NA':
                         if not self.check_missing_chunk_files(hmm_name,hmm_folder):
                             hmms_list.append(hmm_path)
-        print(f'Will hmmpress: {hmms_list}', flush=True,file=self.redirect_verbose)
+        if hmms_list:
+            print(f'Will hmmpress: {hmms_list}', flush=True,file=self.redirect_verbose)
         for hmm_path in hmms_list:
             self.queue.append([hmm_path, self.mantis_out])
 
     def prepare_queue_extract_metadata(self):
-        stdout_file = open(self.mantis_out, 'a+')
-        print('Checking which NOGs we need to extract metadata from', flush=True, file=stdout_file)
         if self.mantis_paths['NOG'][0:2] != 'NA':
+            print_cyan('Will now extract metadata from NOG!', flush=True, file=self.redirect_verbose)
+            stdout_file = open(self.mantis_out, 'a+')
+            print('Checking which NOGs we need to extract metadata from', flush=True, file=stdout_file)
             self.unpack_NOG_sql(stdout_file=stdout_file)
-        to_download=False
-        if self.mantis_paths['NOG'][0:2] != 'NA':
+            to_download=False
             for taxon_id in os.listdir(self.mantis_paths['NOG']):
                 if os.path.isdir(self.mantis_paths['NOG'] + taxon_id) and taxon_id!='NOGG':
                     target_annotation_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + f'{taxon_id}_annotations.tsv'
@@ -159,8 +159,8 @@ class MANTIS_DB(MANTIS_NLP):
                     else:
                         to_download = True
                         self.queue.append([target_sql_file, target_annotation_file, taxon_id, self.mantis_out])
-        if to_download: self.download_and_unzip_eggnogdb()
-        stdout_file.close()
+            if to_download: self.download_and_unzip_eggnogdb()
+            stdout_file.close()
 
 #####################   Executing queue jobs
 

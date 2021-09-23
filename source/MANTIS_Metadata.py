@@ -315,20 +315,26 @@ class MANTIS_Metadata():
         return res
 
     def get_best_sample_module_path(self,sample_kos,all_paths):
-        best=[0,set()]
+        best_score=0
+        best_path=set()
+
         for current_path in all_paths:
             available_kos=current_path.intersection(sample_kos)
-            missing_kos=best[1].difference(available_kos)
-
             current_score=len(available_kos)/len(current_path)
-            if current_score>best[0]: best=[current_score,current_path,available_kos,missing_kos]
-        if best[1]:
+
+            if current_score>best_score:
+                best_score=current_score
+                best_path=current_path
+
+        if best_score:
+            available_kos=best_path.intersection(sample_kos)
+            missing_kos=best_path.difference(available_kos)
             available=','.join(best[2])
             missing=','.join(best[3])
         else:
             available='NA'
             missing='NA'
-        return best[0],available,missing
+        return best_score,available,missing
 
 
     def generate_sample_col_verbose(self, sample_kos, tree_modules):

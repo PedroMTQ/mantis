@@ -75,7 +75,7 @@ class MANTIS_Assembler(MANTIS_DB):
         for cref in custom_refs:
             custom_refs_str += cref + '\n'
         if custom_refs_str:
-            custom_res = 'Custom references:\n' + custom_refs_str
+            custom_res = f'# Custom references:\n{custom_refs_str}'
         res= 'Output folder:\n' + self.output_folder if hasattr(self, 'output_folder') else '' + \
                   '#  External data folders:' + '\n' + \
                   '------------------------------------------' + '\n' + \
@@ -96,7 +96,7 @@ class MANTIS_Assembler(MANTIS_DB):
                 '------------------------------------------' + '\n'
         if custom_res: res+='\n'+custom_res
         ref_weights=', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i!='else'])
-        res+= f'#  Weights: {ref_weights}\n'
+        res+= f'#  Weights:\n{ref_weights}\n'
 
         return res
 

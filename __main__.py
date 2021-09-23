@@ -109,6 +109,8 @@ if __name__ == '__main__':
                         help='[developers_only]\tPlease choose the score to sort hits.')
     parser.add_argument('-smm', '--skip_managed_memory', action='store_true',
                         help='[developers_only]\tskip memory management. No HMMER memory management (less stable), but may allow for runs to finish in low memory environments')
+    parser.add_argument('-fe', '--force_evalue', action='store_true',
+                        help='[developers_only]\tE-value is scaled to chunk size to avoid introduction of FPs, with this you can force it to be independent of chunk size. Use at your own risk.')
 
 
 
@@ -131,6 +133,7 @@ if __name__ == '__main__':
         keep_files = args.keep_files
         skip_consensus = args.skip_consensus
         skip_managed_memory = args.skip_managed_memory
+        force_evalue = args.force_evalue
         no_consensus_expansion = args.no_consensus_expansion
         no_unifunc = args.no_unifunc
         kegg_matrix = args.kegg_matrix
@@ -170,6 +173,7 @@ if __name__ == '__main__':
                            keep_files=keep_files,
                            skip_consensus=skip_consensus,
                            skip_managed_memory=skip_managed_memory,
+                           force_evalue=force_evalue,
                            no_consensus_expansion=no_consensus_expansion,
                            no_unifunc=no_unifunc,
                            kegg_matrix=kegg_matrix,

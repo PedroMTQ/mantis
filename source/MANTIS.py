@@ -26,6 +26,7 @@ def run_mantis(target_path,
                keep_files=False,
                skip_consensus=False,
                skip_managed_memory=False,
+               force_evalue=False,
                no_consensus_expansion=False,
                no_unifunc=False,
                kegg_matrix=False,
@@ -65,6 +66,7 @@ def run_mantis(target_path,
         keep_files=keep_files,
         skip_consensus=skip_consensus,
         skip_managed_memory=skip_managed_memory,
+        force_evalue=force_evalue,
         no_consensus_expansion=no_consensus_expansion,
         no_unifunc=no_unifunc,
         kegg_matrix=kegg_matrix,
@@ -130,6 +132,7 @@ class MANTIS(MANTIS_MP):
                  keep_files=False,
                  skip_consensus=False,
                  skip_managed_memory=False,
+                 force_evalue=False,
                  no_consensus_expansion=False,
                  no_unifunc=False,
                  kegg_matrix=False,
@@ -152,7 +155,9 @@ class MANTIS(MANTIS_MP):
 
         #Prediction parameters
         self.evalue_threshold = evalue_threshold
-        self.default_evalue_threshold = 1e-3
+        self.default_evalue_threshold = 1e-6
+        self.minimum_evalue_threshold=1e-2
+        self.force_evalue=force_evalue
 
         if overlap_value:               self.overlap_value = overlap_value
         else:                           self.overlap_value = 0.1
@@ -231,6 +236,7 @@ class MANTIS(MANTIS_MP):
             'Target path:\t\t\t' + str(self.target_path) + '\n' if self.target_path else '',
             'E-value threshold:\t\t' + str(self.evalue_threshold) + '\n' if self.evalue_threshold else '',
             'E-value threshold:\t\t' + str(self.default_evalue_threshold) + '\n' if not self.evalue_threshold else '',
+            'Forcing e-value:\t\t' + str(self.force_evalue) + '\n' if self.force_evalue else '',
             'Overlap value:\t\t\t' + str(self.overlap_value) + '\n' if self.overlap_value else '',
             'Default workers:\t\t' + str(self.default_workers) + '\n' if self.default_workers else '',
             'User cores:\t\t\t' + str(self.user_cores) + '\n' if self.user_cores else '',
