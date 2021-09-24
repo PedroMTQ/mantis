@@ -203,8 +203,8 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = add_slash(line.replace('ncbi_resources_folder=', ''))
                     if line_path: self.mantis_paths['ncbi_res'] = line_path
 
-                elif 'nog_hmm_folder=' in line:
-                    line_path = add_slash(line.replace('nog_hmm_folder=', ''))
+                elif 'nog_ref_folder=' in line:
+                    line_path = add_slash(line.replace('nog_ref_folder=', ''))
                     if line_path: self.mantis_paths['NOG'] = line_path
 
                 # taxa ids list for only downloading nogt specific to lineage
@@ -212,20 +212,20 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = line.replace('nog_tax=', '')
                     self.set_nogt_line(line_path)
 
-                elif 'pfam_hmm_folder=' in line:
-                    line_path = add_slash(line.replace('pfam_hmm_folder=', ''))
+                elif 'pfam_ref_folder=' in line:
+                    line_path = add_slash(line.replace('pfam_ref_folder=', ''))
                     if line_path: self.mantis_paths['pfam'] = line_path
 
-                elif 'kofam_hmm_folder=' in line:
-                    line_path = add_slash(line.replace('kofam_hmm_folder=', ''))
+                elif 'kofam_ref_folder=' in line:
+                    line_path = add_slash(line.replace('kofam_ref_folder=', ''))
                     if line_path: self.mantis_paths['kofam'] = line_path
 
-                elif 'ncbi_hmm_folder=' in line:
-                    line_path = add_slash(line.replace('ncbi_hmm_folder=', ''))
+                elif 'ncbi_ref_folder=' in line:
+                    line_path = add_slash(line.replace('ncbi_ref_folder=', ''))
                     if line_path: self.mantis_paths['NCBI'] = line_path
 
-                elif 'tcdb_seq_folder=' in line[:len('tcdb_seq_folder=')]:
-                    line_path = add_slash(line.replace('tcdb_seq_folder=', ''))
+                elif 'tcdb_ref_folder=' in line:
+                    line_path = add_slash(line.replace('tcdb_ref_folder=', ''))
                     if line_path: self.mantis_paths['tcdb'] = line_path
 
 
