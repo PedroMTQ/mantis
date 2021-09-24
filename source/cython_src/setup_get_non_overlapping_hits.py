@@ -1,6 +1,9 @@
+import os
+
 from setuptools import setup
 from Cython.Build import cythonize
 from os import path,getcwd,walk,rename
+from shutil import copy
 
 #to compile
 #python setup_get_non_overlapping_hits.py build_ext --inplace
@@ -10,7 +13,11 @@ def move_o_file():
     for root, dirs, files in walk(current_folder):
         if 'get_non_overlapping_hits.o' in files:
             o_file= path.join(root, 'get_non_overlapping_hits.o')
-            rename(o_file, CYTHON_FOLDER + 'get_non_overlapping_hits.o')
+            try:
+                rename(o_file, CYTHON_FOLDER + 'get_non_overlapping_hits.o')
+            except:
+                copy(o_file, CYTHON_FOLDER + 'get_non_overlapping_hits.o')
+                os.remove(o_file)
             return
 
 
