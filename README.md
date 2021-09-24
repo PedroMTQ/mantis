@@ -25,7 +25,7 @@ If you use Mantis, please make sure you cite the respective paper https://doi.or
 
 # Workflow overview
 
-![overview_small](./Images/overview_small.png)
+![overview_small](./Images/overview2_small.png)
 
 # Straight to the point
 ### Requirements
