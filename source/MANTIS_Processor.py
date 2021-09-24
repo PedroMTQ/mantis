@@ -468,7 +468,6 @@ class MANTIS_Processor():
             evalue = float(original_evalue)
             evalue /= to_divide
             evalue *= to_multiply
-            evalue *= 10
             if evalue>=self.minimum_evalue_threshold:
                 evalue=self.minimum_evalue_threshold
             return evalue
