@@ -7,6 +7,7 @@ CythonNotCompiled= 'Cython has not been correctly compiled! Please go to mantis/
 BadNumberWorkers='You should not be seeing this, please contact the developer. Invalid number of workers in '
 ConnectionError='Could not connect to url:\n'
 InvalidTranslation='Invalid residues for translation. Please make sure you provided a CDS of DNA or RNA in the target file:\n'
+InvalidGFFVersion='No valid GFF version found!'
 
 class RequirementsNotMet(Exception):
     def __init__(self, *args):

@@ -503,12 +503,12 @@ class MANTIS_Processor():
                     #diamond's evalue is not scaled, so we need to multiply by residues count
                     evalue = self.recalculate_evalue(evalue, self.diamond_db_size, count_residues_original_file)
                     #hmmer's coordinates on the seq are always the same, regardless of direction
-                    direction='Forward'
+                    direction='+'
                     if query_start<query_end:
                         corrected_query_start=query_start
                         corrected_query_end=query_end
                     else:
-                        direction='Backward'
+                        direction='-'
                         corrected_query_start=query_end
                         corrected_query_end=query_start
 
@@ -572,12 +572,12 @@ class MANTIS_Processor():
                             env_coord_from = int(line[19])
                             env_coord_to = int(line[20])
                             #hmmer's coordinates on the seq are always the same, regardless of direction
-                            direction='Forward'
+                            direction='+'
                             if env_coord_from<env_coord_to:
                                 corrected_env_coord_from=env_coord_from
                                 corrected_env_coord_to=env_coord_to
                             else:
-                                direction='Backward'
+                                direction='-'
                                 corrected_env_coord_from=env_coord_to
                                 corrected_env_coord_to=env_coord_from
                             if get_output:
@@ -701,10 +701,45 @@ class MANTIS_Processor():
                             line = '\t'.join(line)
                             output_file.write(line + '\n')
 
+    def merge_gff_output(self,output_folder,output_file,chunks_path):
+        all_seq_regions=[]
+        gff_version=None
+        for chunk_output in chunks_path:
+            target_chunk_output = chunk_output + output_file
+            target_chunk_output=target_chunk_output.replace('.tsv','.gff')
+            with open(target_chunk_output, 'r') as chunk_file:
+                chunk_line = chunk_file.readline()
+                while chunk_line:
+                    if '##gff-version' in chunk_line:
+                        gff_version=chunk_line
+                    if '##sequence-region' in chunk_line:
+                        all_seq_regions.append(chunk_line)
+                    chunk_line = chunk_file.readline()
+        if not gff_version:
+            kill_switch(InvalidGFFVersion,flush=True, file=self.redirect_verbose)
+        output_gff_file=f'{output_folder}{output_file}'.replace('.tsv','.gff')
+        with open(output_gff_file,'w+') as file:
+            file.write(gff_version)
+            for seq_reg in all_seq_regions:
+                file.write(seq_reg)
+            for chunk_output in chunks_path:
+                target_chunk_output = chunk_output + output_file
+                target_chunk_output = target_chunk_output.replace('.tsv', '.gff')
+                with open(target_chunk_output, 'r') as chunk_file:
+                    chunk_line = chunk_file.readline()
+                    while chunk_line:
+                        if not chunk_line.startswith('##'):
+                            file.write(chunk_line)
+                        chunk_line = chunk_file.readline()
+
+
+
+
     def merge_target_output(self, output_file, output_folder, chunks_path, stdout_file, same_output=True):
-        header = False
         print(f'Merging chunks to {output_folder}{output_file}',flush=True, file=stdout_file)
-        #print('Merging output', output_folder + output_file, 'from chunks:', [get_path_level(i) for i in chunks_path],flush=True, file=stdout_file)
+        if self.output_gff and ('consensus' in output_file or 'integrated' in output_file):
+            self.merge_gff_output(output_folder,output_file,chunks_path)
+        header = False
         with open(output_folder + output_file, 'w+') as file:
             for chunk_output in chunks_path:
                 if same_output:

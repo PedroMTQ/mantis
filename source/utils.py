@@ -38,7 +38,7 @@ except:
     os.kill(master_pid, signal.SIGKILL)
 
 
-def kill_switch(error_type,message,flush=False, file=None):
+def kill_switch(error_type,message='',flush=False, file=None):
     import signal
     master_pid = os.getpid()
     if file and message:  print(message,flush=flush,file=file)

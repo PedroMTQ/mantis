@@ -166,14 +166,11 @@ class MANTIS_Metadata():
         elif ref_file=='tcdb':
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=self.mantis_paths['tcdb'] + 'metadata.tsv')
         else:
-            custom_ref_path=self.get_target_custom_ref_paths(ref_file, folder=False)
+            custom_ref_path=self.get_target_custom_ref_paths(ref_file, folder=True)
             if custom_ref_path:
-                if custom_ref_path.endswith('.hmm'):
-                    file_path = custom_ref_path.replace('.hmm', '.tsv')
-                elif custom_ref_path.endswith('.dmnd'):
-                    file_path = custom_ref_path.replace('.dmnd', '.tsv')
-            if file_exists(file_path):
-                self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
+                file_path = add_slash(custom_ref_path)+'metadata.tsv'
+                if file_exists(file_path):
+                    self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
         for hit in dict_hits:
             self.get_common_links(hit, dict_hits[hit])
             if 'accession' in dict_hits[hit]['link']:   self.get_common_links(dict_hits[hit]['link']['accession'], dict_hits[hit])
@@ -261,7 +258,49 @@ class MANTIS_Metadata():
                                                                )
         return res
 
-    def generate_interpreted_output(self, output_annotation_tsv, interpreted_annotation_tsv):
+    def generate_gff_line_integrated(self,integrated_line):
+        #https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md
+        #verified with http://genometools.org/cgi-bin/gff3validator.cgi
+        line_split=integrated_line.index('|')
+        line_data,annotation_data=integrated_line[:line_split],integrated_line[line_split+1:]
+        query, ref_file, hit, hit_accession, evalue, bitscore, direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line_data
+        #attributes of gff line:
+
+        if hit_accession!='-':
+            attributes=f'Name={hit};Target={hit} {ref_start} {ref_end};Alias={hit_accession}'
+        else:
+            attributes=f'Name={hit};Target={hit} {ref_start} {ref_end}'
+        notes=f'Note=ref_file:{ref_file},ref_len:{ref_len}'
+        dbxref=[]
+        ontology_terms=[]
+        descriptions = []
+
+        for i in annotation_data:
+            if not i.startswith('go:'):
+                dbxref.append(i)
+            elif i.startswith('description:'):
+                descriptions.append(i)
+            else:
+                ontology_terms.append(i)
+        if descriptions:
+            notes += ',' + ','.join(descriptions)
+        all_annotations=None
+        if dbxref and ontology_terms:
+            all_annotations='Dbxref='+','.join(dbxref)+';'+'Ontology_term='+','.join(ontology_terms)
+        elif dbxref and not ontology_terms:
+            all_annotations='Dbxref='+','.join(dbxref)
+        elif not dbxref and ontology_terms:
+            all_annotations='Ontology_term='+','.join(ontology_terms)
+        gff_line='\t'.join([query,'Mantis','CDS',query_start,query_end,evalue,direction,'0'])+'\t'
+        if all_annotations:
+            gff_line+=';'.join([attributes,notes,all_annotations])
+        else:
+            gff_line+=';'.join([attributes,notes])
+        sequence_region_line=f'##sequence-region {query} 1 {query_len}'
+        return query,sequence_region_line,gff_line
+
+
+    def generate_integrated_output(self, output_annotation_tsv, interpreted_annotation_tsv):
         first_line = ['Query',
                       'Ref_file',
                       'Ref_hit',
@@ -277,14 +316,40 @@ class MANTIS_Metadata():
                       'Ref_length',
                       '|',
                       'Links']
-        with open(interpreted_annotation_tsv, 'w+') as file:
-            first_line = '\t'.join(first_line)
-            file.write(first_line + '\n')
-            output_annotation = self.read_and_interpret_output_annotation(output_annotation_tsv)
-            for line in range(len(output_annotation)):
-                if output_annotation[line]:
-                    out_line = '\t'.join(output_annotation[line])
-                    file.write(out_line + '\n')
+        first_line = '\t'.join(first_line)
+        output_file=open(interpreted_annotation_tsv, 'w+')
+        output_file.write(first_line + '\n')
+
+        gff_file=None
+        gff_file_path = interpreted_annotation_tsv.replace('.tsv', '.gff')
+        gff_dict = {}
+        if self.output_gff:
+            gff_file=open(gff_file_path,'w+')
+            gff_file.write('##gff-version 3' + '\n')
+
+        #generating output
+        output_annotation = self.read_and_interpret_output_annotation(output_annotation_tsv)
+        for line in range(len(output_annotation)):
+            current_output_line=output_annotation[line]
+            if current_output_line:
+                out_line = '\t'.join(current_output_line)
+                output_file.write(out_line + '\n')
+
+                if gff_file:
+                    seq_id,sequence_region_line,gff_line=self.generate_gff_line_integrated(current_output_line)
+                    if seq_id not in gff_dict:
+                        gff_dict[seq_id]={'seq_region':sequence_region_line,'lines':[]}
+                    gff_dict[seq_id]['lines'].append(gff_line)
+        #writing gff
+        for seq_id in gff_dict:
+            gff_file.write(gff_dict[seq_id]['seq_region']+'\n')
+        for seq_id in gff_dict:
+            for annot_line in gff_dict[seq_id]['lines']:
+                gff_file.write(annot_line+'\n')
+
+        if gff_file:
+            gff_file.close()
+        output_file.close()
 
 
 
@@ -419,6 +484,7 @@ class MANTIS_Metadata():
                 kos=','.join(sample_dict['kegg_ko'])
                 line=f'{sample_name}\t{kos}\n'
                 file.write(line)
+
 
     def generate_matrix(self):
         sample_paths = []
