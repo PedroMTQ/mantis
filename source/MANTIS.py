@@ -31,6 +31,7 @@ def run_mantis(target_path,
                no_unifunc=False,
                kegg_matrix=False,
                verbose_kegg_matrix=False,
+               output_gff=False,
                verbose=True,
                default_workers=None,
                chunk_size=None,
@@ -71,6 +72,7 @@ def run_mantis(target_path,
         no_unifunc=no_unifunc,
         kegg_matrix=kegg_matrix,
         verbose_kegg_matrix=verbose_kegg_matrix,
+        output_gff=output_gff,
         verbose=verbose,
         default_workers=default_workers,
         chunk_size=chunk_size,
@@ -137,6 +139,7 @@ class MANTIS(MANTIS_MP):
                  no_unifunc=False,
                  kegg_matrix=False,
                  verbose_kegg_matrix=False,
+                 output_gff=False,
                  verbose=True,
                  default_workers=None,
                  chunk_size=None,
@@ -188,6 +191,7 @@ class MANTIS(MANTIS_MP):
         self.no_unifunc = no_unifunc
         self.kegg_matrix = kegg_matrix
         self.verbose_kegg_matrix = verbose_kegg_matrix
+        self.output_gff = output_gff
         if self.verbose_kegg_matrix: self.kegg_matrix=True
         self.default_workers = default_workers
         self.user_memory = user_memory
@@ -245,6 +249,7 @@ class MANTIS(MANTIS_MP):
             'Algorithm:\t\t\t' + str(self.domain_algorithm) + '\n' if self.domain_algorithm else '',
             #'Formula:\t\t\t' + str(self.best_combo_formula) + '\n' if self.best_combo_formula else '',
             #'Sorting type:\t\t\t' + str(self.sorting_type) + '\n' if self.sorting_type else '',
+            'Outputting GFF:\t\t\t' + str(self.output_gff) + '\n' if self.output_gff else '',
             'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
             'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
             'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
@@ -432,6 +437,7 @@ class MANTIS(MANTIS_MP):
     @timeit_class
     def run_mantis_test(self):
         self.mantis_paths['custom']=MANTIS_FOLDER + 'tests/test_hmm/'
+        self.output_gff=True
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
         self.generate_fastas_to_annotate()
         self.generate_translated_sample()

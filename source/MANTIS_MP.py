@@ -576,7 +576,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
             if record is None: break
             output_annotation_tsv, current_chunk_dir = record
             interpreted_annotation_tsv = f'{current_chunk_dir}integrated_annotation.tsv'
-            self.generate_interpreted_output(output_annotation_tsv, interpreted_annotation_tsv)
+            self.generate_integrated_output(output_annotation_tsv, interpreted_annotation_tsv)
 
     ###Generate consensus output
 

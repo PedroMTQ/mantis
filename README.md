@@ -108,6 +108,8 @@ There are 3 output files:
 
 The first two files can have the same query sequence in several lines (query sequence/reference source) while the `consensus_annotation.tsv` will only have one line per query sequence (consensus/query).
 
+Mantis can additionally output in gff format and also a kegg module matrix completeness. Please see [Output](https://github.com/PedroMTQ/mantis/wiki/Output) for more details.
+
 # Further details
 
 * [Configuration](https://github.com/PedroMTQ/mantis/wiki/Configuration)  

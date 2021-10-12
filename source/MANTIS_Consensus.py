@@ -99,6 +99,8 @@ class MANTIS_Consensus(MANTIS_NLP):
                 dict_annotations[query]['ref_files'][ref_file][ref_hit] = {'identifiers': set(), 'description': set(),
                                                                            'evalue': float(evalue),
                                                                            'bitscore': float(bitscore),
+                                                                           'direction': direction,
+                                                                           'ref_hit_accession': ref_hit_accession,
                                                                            'query_start': int(query_start),
                                                                            'query_end': int(query_end),
                                                                            'ref_start': int(ref_start),
@@ -118,6 +120,79 @@ class MANTIS_Consensus(MANTIS_NLP):
         for query in dict_annotations:
             self.add_from_go_obo(dict_annotations[query]['ref_files'])
         return dict_annotations
+
+    def generate_gff_line_consensus(self,query, dict_annotations, is_essential,consensus_hits, total_hits, ref_files_consensus,ref_names_consensus):
+        #https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md
+        #verified with http://genometools.org/cgi-bin/gff3validator.cgi
+        for ref_file in dict_annotations:
+            ref_annotations=dict_annotations[ref_file]
+            for ref_id in ref_annotations:
+                ref_id_annotations=dict_annotations[ref_file][ref_id]
+                query_start= str(ref_id_annotations['query_start'])
+                query_end= str(ref_id_annotations['query_end'])
+                evalue= str(ref_id_annotations['evalue'])
+                direction= ref_id_annotations['direction']
+                ref_start= ref_id_annotations['ref_start']
+                ref_end= ref_id_annotations['ref_end']
+                ref_len= ref_id_annotations['ref_len']
+                hit_accession= ref_id_annotations['ref_hit_accession']
+                hit_identifiers=ref_id_annotations['identifiers']
+                hit_description=ref_id_annotations['description']
+                gff_line = '\t'.join([query, 'Mantis', 'CDS', query_start, query_end, evalue, direction, '0']) + '\t'
+                if hit_accession != '-':
+                    attributes = f'Name={ref_id};Target={ref_id} {ref_start} {ref_end};Alias={hit_accession}'
+                else:
+                    attributes = f'Name={ref_id};Target={ref_id} {ref_start} {ref_end}'
+                notes = f'Note=ref_file:{ref_file},ref_len:{ref_len}'
+                descriptions=[]
+                for d in hit_description:
+                    descriptions.append(f'description:{d}')
+                if descriptions:
+                    notes+=','+','.join(descriptions)
+                if is_essential:
+                    notes+=f',is_essential_gene:True'
+
+                dbxref = []
+                ontology_terms = []
+                for i in hit_identifiers:
+                    if not i.startswith('go:'):
+                        dbxref.append(i)
+                    else:
+                        ontology_terms.append(i)
+                all_annotations=None
+                if dbxref and ontology_terms:
+                    all_annotations = 'Dbxref=' + ','.join(dbxref) + ';' + 'Ontology_term=' + ','.join(ontology_terms)
+                elif dbxref and not ontology_terms:
+                    all_annotations = 'Dbxref=' + ','.join(dbxref)
+                elif not dbxref and ontology_terms:
+                    all_annotations = 'Ontology_term=' + ','.join(ontology_terms)
+                if all_annotations:
+                    gff_line += ';'.join([attributes, notes, all_annotations])
+                else:
+                    gff_line += ';'.join([attributes, notes])
+
+                yield gff_line
+
+
+
+    def yield_seq_regions(self,interpreted_annotation_tsv):
+        already_added=set()
+        with open(interpreted_annotation_tsv) as file:
+            line = file.readline()
+            line = file.readline()
+            dict_annotations = {}
+            while line:
+                line = line.strip('\n')
+                line = line.strip()
+                line = line.split('\t')
+                query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore, direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line[0:13]
+                if query not in already_added:
+                    already_added.add(query)
+                    yield f'##sequence-region {query} 1 {query_len}\n'
+                line=file.readline()
+
+
+
 
     def generate_consensus(self, interpreted_annotation_tsv, stdout_file_path=None):
         dict_annotations = self.read_interpreted_annotation(interpreted_annotation_tsv)
@@ -145,7 +220,12 @@ class MANTIS_Consensus(MANTIS_NLP):
             consensus_line = self.generate_consensus_line(query, dict_annotations[query]['ref_files'], is_essential,
                                                           consensus_hits, total_hits, ref_files_consensus,
                                                           ref_names_consensus)
-            yield consensus_line
+            gff_lines=[]
+            if self.output_gff:
+                gff_lines = self.generate_gff_line_consensus(query, dict_annotations[query]['ref_files'], is_essential,
+                                                          consensus_hits, total_hits, ref_files_consensus,
+                                                          ref_names_consensus)
+            yield consensus_line,gff_lines
 
     # same method as non_overlapping hits from MANTIS_Processor , with some minor alterations to account for consensus
     # @timeit_function
@@ -561,8 +641,7 @@ class MANTIS_Consensus(MANTIS_NLP):
                 already_added.add(test)
         return res
 
-    def generate_consensus_line(self, query, query_dict, is_essential, consensus_hits, total_hits, ref_files_consensus,
-                                ref_names_consensus):
+    def generate_consensus_line(self, query, query_dict, is_essential, consensus_hits, total_hits, ref_files_consensus,ref_names_consensus):
         ref_hits = ';'.join(ref_names_consensus)
         ref_files = ';'.join(ref_files_consensus)
         # consensus_coverage is a str with consensus sources/all sources, better as a str instead of float as its easier to understand
@@ -610,13 +689,38 @@ class MANTIS_Consensus(MANTIS_NLP):
                       '|',
                       'Links',
                       ]
-        with open(consensus_annotation_tsv, 'w+') as file:
-            first_line = '\t'.join(first_line)
-            file.write(first_line + '\n')
-            consensus_annotation = self.generate_consensus(interpreted_annotation_tsv,stdout_file_path=stdout_file_path)
-            for consensus_query in consensus_annotation:
-                line = '\t'.join(consensus_query)
-                file.write(line + '\n')
+        first_line = '\t'.join(first_line)
+        output_file=open(consensus_annotation_tsv, 'w+')
+        output_file.write(first_line + '\n')
+
+        gff_file=None
+        gff_file_path = consensus_annotation_tsv.replace('.tsv', '.gff')
+        if self.output_gff:
+            gff_file=open(gff_file_path,'w+')
+            gff_file.write('##gff-version 3' + '\n')
+
+
+
+        consensus_annotation = self.generate_consensus(interpreted_annotation_tsv,stdout_file_path=stdout_file_path)
+        if self.output_gff:
+            seq_regions=self.yield_seq_regions(interpreted_annotation_tsv)
+            for sr in seq_regions:
+                gff_file.write(sr)
+
+        for consensus_query,gff_lines in consensus_annotation:
+            line = '\t'.join(consensus_query)
+            output_file.write(line + '\n')
+            if self.output_gff:
+                for gff_l in gff_lines:
+                    gff_file.write(gff_l+'\n')
+
+
+        if gff_file:
+            gff_file.close()
+        output_file.close()
+
+
+
 
 
 
