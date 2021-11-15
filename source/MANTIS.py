@@ -11,6 +11,10 @@ def print_citation_mantis():
     res=f'{separator}\n# Thank you for using Mantis, please make sure you cite the respective paper {paper_doi} #\n{separator}'
     print(res)
 
+def print_version():
+    import requests
+    response = requests.get("https://api.github.com/repos/pedromtq/mantis/releases/latest")
+    print(response.json()["name"])
 
 def run_mantis(target_path,
                output_folder,
@@ -303,9 +307,13 @@ class MANTIS(MANTIS_MP):
                             genetic_code = None
                         count_seqs_original_file = get_seqs_count(line_path)
                         count_residues_original_file = count_residues(line_path)
-                        self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name),
-                                                        organism_details,genetic_code,
-                                                        count_seqs_original_file,count_residues_original_file])
+                        if os.path.exists(line_path):
+                            self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name),
+                                                            organism_details,genetic_code,
+                                                            count_seqs_original_file,count_residues_original_file])
+                        else:
+                            kill_switch(TargetFileNotFound,
+                                        flush=True, file=self.redirect_verbose)
                     line = file.readline()
         except:
             kill_switch(InvalidTargetFile,'If you want to annotate multiple samples, make sure your file is correctly formatted. Please see the examples in the <tests> folder.',
