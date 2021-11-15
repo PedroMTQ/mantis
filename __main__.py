@@ -5,7 +5,7 @@ try:
     import sys
     import uuid
 
-    from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis
+    from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis,print_version
     from source.MANTIS_NLP import test_nlp
     from source.MANTIS_Assembler import add_slash, \
         get_path_level, \
@@ -47,7 +47,7 @@ if __name__ == '__main__':
                              '\tquery_name_3\ttarget_path_3\t\n' +
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
-                                 'extract_nog_metadata','test_nlp','citation'])
+                                 'extract_nog_metadata','test_nlp','citation','version'])
     parser.add_argument('-t', '--target', help='[required]\tAnnotation target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
@@ -223,6 +223,8 @@ if __name__ == '__main__':
 
     elif args.execution_type == 'test_nlp':
         test_nlp()
+    elif args.execution_type == 'version':
+        print_version()
     elif args.execution_type == 'run_test':
         output_folder = args.output_folder
         if not output_folder:
