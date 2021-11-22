@@ -1,7 +1,9 @@
 try:
     from source.MANTIS_DB import *
+    from source.MANTIS_Taxonomy import MANTIS_Taxonomy
 except:
     from MANTIS_DB import *
+    from MANTIS_Taxonomy import MANTIS_Taxonomy
 
 '''
 This module handles the setup of MANTIS - setting paths and setting up the databases.
@@ -43,7 +45,7 @@ def extract_nog_metadata(metadata_path):
     mantis.extract_nog_metadata(metadata_path)
 
 
-class MANTIS_Assembler(MANTIS_DB):
+class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
     def __init__(self, verbose=True, redirect_verbose=None, mantis_config=None,
                  hmm_chunk_size=None,keep_files=False,user_cores=None):
         self.redirect_verbose = redirect_verbose
@@ -133,28 +135,6 @@ class MANTIS_Assembler(MANTIS_DB):
             print("Could not connect to internet!\nIf you would like to run offline make sure you introduce organism NCBI IDs instead of synonyms!")
             return False
 
-    def get_taxa_ncbi_url(self,url):
-        webpage = None
-        c = 0
-        while not webpage and c <= 10:
-            req = requests.get(url)
-            try:
-                webpage = req.text
-                taxa_id = re.search('<Id>\d+</Id>', webpage)
-                return re.search('\d+', taxa_id.group()).group()
-            except:
-                print('Could not get a response from NCBI, trying again')
-                c += 1
-
-    def get_taxa_ncbi(self,organism_name):
-        url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term={organism_name}'
-        taxa_id = self.get_taxa_ncbi_url(url)
-        if not taxa_id:
-            url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=candidatus+{organism_name}'
-            taxa_id = self.get_taxa_ncbi_url(url)
-        if not taxa_id:    print(f'Could not find taxa ID for {organism_name}')
-        return taxa_id
-
     def get_default_ref_path(self):
         file = open(self.config_file, 'r')
         line = file.readline()
@@ -199,9 +179,10 @@ class MANTIS_Assembler(MANTIS_DB):
                     line_path = add_slash(line.replace('custom_ref_folder=', ''))
                     if line_path: self.mantis_paths['custom'] = line_path
 
-                elif 'ncbi_resources_folder=' in line:
-                    line_path = add_slash(line.replace('ncbi_resources_folder=', ''))
-                    if line_path: self.mantis_paths['ncbi_res'] = line_path
+                elif 'resources_folder=' in line:
+                    line_path = add_slash(line.replace('resources_folder=', ''))
+                    if line_path:
+                        self.mantis_paths['resources'] = line_path
 
                 elif 'nog_ref_folder=' in line:
                     line_path = add_slash(line.replace('nog_ref_folder=', ''))
@@ -262,7 +243,6 @@ class MANTIS_Assembler(MANTIS_DB):
         resources_path = add_slash(MANTIS_FOLDER + 'Resources')
         self.mantis_paths = {'default': default_ref_path,
                              'resources': resources_path,
-                             'ncbi_res': add_slash(resources_path + 'NCBI'),
                              'custom': add_slash(default_ref_path + 'Custom_references'),
                              'NOG': add_slash(default_ref_path + 'NOG'),
                              'pfam': add_slash(default_ref_path + 'pfam'),
@@ -339,8 +319,13 @@ class MANTIS_Assembler(MANTIS_DB):
 
     def check_reference_exists(self, database, taxon_id=None, force_download=False):
         if database == 'ncbi_res':
-            if file_exists(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp', force_download) and \
-                    file_exists(self.mantis_paths['ncbi_res'] + 'gc.prt', force_download):
+            ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
+            if file_exists(ncbi_resources + 'taxidlineage.dmp', force_download) and \
+                    file_exists(ncbi_resources + 'gc.prt', force_download):
+                return True
+        elif database == 'gtdb_res':
+            gtdb_resources = add_slash(self.mantis_paths['resources'] + 'GTDB')
+            if file_exists(gtdb_resources + 'gtdb_to_ncbi.db', force_download):
                 return True
         elif database == 'NOGSQL':
             if file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
@@ -361,28 +346,37 @@ class MANTIS_Assembler(MANTIS_DB):
 
 
     def check_installation_extras(self, res, verbose=True):
+        ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
+        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
+        essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
+
+
         if verbose: yellow('Checking extra files', flush=True, file=self.redirect_verbose)
-        if not file_exists(self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'):
+
+        if not file_exists(essential_genes):
             red('Essential genes list is missing, it should be in the github repo!')
-            if verbose: red('Failed installation check on [files missing]: ' + self.mantis_paths[
-                'resources'] + 'essential_genes/essential_genes.txt', flush=True, file=self.redirect_verbose)
+            if verbose: red('Failed installation check on [files missing]: ' + essential_genes, flush=True, file=self.redirect_verbose)
             res.append(self.mantis_paths['resources'] + 'essential_genes/')
         else:
-            if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes',
-                              flush=True, file=self.redirect_verbose)
-        if self.mantis_paths['ncbi_res'][0:2] != 'NA':
-            if not file_exists(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp'):
-                if verbose: red(
-                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
-                res.append(self.mantis_paths['ncbi_res'])
-            else:
-                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_res']+ 'taxidlineage.dmp', flush=True,file=self.redirect_verbose)
-            if not file_exists(self.mantis_paths['ncbi_res'] + 'gc.prt'):
-                if verbose: red(
-                    'Failed installation check on [files missing]: ' + self.mantis_paths['ncbi_res'] + 'gc.prt.dmp',flush=True, file=self.redirect_verbose)
-                res.append(self.mantis_paths['ncbi_res'])
-            else:
-                if verbose: green('Passed installation check on: ' + self.mantis_paths['ncbi_res']+'gc.prt.dmp', flush=True,file=self.redirect_verbose)
+            if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes',flush=True, file=self.redirect_verbose)
+
+        if not file_exists(ncbi_resources + 'taxidlineage.dmp'):
+            if verbose: red('Failed installation check on [files missing]: ' + ncbi_resources + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
+            res.append(ncbi_resources)
+        else:
+            if verbose: green('Passed installation check on: ' + ncbi_resources+ 'taxidlineage.dmp', flush=True,file=self.redirect_verbose)
+
+        if not file_exists(ncbi_resources + 'gc.prt'):
+            if verbose: red('Failed installation check on [files missing]: ' + ncbi_resources + 'gc.prt.dmp',flush=True, file=self.redirect_verbose)
+            res.append(ncbi_resources)
+        else:
+            if verbose: green('Passed installation check on: ' + ncbi_resources+'gc.prt.dmp', flush=True,file=self.redirect_verbose)
+
+        if not file_exists(gtdb_resources + 'gtdb_to_ncbi.db'):
+            if verbose: red('Failed installation check on [files missing]: ' + gtdb_resources + 'gtdb_to_ncbi.db',flush=True, file=self.redirect_verbose)
+            res.append(gtdb_resources)
+        else:
+            if verbose: green('Passed installation check on: ' + gtdb_resources+'gtdb_to_ncbi.db', flush=True,file=self.redirect_verbose)
         return res
 
     def check_chunks_dir(self,chunks_dir):
@@ -658,26 +652,6 @@ class MANTIS_Assembler(MANTIS_DB):
                 res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
         return res
 
-
-    def get_organism_lineage(self, taxon_id, stdout_file=None):
-        lineage_file_path = self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp'
-        try:
-            lineage_file = open(lineage_file_path, 'r')
-        except:
-            print_cyan('Lineage dump is not present! If you\'d like to run taxonomic lineage annotation, please run < setup_databases >',
-                flush=True, file=stdout_file)
-            return []
-        line = lineage_file.readline().strip('\n').replace('|', '')
-        while line:
-            line = line.split()
-            if str(taxon_id) == str(line[0]):
-                lineage = line[1:]
-                lineage.append(taxon_id)
-                lineage_file.close()
-                return lineage
-            line = lineage_file.readline().strip('\n').replace('|', '')
-        lineage_file.close()
-        return []
 
     def processes_handler(self, target_worker_function, worker_count, add_sentinels=True):
         '''

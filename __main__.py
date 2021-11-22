@@ -224,7 +224,7 @@ if __name__ == '__main__':
     elif args.execution_type == 'test_nlp':
         test_nlp()
     elif args.execution_type == 'version':
-        print_version()
+        print_version('pedromtq','mantis')
     elif args.execution_type == 'run_test':
         output_folder = args.output_folder
         if not output_folder:

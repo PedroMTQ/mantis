@@ -11,10 +11,14 @@ def print_citation_mantis():
     res=f'{separator}\n# Thank you for using Mantis, please make sure you cite the respective paper {paper_doi} #\n{separator}'
     print(res)
 
-def print_version():
+def print_version(user,project):
     import requests
-    response = requests.get("https://api.github.com/repos/pedromtq/mantis/releases/latest")
-    print(response.json()["name"])
+    response = requests.get(f"https://api.github.com/repos/{user}/{project}/releases/latest")
+    json=response.json()
+    if 'name' in json:
+        print(f'{project}\'s latest release is:',json['name'])
+    else:
+        print('No release available')
 
 def run_mantis(target_path,
                output_folder,
@@ -210,6 +214,8 @@ class MANTIS(MANTIS_MP):
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
         MANTIS_Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
                                   mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores)
+        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
+        self.launch_gtdb_connector(resources_folder=gtdb_resources)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.target_path:
             print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
@@ -290,15 +296,15 @@ class MANTIS(MANTIS_MP):
                 if SPLITTER not in line:
                     line = file.readline()
                 while line:
-                    line = line.strip('\n').split()
+                    line = line.strip('\n').split('\t')
                     if len(line) >= 2:
                         query_name = line[0]
                         line_path = line[1]
-                        if len(line) > 3:
+                        if len(line) == 4:
                             genetic_code = ' '.join(line[-1])
                             organism_details = ' '.join(line[2:-1])
                             if organism_details=='None': organism_details=''
-                        elif len(line) > 2:
+                        elif len(line)== 3:
                             organism_details = ' '.join(line[2:])
                             if organism_details=='None': organism_details=''
                             genetic_code=None
@@ -307,6 +313,7 @@ class MANTIS(MANTIS_MP):
                             genetic_code = None
                         count_seqs_original_file = get_seqs_count(line_path)
                         count_residues_original_file = count_residues(line_path)
+                        print(organism_details)
                         if os.path.exists(line_path):
                             self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name),
                                                             organism_details,genetic_code,
@@ -371,31 +378,24 @@ class MANTIS(MANTIS_MP):
              count_seqs_original_file,count_residues_original_file])
 
     def setup_organism_lineage(self, organism_details, stdout_file):
-        # when running with DRAX
-        if 'organism_instance' in organism_details:
-            print_cyan('Setting up organism lineage from provided organism instance', flush=True, file=stdout_file)
-            organism_lineage = self.get_organism_lineage(organism_details['organism_instance'].get_detail('ncbi_taxon'),
-                                                         stdout_file=stdout_file)
-        elif 'organism_lineage' in organism_details:
-            print_cyan('Setting up organism lineage from provided organism lineage', flush=True, file=stdout_file)
-            organism_lineage = organism_details['organism_lineage']
-        # when running standalone
-        elif 'ncbi_taxon' in organism_details:
-            print_cyan('Setting up organism lineage from provided NCBI taxon id', flush=True, file=stdout_file)
-            organism_lineage = self.get_organism_lineage(organism_details['ncbi_taxon'], stdout_file=stdout_file)
-        elif 'synonyms' in organism_details:
-            print_cyan('Setting up organism lineage from provided taxon synonym', flush=True, file=stdout_file)
-            ncbi_taxon_id = self.get_taxa_ncbi(organism_details['synonyms'])
-            organism_lineage = self.get_organism_lineage(ncbi_taxon_id, stdout_file=stdout_file)
-        else:
+        if not organism_details:
             print_cyan('No data provided for organism lineage!', flush=True, file=stdout_file)
-            organism_lineage = []
+            return []
+        if re.match('\d+', organism_details):
+            print_cyan('Setting up organism lineage from provided NCBI taxon id', flush=True, file=stdout_file)
+            organism_lineage = self.get_organism_lineage(organism_details, stdout_file=stdout_file)
+        else:
+            print_cyan('Setting up organism lineage from provided taxon synonym or GTDB lineage', flush=True, file=stdout_file)
+            organism_details_dict = {'synonyms': organism_details}
+            ncbi_taxon_id = self.get_taxa_ncbi(organism_details)
+            organism_lineage = self.get_organism_lineage(ncbi_taxon_id, stdout_file=stdout_file)
         return organism_lineage
 
 
 
     def generate_translated_sample(self):
-        translation_tables = parse_translation_tables(self.mantis_paths['ncbi_res'] + 'gc.prt')
+        ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
+        translation_tables = parse_translation_tables(ncbi_resources + 'gc.prt')
         for i in range(len(self.fastas_to_annotate)):
             file_path, output_path, organism_details,genetic_code, count_seqs_original_file , count_residues_original_file = self.fastas_to_annotate[i]
             sample_type = check_sample_type(file_path)
@@ -414,19 +414,12 @@ class MANTIS(MANTIS_MP):
     def generate_sample_lineage(self):
         for i in range(len(self.fastas_to_annotate)):
             file_path, output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file = self.fastas_to_annotate[i]
-            if not organism_details:
-                organism_details_dict = {}
-            elif re.match('\d+', organism_details):
-                organism_details_dict = {'ncbi_taxon': organism_details}
-            else:
-                organism_details_dict = {'synonyms': organism_details}
             stdout_file = open(output_path + 'Mantis.out', 'a+')
-            organism_lineage = self.setup_organism_lineage(organism_details_dict, stdout_file)
+            organism_lineage = self.setup_organism_lineage(organism_details, stdout_file)
             self.fastas_to_annotate[i][2] = organism_lineage
             print('------------------------------------------', flush=True, file=stdout_file)
             if organism_lineage:
-                print_cyan('Target file:\n' + file_path + '\n has the following taxonomy lineage: ' + ' > '.join(
-                    organism_lineage), flush=True, file=stdout_file)
+                print_cyan('Target file:\n' + file_path + '\n has the following taxonomy lineage: ' + ' > '.join(organism_lineage), flush=True, file=stdout_file)
             else:
                 print_cyan('Target file:\n' + file_path + '\n has no organism lineage!', flush=True, file=stdout_file)
             print('------------------------------------------', flush=True, file=stdout_file)
