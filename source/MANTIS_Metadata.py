@@ -127,8 +127,8 @@ class MANTIS_Metadata():
         return res
 
 
-    def get_essential_genes_list(self) -> object:
-        essential_genes = self.mantis_paths['resources'] + 'essential_genes/essential_genes.txt'
+    def get_essential_genes_list(self):
+        essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
         if file_exists(essential_genes):
             with open(essential_genes) as file: lines = file.readlines()
             lines = [l.strip('\n') for l in lines]

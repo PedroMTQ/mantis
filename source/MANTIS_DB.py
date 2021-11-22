@@ -31,7 +31,8 @@ class MANTIS_DB(MANTIS_NLP):
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
         dbs_list = [
-            'ncbi_res' if self.mantis_paths['ncbi_res'][0:2] != 'NA' else None,
+            'ncbi_res',
+            'gtdb_res',
             'pfam' if self.mantis_paths['pfam'][0:2] != 'NA' else None,
             'kofam' if self.mantis_paths['kofam'][0:2] != 'NA' else None,
             'tcdb' if self.mantis_paths['tcdb'][0:2] != 'NA' else None,
@@ -207,6 +208,7 @@ class MANTIS_DB(MANTIS_NLP):
     def download_database(self, database, force_download=False, taxon_id=None, stdout_path=None):
         stdout_file = open(stdout_path, 'a+')
         if database == 'ncbi_res':      self.download_ncbi_resources(force_download=force_download, stdout_file=stdout_file)
+        elif database == 'gtdb_res':    self.download_gtdb_resources(force_download=force_download, stdout_file=stdout_file)
         elif database == 'pfam':        self.download_pfam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'kofam':       self.download_kofam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'tcdb':        self.download_tcdb(force_download=force_download, stdout_file=stdout_file)
@@ -219,30 +221,34 @@ class MANTIS_DB(MANTIS_NLP):
         stdout_file.close()
 
     def download_ncbi_resources(self, force_download=False, stdout_file=None):
-        Path(self.mantis_paths['ncbi_res']).mkdir(parents=True, exist_ok=True)
-        if file_exists(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp', force_download) and file_exists(self.mantis_paths['ncbi_res'] + 'gc.prt', force_download):
+        ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
+        Path(ncbi_resources).mkdir(parents=True, exist_ok=True)
+        if file_exists(ncbi_resources + 'taxidlineage.dmp', force_download) and file_exists(ncbi_resources + 'gc.prt', force_download):
             print('NCBI taxonomic lineage file already exists! Skipping...', flush=True, file=stdout_file)
             return
         try:
-            os.remove(self.mantis_paths['ncbi_res'] + 'taxidlineage.dmp')
+            os.remove(ncbi_resources + 'taxidlineage.dmp')
         except:
             pass
         taxonomy_url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
         translation_tables_url='ftp://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt'
-        with open(self.mantis_paths['ncbi_res'] + 'readme.md', 'w+') as file:
+        with open(ncbi_resources + 'readme.md', 'w+') as file:
             datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             file.write(f'These files were downloaded on {datetime_str} from:\n{taxonomy_url}\n{translation_tables_url}\nThey are used to traceback organism lineage for taxonomically resolved annotations and to translate CDS')
         print_cyan('Downloading and unzipping NCBI resources', flush=True, file=stdout_file)
         for url in [taxonomy_url,translation_tables_url]:
-            download_file(url, output_folder=self.mantis_paths['ncbi_res'], stdout_file=stdout_file)
-        uncompress_archive(source_filepath=self.mantis_paths['ncbi_res'] + 'new_taxdump.tar.gz',
-                           extract_path=self.mantis_paths['ncbi_res'], stdout_file=stdout_file, remove_source=True)
+            download_file(url, output_folder=ncbi_resources, stdout_file=stdout_file)
+        uncompress_archive(source_filepath=ncbi_resources + 'new_taxdump.tar.gz',
+                           extract_path=ncbi_resources, stdout_file=stdout_file, remove_source=True)
         # deleting the extra files that come with the tar dump
-        files_dir = os.listdir(self.mantis_paths['ncbi_res'])
+        files_dir = os.listdir(ncbi_resources)
         for file in files_dir:
             if file not in ['taxidlineage.dmp','gc.prt','readme.md']:
-                os.remove(self.mantis_paths['ncbi_res'] + file)
+                os.remove(ncbi_resources + file)
 
+    def download_gtdb_resources(self, force_download=False, stdout_file=None):
+        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
+        self.launch_gtdb_connector(resources_folder=gtdb_resources)
 
     def get_common_links_metadata(self, string, res):
         ec = find_ecs(string)

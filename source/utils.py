@@ -605,19 +605,24 @@ def unzip_archive(source_file, extract_dir, remove_source=False, stdout_file=Non
         zip_ref.extractall(extract_dir)
     if remove_source: os.remove(source_file)
 
-
-def download_file_http(url, file_path, c):
+def download_file_http(url, file_path, c,ctx):
     if c > 5:
-        download_file_http_failsafe(url, file_path)
+        download_file_http_failsafe(url, file_path,ctx)
     else:
-        with requests.get(url, stream=True) as r:
-            with open(file_path, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
+        if ctx:
+            with requests.get(url, stream=True,verify=False) as r:
+                with open(file_path, 'wb') as f:
+                    shutil.copyfileobj(r.raw, f)
+        else:
+            with requests.get(url, stream=True) as r:
+                with open(file_path, 'wb') as f:
+                    shutil.copyfileobj(r.raw, f)
 
 
 # slower but safer
-def download_file_http_failsafe(url, file_path):
+def download_file_http_failsafe(url, file_path,ctx):
     with requests.Session() as session:
+        if ctx: session.verify = False
         get = session.get(url, stream=True)
         if get.status_code == 200:
             with open(file_path, 'wb') as f:
@@ -625,19 +630,27 @@ def download_file_http_failsafe(url, file_path):
                     f.write(chunk)
 
 
-def download_file_ftp(url, file_path):
-    with closing(request.urlopen(url)) as r:
+def download_file_ftp(url, file_path,ctx):
+    with closing(request.urlopen(url,context=ctx)) as r:
         with open(file_path, 'wb') as f:
             shutil.copyfileobj(r, f)
 
 
 def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     file_path = output_folder + url.split('/')[-1]
+    ctx=None
     try:
         target_file = request.urlopen(url)
     except:
-        print('Cannot download target url', url)
-        return
+        try:
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            target_file = request.urlopen(url,context=ctx)
+        except:
+            print('Cannot download target url', url)
+            return
     target_size = target_file.info()['Content-Length']
     transfer_encoding = target_file.info()['Transfer-Encoding']
     if target_size: target_size = int(target_size)
@@ -654,14 +667,14 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     while c <= retry_limit:
         if 'ftp' in url:
             try:
-                download_file_ftp(url, file_path)
+                download_file_ftp(url, file_path,ctx)
             except:
                 try:
-                    download_file_http(url, file_path, c)
+                    download_file_http(url, file_path, c,ctx)
                 except: pass
         else:
             try:
-                download_file_http(url, file_path, c)
+                download_file_http(url, file_path, c,ctx)
             except:
                 pass
         if transfer_encoding == 'chunked': return
@@ -670,7 +683,6 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
         c += 1
     print('Did not manage to download the following url correctly:\n' + url)
     raise Exception
-
 
 def concat_files(output_file, list_file_paths, stdout_file=None):
     print('Concatenating files into ', output_file, flush=True, file=stdout_file)
@@ -1017,6 +1029,7 @@ def cython_compiled():
 
 
 def file_exists(target_file, force_download=False):
+    if not target_file: return False
     if os.path.exists(target_file) and not force_download:
         return True
     return False
