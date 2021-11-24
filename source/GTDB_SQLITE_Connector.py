@@ -138,7 +138,7 @@ class GTDB_SQLITE_Connector():
 
 
 
-class MANTIS_Taxonomy(GTDB_SQLITE_Connector):
+class GTDB_SQLITE_Connector(GTDB_SQLITE_Connector):
     def launch_gtdb_connector(self,resources_folder):
 
         self.gtdb_folder=resources_folder
@@ -198,7 +198,7 @@ class MANTIS_Taxonomy(GTDB_SQLITE_Connector):
 
 
 if __name__ == '__main__':
-    gtdb_connector=MANTIS_Taxonomy()
+    gtdb_connector=GTDB_SQLITE_Connector()
     gtdb_connector.launch_gtdb_connector(resources_folder='/home/pedroq/Desktop/test_cr/')
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
     print(a)

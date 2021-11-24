@@ -1,10 +1,12 @@
 try:
-    from source.MANTIS_Assembler import *
+    from source.Assembler import *
+    from source.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 except:
-    from MANTIS_Assembler import *
+    from Assembler import *
+    from Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 
 
-class MANTIS_Metadata():
+class Metadata():
 
     def get_target_custom_ref_paths(self, target, folder):
         for custom_ref in self.get_custom_refs_paths(folder=folder):
@@ -21,7 +23,6 @@ class MANTIS_Metadata():
             return False
         elif 'putative enzyme' in to_add:
             return False
-
         return True
 
     def add_to_dict(self, dict_hits, dict_key, to_add):
@@ -39,68 +40,15 @@ class MANTIS_Metadata():
                     if i:
                         dict_hits['link'][dict_key].append(i)
 
-    # This is the default interpreter since we should always have NOG annotations, the others interpreters are built according to the available hmms
     def get_link_compiled_metadata(self, dict_hits, ref_file_path):
-        # we can extract ECs,KOs and pfam ids from NOG hmmss
-        with open(ref_file_path, 'r') as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n')
-                line = line.split('\t')
-                current_ref = line[0]
-                if current_ref in dict_hits:
-                    annotations = line[2:]
-                    for link in annotations:
-                        if link:
-                            temp_link = link.split(':')
-                            link_type = temp_link[0]
-                            if link_type == 'kegg_cazy': link_type = 'cazy'
-                            if link_type == 'kegg_ec': link_type = 'enzyme_ec'
-                            link_text = ':'.join(temp_link[1:])
-                            link_text=link_text.strip()
-                            if link_type == 'description' and link_text == 'NA':
-                                link_text = ''
-                            if link_text and link_type == 'description':
-                                self.get_common_links(link_text, res=dict_hits[current_ref])
-                            if link_text:
-                                self.add_to_dict(dict_hits[current_ref], link_type, link_text)
-                    if '_sql_annotations.tsv' in ref_file_path:
-                        self.add_to_dict(dict_hits[current_ref], 'eggnog', current_ref)
-                line = file.readline()
-
-    def get_direct_link(self, dict_hits, link_type):
+        cursor=Metadata_SQLITE_Connector(ref_file_path)
         for hit in dict_hits:
-            self.add_to_dict(dict_hits[hit], link_type, hit)
+            hit_dict=dict_hits[hit]
+            hit_info=cursor.fetch_metadata(hit)
+            for db in hit_info:
+                if db not in hit_dict['link']:  hit_dict['link'][db]=set()
+                hit_dict['link'][db].update(hit_info[db])
 
-    def get_link_custom_ref(self, dict_hits, custom_ref_path):
-        if not custom_ref_path: return
-        if custom_ref_path.endswith('.hmm'):
-            file_path = custom_ref_path.replace('.hmm', '.tsv')
-        elif custom_ref_path.endswith('.dmnd'):
-            file_path = custom_ref_path.replace('.dmnd', '.tsv')
-
-        headers = {}
-        if not file_exists(file_path): return
-        with open(file_path) as file:
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                # first line should be the metadata headers, it should always start with the hit id and then come the corresponding data
-                if not headers:
-                    headers = {0: 'ref_id'}
-                    for header_i in range(len(line[1:])):
-                        headers[header_i+1] = line[header_i+1].lower()
-                else:
-                    ref_id = line[0]
-                    if ref_id in dict_hits:
-                        for annot_i in range(len(line[1:])):
-                            annot_i += 1
-                            if annot_i in headers:
-                                self.add_to_dict(dict_hits[ref_id], headers[annot_i], line[annot_i].split(';'))
-                            else:
-                                self.get_common_links(line[annot_i], dict_hits[ref_id])
-                                self.add_to_dict(dict_hits[ref_id], 'description', line[annot_i])
-                line = file.readline()
 
     def get_common_links(self, string, res={}):
         ec = find_ecs(string)
@@ -121,6 +69,9 @@ class MANTIS_Metadata():
         cog = find_cog(string)
         if cog:
             self.add_to_dict(res, 'cog', cog)
+        arcog = find_arcog(string)
+        if arcog:
+            self.add_to_dict(res, 'arcog', arcog)
         go = find_go(string)
         if go:
             self.add_to_dict(res, 'go', cog)
@@ -142,13 +93,14 @@ class MANTIS_Metadata():
                     self.add_to_dict(dict_hits[essential_gene], 'is_essential_gene', 'True')
 
     def get_hit_links(self, dict_hits, ref_file):
+
         if re.search('NOG[GT]',ref_file):
             if 'NOGG' in ref_file:
                 taxon_id = 'NOGG'
             else:
                 taxon_id = re.search('NOGT\d+', ref_file).group().replace('NOGT', '')
-            target_sql_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + f'{taxon_id}_sql_annotations.tsv'
-            self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=target_sql_file)
+            metadata_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + 'metadata.tsv'
+            self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
         elif re.search('NCBI[GT]',ref_file):
             if 'NCBIG' in ref_file:
                 taxon_id = 'NCBIG'
@@ -174,7 +126,6 @@ class MANTIS_Metadata():
         for hit in dict_hits:
             self.get_common_links(hit, dict_hits[hit])
             if 'accession' in dict_hits[hit]['link']:   self.get_common_links(dict_hits[hit]['link']['accession'], dict_hits[hit])
-
         return dict_hits
 
     def remove_ids_text(self, sorted_keys, temp_link, target_removal):
@@ -227,7 +178,8 @@ class MANTIS_Metadata():
             while line:
                 line = line.strip('\n').split('\t')
                 query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore,direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line
-                if 'NOG' in ref_file: ref_hit = ref_hit.split('.')[0]
+                print('maybe we need to fix this')
+                #if 'NOG' in ref_file: ref_hit = ref_hit.split('.')[0]
                 if ref_file not in links_to_get: links_to_get[ref_file] = {}
                 if ref_hit not in links_to_get[ref_file]: links_to_get[ref_file][ref_hit] = {'link': {'hit': ref_hit},
                                                                                              'lines': []}
@@ -530,4 +482,4 @@ class MANTIS_Metadata():
 
 
 if __name__ == '__main__':
-    m = MANTIS_Metadata()
+    m = Metadata()

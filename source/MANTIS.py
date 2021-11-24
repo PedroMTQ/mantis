@@ -1,7 +1,7 @@
 try:
-    from source.MANTIS_MP import *
+    from source.Multiprocessing import *
 except:
-    from MANTIS_MP import *
+    from Multiprocessing import *
 
 
 
@@ -106,26 +106,26 @@ def run_mantis_test(target_path,
 '''
 The MANTIS class is just a wrapper:
     -   Exceptions.py contains custom exceptions raised by Mantis
-    -   MANTIS_Assembler.py contains methods responsible for the basic initialization of Mantis (i.e. reading config file, getting taxa lineage, and checking installation)
-    -   MANTIS_Consensus.py contains methods responsible for generating the consensus_annotation.tsv
-    -   MANTIS_DB.py contains methods responsible for setting up the reference databases
-    -   MANTIS_Metadata.py contains methods responsible for integrating the metadata/generating the integrated_annotation.tsv
-    -   MANTIS_MP.py contains most methods responsible for annotation, it wraps around other classes and uses their methods in a multi processing environment
-    -   MANTIS_NLP.py is a wrapper for UniFunc, it has no methods
-    -   MANTIS_Processor.py contains methods responsible for the processing of hits (e.g. hit processing algorithms)
+    -   Assembler.py contains methods responsible for the basic initialization of Mantis (i.e. reading config file, getting taxa lineage, and checking installation)
+    -   Consensus.py contains methods responsible for generating the consensus_annotation.tsv
+    -   Database_generator.py contains methods responsible for setting up the reference databases
+    -   Metadata.py contains methods responsible for integrating the metadata/generating the integrated_annotation.tsv
+    -   Multiprocessing.py contains most methods responsible for annotation, it wraps around other classes and uses their methods in a multi processing environment
+    -   UniFunc_wrapper.py is a wrapper for UniFunc, it has no methods
+    -   Homology_processor.py contains methods responsible for the processing of hits (e.g. hit processing algorithms)
     -   utils.py contains functions common to most classes
     -   __main__.py contains the front end for user interaction
     
 This is how the classes are connected
-UniFunc----------->MANTIS_NLP------>MANTIS_DB-->MANTIS_Assembler--v
-                                ^-->MANTIS_Consensus-------------------->MANTIS_MP--->MANTIS--->__main__
-MANTIS_Metadata---------------------------------------------^  ^
-MANTIS_Processor-----------------------------------------------^
+UniFunc----------->UniFunc_wrapper------>Database_generator-->Assembler--v
+                                ^-->Consensus-------------------->Multiprocessing--->MANTIS--->__main__
+Metadata---------------------------------------------^  ^
+Homology_processor-----------------------------------------------^
 
 utils and Exceptions are only general funtions and therefore don't respect this hierarchy, they are imported as needed
 
 '''
-class MANTIS(MANTIS_MP):
+class MANTIS(Multiprocessing):
     def __init__(self,
                  target_path=None,
                  output_folder=None,
@@ -212,7 +212,7 @@ class MANTIS(MANTIS_MP):
         #diamond db size for scaling. we increase the db size to avoid overly good e-values, i.e., 0 where sample scaling by multiplication wouldn't change anything
         self.diamond_db_size=1e6
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
-        MANTIS_Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
+        Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
                                   mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores)
         gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
         self.launch_gtdb_connector(resources_folder=gtdb_resources)
@@ -223,6 +223,7 @@ class MANTIS(MANTIS_MP):
         self.chunks_to_fasta = {}
         self.fastas_to_annotate = []
         self.print_available_hardware()
+        self.nog_db = 'dmnd'
 
     def print_available_hardware(self):
         if self.user_cores:
@@ -477,7 +478,7 @@ class MANTIS(MANTIS_MP):
             interepreted_annotation_tsv = current_chunk_dir + 'integrated_annotation.tsv'
             stdout_file_path = output_path + 'Mantis.out'
             self.queue.append([interepreted_annotation_tsv, current_chunk_dir, stdout_file_path])
-        MANTIS_Consensus.__init__(self)
+        Consensus.__init__(self)
         self.processes_handler(self.worker_consensus_output, worker_count)
 
         for output_path in self.chunks_to_fasta:
@@ -521,7 +522,7 @@ class MANTIS(MANTIS_MP):
         print(f'Output merge took {int(time() - start_time)} seconds to run', flush=True, file=self.redirect_verbose)
         start_time = time()
         self.remove_uncompressed_files()
-        print(f'In total, Mantis took {int(time() - processing_start_time)} seconds to process HMMER\'s output',flush=True, file=self.redirect_verbose)
+        print(f'In total, Mantis took {int(time() - processing_start_time)} seconds to process homology search results',flush=True, file=self.redirect_verbose)
         if not self.keep_files:
             print_cyan('Removing temporary files', flush=True, file=self.redirect_verbose)
             self.remove_non_essential_files()

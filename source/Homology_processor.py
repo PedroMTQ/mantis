@@ -1,7 +1,7 @@
 try:
-    from source.MANTIS_Assembler import *
+    from source.Assembler import *
 except:
-    from MANTIS_Assembler import *
+    from Assembler import *
 
 try:
     from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
@@ -31,7 +31,7 @@ except:
 
 # This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
-class MANTIS_Processor():
+class Homology_processor():
 
     def create_chunk_output_dirs(self, chunk_dir):
         to_create=['searchout']
@@ -761,4 +761,4 @@ class MANTIS_Processor():
 
 
 if __name__ == '__main__':
-    hmm_pro = MANTIS_Processor()
+    hmm_pro = Homology_processor()

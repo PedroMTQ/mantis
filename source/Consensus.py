@@ -1,7 +1,7 @@
 try:
-    from source.MANTIS_Assembler import *
+    from source.Assembler import *
 except:
-    from MANTIS_Assembler import *
+    from Assembler import *
 
 try:
     from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
@@ -29,10 +29,10 @@ except:
                 except:
                     kill_switch(kill_switch)
 
-class MANTIS_Consensus(MANTIS_NLP):
+class Consensus(UniFunc_wrapper):
 
     def __init__(self):
-        MANTIS_NLP.__init__(self)
+        UniFunc_wrapper.__init__(self)
 
     def get_ref_weight(self, ref):
         '''
@@ -227,7 +227,7 @@ class MANTIS_Consensus(MANTIS_NLP):
                                                           ref_names_consensus)
             yield consensus_line,gff_lines
 
-    # same method as non_overlapping hits from MANTIS_Processor , with some minor alterations to account for consensus
+    # same method as non_overlapping hits from Homology_processor , with some minor alterations to account for consensus
     # @timeit_function
     def get_best_cython_consensus(self, hits, query_len, query, stdout_file_path=None):
         try:
@@ -726,4 +726,4 @@ class MANTIS_Consensus(MANTIS_NLP):
 
 
 if __name__ == '__main__':
-    m = MANTIS_Consensus()
+    m = Consensus()

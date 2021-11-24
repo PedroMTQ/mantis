@@ -6,8 +6,8 @@ try:
     import uuid
 
     from source.MANTIS import run_mantis, run_mantis_test,print_citation_mantis,print_version
-    from source.MANTIS_NLP import test_nlp
-    from source.MANTIS_Assembler import add_slash, \
+    from source.UniFunc_wrapper import test_nlp
+    from source.Assembler import add_slash, \
         get_path_level, \
         check_installation, \
         extract_nog_metadata, \
@@ -17,7 +17,7 @@ try:
 except ImportError as e:
     import signal
     master_pid = os.getpid()
-    print('Import Error!')
+    print('Import Error:\n',e)
     os.kill(master_pid, signal.SIGKILL)
 
 
@@ -214,11 +214,12 @@ if __name__ == '__main__':
         check_installation(mantis_config=mantis_config)
     elif args.execution_type == 'extract_nog_metadata':
         output_folder = args.output_folder
+        mantis_config = args.mantis_config
         if not output_folder:
             output_folder = add_slash(os.getcwd()) + 'metadata_extraction'
             print(f'No output folder provided! Saving data to: {output_folder}')
         output_folder = add_slash(output_folder)
-        extract_nog_metadata(metadata_path=output_folder)
+        extract_nog_metadata(metadata_path=output_folder,mantis_config=mantis_config)
         print_citation_mantis()
 
     elif args.execution_type == 'test_nlp':
