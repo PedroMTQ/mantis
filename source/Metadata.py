@@ -1,9 +1,7 @@
 try:
     from source.Assembler import *
-    from source.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 except:
     from Assembler import *
-    from Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 
 
 class Metadata():
@@ -48,7 +46,7 @@ class Metadata():
             for db in hit_info:
                 if db not in hit_dict['link']:  hit_dict['link'][db]=set()
                 hit_dict['link'][db].update(hit_info[db])
-
+        cursor.close_sql_connection()
 
     def get_common_links(self, string, res={}):
         ec = find_ecs(string)

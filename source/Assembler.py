@@ -1,9 +1,13 @@
 try:
     from source.Database_generator import *
     from source.GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
+    from source.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
+
 except:
     from Database_generator import *
     from GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
+    from Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
+
 
 '''
 This module handles the setup of MANTIS - setting paths and setting up the databases.
@@ -174,10 +178,9 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 self.mantis_nogt_tax.add(str(i))
 
     def setup_paths_config_file(self):
+        self.nog_db = 'dmnd'
         file = open(self.config_file, 'r')
         line = file.readline()
-        nog_hmm=None
-        nog_dmnd=None
         while line:
             line = line.strip('\n')
             if not line.startswith('#') and line:
@@ -191,13 +194,9 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                     if line_path:
                         self.mantis_paths['resources'] = line_path
 
-                elif line.startswith('nog_hmm_ref_folder='):
-                    line_path = add_slash(line.replace('nog_hmm_ref_folder=', ''))
-                    if line_path: nog_hmm = line_path
-
-                elif line.startswith('nog_dmnd_ref_folder='):
-                    line_path = add_slash(line.replace('nog_dmnd_ref_folder=', ''))
-                    if line_path: nog_dmnd = line_path
+                elif line.startswith('nog_ref_folder='):
+                    line_path = add_slash(line.replace('nog_ref_folder=', ''))
+                    if line_path: self.mantis_paths['NOG'] = line_path
 
                 # taxa ids list for only downloading nogt specific to lineage
                 elif line.startswith('nog_tax='):
@@ -224,18 +223,14 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 elif line.startswith('_weight='):
                     ref_source, weight = line.split('_weight=')
                     self.mantis_ref_weights[ref_source] = float(weight)
+
+                elif line.startswith('nog_ref='):
+                    nog_db = line.replace('nog_ref=', '').split()[0]
+                    if nog_db.lower() not in ['dmnd','hmm']:
+                        kill_switch(InvalidNOGType)
+                    else:
+                        self.nog_db=nog_db
             line = file.readline()
-        if nog_dmnd=='NA/': nog_dmnd=None
-        if nog_hmm=='NA/': nog_hmm=None
-        if nog_dmnd and nog_hmm:
-            self.nog_db='dmnd'
-            self.mantis_paths['NOG']=nog_dmnd
-        elif nog_dmnd and not nog_hmm:
-            self.nog_db='dmnd'
-            self.mantis_paths['NOG']=nog_dmnd
-        elif not nog_dmnd and nog_hmm:
-            self.nog_db='hmm'
-            self.mantis_paths['NOG']=nog_hmm
         file.close()
 
     def read_config_file(self):
@@ -501,8 +496,31 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
             if verbose: green(f'Passed installation check on: {ref_folder_path}', flush=True,
                               file=self.redirect_verbose)
 
+    def compile_sql_metadata(self):
+        all_files=set()
+        for ref in self.compile_refs_list(folder=True):
+            metadata_file=f'{ref}metadata.tsv'
+            all_files.add(metadata_file)
+        if self.mantis_paths['NCBI'][0:2] != 'NA':
+            ncbi_tax=self.get_taxon_refs('NCBI',folder=True)
+            for ref in ncbi_tax:
+                metadata_file = f'{ref}metadata.tsv'
+                all_files.add(metadata_file)
+        if self.mantis_paths['NOG'][0:2] != 'NA':
+            nog_tax=self.get_taxon_refs('NOG',folder=True)
+            for ref in nog_tax:
+                metadata_file = f'{ref}metadata.tsv'
+                all_files.add(metadata_file)
+        for metadata_file in all_files:
+
+            if not file_exists(metadata_file.replace('.tsv','.db')):
+                cursor = Metadata_SQLITE_Connector(metadata_file)
+                cursor.close_sql_connection()
+
+
     def check_installation(self, verbose=True):
         # we use the verbose mode when running the check_installation directly
+        self.compile_sql_metadata()
         self.passed_check = True
         if not cython_compiled():
             self.passed_check = False
@@ -673,13 +691,19 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                         res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
                     else:
                         res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.dmnd')
+        global_folder = add_slash(self.mantis_paths[db] + db + 'G')
         if folder:
-            res.append(add_slash(self.mantis_paths[db] + db + 'G'))
+            if file_exists(global_folder):
+                res.append(global_folder)
         else:
             if self.nog_db == 'hmm':
-                res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
+                if file_exists(f'{global_folder}{db}G_merged.hmm'):
+                    res.append( f'{global_folder}{db}G_merged.hmm')
             else:
-                res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.dmnd')
+                if file_exists(f'{global_folder}{db}G_merged.dmnd'):
+
+                    res.append( f'{global_folder}{db}G_merged.dmnd')
+
 
         return res
 

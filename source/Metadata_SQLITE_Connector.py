@@ -11,6 +11,7 @@ class Metadata_SQLITE_Connector():
         self.db_headers=self.get_db_headers()
         self.insert_step=5000
         if not file_exists(self.db_file):
+            print('Creating SQL database',self.db_file)
             self.create_sql_table()
         self.start_sqlite_cursor()
 

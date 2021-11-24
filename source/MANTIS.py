@@ -223,7 +223,6 @@ class MANTIS(Multiprocessing):
         self.chunks_to_fasta = {}
         self.fastas_to_annotate = []
         self.print_available_hardware()
-        self.nog_db = 'dmnd'
 
     def print_available_hardware(self):
         if self.user_cores:
