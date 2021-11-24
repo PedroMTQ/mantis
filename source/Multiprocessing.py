@@ -1,16 +1,16 @@
 try:
-    from source.MANTIS_Assembler import *
-    from source.MANTIS_Processor import MANTIS_Processor
-    from source.MANTIS_Metadata import MANTIS_Metadata
-    from source.MANTIS_Consensus import MANTIS_Consensus
+    from source.Assembler import *
+    from source.Homology_processor import Homology_processor
+    from source.Metadata import Metadata
+    from source.Consensus import Consensus
 except:
-    from MANTIS_Assembler import *
-    from MANTIS_Processor import MANTIS_Processor
-    from MANTIS_Metadata import MANTIS_Metadata
-    from MANTIS_Consensus import MANTIS_Consensus
+    from Assembler import *
+    from Homology_processor import Homology_processor
+    from Metadata import Metadata
+    from Consensus import Consensus
 
 
-class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Consensus):
+class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
 
     def prepare_queue_split_sample(self, protein_seqs, seq_chunks, chunk_dir):
         c = 0
@@ -171,7 +171,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         ref = get_path_level(ref_path)
         ref = ref.split('.')[0]
         #dbsize is set so we can scale it  to sample size
-        command = f'{DIAMOND_PATH} blastp --ultra-sensitive --quiet --dbsize {self.diamond_db_size}'
+        command = f'{DIAMOND_PATH} blastp --quiet --dbsize {self.diamond_db_size}' #--ultra-sensitive '# '
         dmndout_path = f'{output_folder}searchout{SPLITTER}{output_initials}{ref}.dmndout'
         command += f' --out {dmndout_path} --outfmt 6 qseqid qlen sseqid slen qstart qend sstart send evalue bitscore'
         command += f' --threads {self.hmmer_threads}'
@@ -251,7 +251,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
             run_command(hs_command, master_pid=None)
         else:
             run_command(hs_command, master_pid=master_pid, wanted_child='hmmsearch',user_memory=self.user_memory)
-        print(f'Finished running HMMER ({round(time() - start_time, 3)} seconds):\n{hs_command}',flush=True, file=stdout_file)
+        print(f'Finished running homology search ({round(time() - start_time, 3)} seconds):\n{hs_command}',flush=True, file=stdout_file)
         stdout_file.close()
         if output_file:
             move_file(output_file, f'{output_file}_finished')
@@ -261,7 +261,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
         this is a bit tricky to understand but it works the following way:
         There is a queue which is stacked with jobs (i.e. hmmer commands to execute), each process/worker takes one job and runs it
         when the worker finishes the job it just takes another job from the queue
-        if the worker received a record that is None (which is a sentinel, see processes_handler in mantis_assembler.py) then the while cycle breaks and the worker is done
+        if the worker received a record that is None (which is a sentinel, see processes_handler in Assembler.py) then the while cycle breaks and the worker is done
 
 
         Now, onto the different types of records/jobs
@@ -372,13 +372,13 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                 if current_lineage and original_lineage:
                     if self.mantis_paths[path_tax][0:2] != 'NA':
                         current_taxon = current_lineage.pop(-1)
-                        hmm_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
+                        ref_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
                         # to skip taxons without an hmm
-                        while not hmm_path and current_lineage:
+                        while not ref_path and current_lineage:
                             current_taxon = current_lineage.pop(-1)
-                            hmm_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
-                        if hmm_path:
-                            chunks_path = get_chunks_path(hmm_path)
+                            ref_path = self.get_taxon_ref_path(current_taxon, db=path_tax)
+                        if ref_path:
+                            chunks_path = get_chunks_path(ref_path)
                             for chunk_hmm in chunks_path:
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                    target_path=fasta_path,
@@ -395,11 +395,11 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                             self.save_temp_fasta_length(current_chunk_dir, db_tax + str(current_taxon),
                                                         count_seqs_chunk, db)
                         # we only use the general NCBI, NOGG is too big and would slow down annotation considerably
-                        elif not hmm_path and db == 'NCBI':
+                        elif not ref_path and db == 'NCBI':
                             # if there are still missing annotations from the lineage annotation or there's no taxonomic classification we query against the whole TSHMM database
                             if self.mantis_paths[path_general][0:2] != 'NA':
-                                hmm_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
-                                chunks_path = get_chunks_path(hmm_path)
+                                ref_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
+                                chunks_path = get_chunks_path(ref_path)
                                 for chunk_hmm in chunks_path:
                                     command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                        target_path=fasta_path,
@@ -416,8 +416,8 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
                     if (db == 'NOG' and not original_lineage) or (db == 'NCBI'):
                         # if there are still missing annotations from the lineage annotation or there's not taxonomic classification we query against the whole TSHMM database
                         if self.mantis_paths[path_general][0:2] != 'NA':
-                            hmm_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
-                            chunks_path = get_chunks_path(hmm_path)
+                            ref_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
+                            chunks_path = get_chunks_path(ref_path)
                             for chunk_hmm in chunks_path:
                                 command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                    target_path=fasta_path,
@@ -581,7 +581,7 @@ class MANTIS_MP(MANTIS_Assembler, MANTIS_Processor, MANTIS_Metadata, MANTIS_Cons
     ###Generate consensus output
 
     def get_consensus_output(self):
-        MANTIS_Consensus.__init__(self)
+        Consensus.__init__(self)
         worker_count = estimate_number_workers_process_output(n_chunks=len(self.chunks_to_annotate), user_cores=self.user_cores)
         self.prepare_queue_generate_consensus()
         print_cyan(f'Generating consensus output with {worker_count} workers.', flush=True,

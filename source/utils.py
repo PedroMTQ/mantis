@@ -195,6 +195,41 @@ def estimate_number_workers_process_output(n_chunks, searchout_per_chunks=1,user
     return min([environment_workers, n_chunks * searchout_per_chunks])
 
 
+def get_common_links_metadata(string, res):
+    if not string: return
+    ec = find_ecs(string)
+    if ec:
+        if 'enzyme_ec' not in res: res['enzyme_ec'] = set()
+        res['enzyme_ec'].update(ec)
+    tc = find_tcdb(string)
+    if tc:
+        if 'tcdb' not in res: res['tcdb'] = set()
+        res['tcdb'].update(tc)
+    tigr = find_tigrfam(string)
+    if tigr:
+        if 'tigrfam' not in res: res['tigrfam'] = set()
+        res['tigrfam'].update(tigr)
+    ko = find_ko(string)
+    if ko:
+        if 'kegg_ko' not in res: res['kegg_ko'] = set()
+        res['kegg_ko'].update(ko)
+    pfam = find_pfam(string)
+    if pfam:
+        if 'pfam' not in res: res['pfam'] = set()
+        res['pfam'].update(pfam)
+    cog = find_cog(string)
+    if cog:
+        if 'cog' not in res: res['cog'] = set()
+        res['cog'].update(cog)
+    arcog = find_arcog(string)
+    if arcog:
+        if 'arcog' not in res: res['arcog'] = set()
+        res['arcog'].update(cog)
+    go = find_go(string)
+    if go:
+        if 'go' not in res: res['go'] = set()
+        res['go'].update(go)
+
 def is_ec(enz_id, required_level=3):
     if enz_id:
         ec_pattern = re.compile('^\d+\.\d+\.\d+(\.(-|\d+|([a-zA-Z]\d+)))?')
@@ -267,6 +302,15 @@ def find_pfam(string_to_search):
 def find_cog(string_to_search):
     res = set()
     pattern = re.compile('(?<![A-Za-z])(COG|cog)\d{3,}')
+    search = re.finditer(pattern, string_to_search)
+    for i in search:
+        res.add(i.group())
+    return res
+
+
+def find_arcog(string_to_search):
+    res = set()
+    pattern = re.compile('(AR|ar)(COG|cog)\d{3,}')
     search = re.finditer(pattern, string_to_search)
     for i in search:
         res.add(i.group())
@@ -472,6 +516,35 @@ def read_protein_fasta(protein_fasta_path):
                                                                               start_recording=start_recording)
             line = file.readline()
     return res
+
+def yield_target_seqs(protein_fasta_path,target_seqs):
+    query=None
+    seq=[]
+    with open(protein_fasta_path, 'r') as file:
+        line = file.readline()
+        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
+        while line:
+            if line.startswith('>'):
+                if query:
+                    if query in target_seqs:
+                        seq=''.join(seq).upper()
+                        yield f'>{query}\n{seq}\n'
+                    seq=[]
+                query=line.replace('>','').strip()
+            else:
+                seq.append(line.strip())
+            line = file.readline()
+        if query:
+            if query in target_seqs:
+                seq = ''.join(seq).upper()
+                yield f'>{query}\n{seq}\n'
+
+def yield_target_metadata(metadata_file,target_seqs):
+    with open(metadata_file, 'r') as file:
+        for line in file:
+            seq=line.split('\t')[0]
+            if seq in target_seqs:
+                yield line
 
 #low memory footprint_version
 def read_protein_fasta_generator(protein_fasta_path):
@@ -1174,3 +1247,4 @@ if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
     print(MANTIS_FOLDER)
+    download_file('http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz',output_folder='/home/pedroq/PycharmProjects/metadata_extraction/')

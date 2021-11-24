@@ -1,9 +1,9 @@
 try:
-    from source.MANTIS_DB import *
-    from source.MANTIS_Taxonomy import MANTIS_Taxonomy
+    from source.Database_generator import *
+    from source.GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
 except:
-    from MANTIS_DB import *
-    from MANTIS_Taxonomy import MANTIS_Taxonomy
+    from Database_generator import *
+    from GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
 
 '''
 This module handles the setup of MANTIS - setting paths and setting up the databases.
@@ -21,7 +21,7 @@ def setup_databases(force_download=False, chunk_size=None, mantis_config=None,co
     if force_download == 'None': force_download = None
     if chunk_size: chunk_size = int(chunk_size)
     if cores: cores=int(cores)
-    mantis = MANTIS_Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores)
+    mantis = Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores)
     mantis.setup_databases(force_download)
 
 
@@ -29,23 +29,23 @@ def merge_hmm_folder(target_folder):
     print_cyan('Merging HMM folder')
     s_target_folder = add_slash(target_folder)
     if target_folder == 'None': return
-    mantis = MANTIS_Assembler()
+    mantis = Assembler()
     mantis.merge_hmm_folder(target_folder)
 
 
 def check_installation(mantis_config=None):
     yellow('Checking installation')
-    mantis = MANTIS_Assembler(mantis_config=mantis_config)
+    mantis = Assembler(mantis_config=mantis_config)
     mantis.check_installation()
 
 
-def extract_nog_metadata(metadata_path):
+def extract_nog_metadata(metadata_path,mantis_config = None):
     yellow('Extracting NOG metadata')
-    mantis = MANTIS_Assembler()
+    mantis = Assembler(mantis_config=mantis_config)
     mantis.extract_nog_metadata(metadata_path)
 
 
-class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
+class Assembler(Database_generator,GTDB_SQLITE_Connector):
     def __init__(self, verbose=True, redirect_verbose=None, mantis_config=None,
                  hmm_chunk_size=None,keep_files=False,user_cores=None):
         self.redirect_verbose = redirect_verbose
@@ -85,20 +85,25 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
                   self.mantis_paths['default'] + '\n' + \
                   'Custom references folder:\n' + \
                   self.mantis_paths['custom'] + '\n' + \
-                  'TAX NOG HMMs folder:\n' + \
+                  'TAX NOG reference folder:\n' + \
                   self.mantis_paths['NOG'] + '\n' + \
-                  'TAX NCBI HMMs folder:\n' + \
+                  'TAX NCBI reference folder:\n' + \
                   self.mantis_paths['NCBI'] + '\n' + \
-                  'Pfam HMMs folder:\n' + \
+                  'Pfam reference folder:\n' + \
                   self.mantis_paths['pfam'] + '\n' + \
-                  'KOfam HMMs folder:\n' + \
+                  'KOfam reference folder:\n' + \
                   self.mantis_paths['kofam'] + '\n' + \
-                  'TCDB sequences folder:\n' + \
+                  'TCDB reference folder:\n' + \
                   self.mantis_paths['tcdb'] + '\n' + \
                 '------------------------------------------' + '\n'
         if custom_res: res+='\n'+custom_res
         ref_weights=', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i!='else'])
-        res+= f'#  Weights:\n{ref_weights}\n'
+        if ref_weights:
+            res+= f'#  Weights:\n{ref_weights}\n'
+
+        nog_tax=', '.join([i for i in self.mantis_nogt_tax])
+        if nog_tax:
+            res+= f'#  NOG tax IDs:\n{nog_tax}\n'
 
         return res
 
@@ -171,49 +176,66 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
     def setup_paths_config_file(self):
         file = open(self.config_file, 'r')
         line = file.readline()
+        nog_hmm=None
+        nog_dmnd=None
         while line:
             line = line.strip('\n')
-            if '#' not in line:
+            if not line.startswith('#') and line:
                 # data sources configuration
-                if 'custom_ref_folder=' in line:
+                if line.startswith('custom_ref_folder='):
                     line_path = add_slash(line.replace('custom_ref_folder=', ''))
                     if line_path: self.mantis_paths['custom'] = line_path
 
-                elif 'resources_folder=' in line:
+                elif line.startswith('resources_folder='):
                     line_path = add_slash(line.replace('resources_folder=', ''))
                     if line_path:
                         self.mantis_paths['resources'] = line_path
 
-                elif 'nog_ref_folder=' in line:
-                    line_path = add_slash(line.replace('nog_ref_folder=', ''))
-                    if line_path: self.mantis_paths['NOG'] = line_path
+                elif line.startswith('nog_hmm_ref_folder='):
+                    line_path = add_slash(line.replace('nog_hmm_ref_folder=', ''))
+                    if line_path: nog_hmm = line_path
+
+                elif line.startswith('nog_dmnd_ref_folder='):
+                    line_path = add_slash(line.replace('nog_dmnd_ref_folder=', ''))
+                    if line_path: nog_dmnd = line_path
 
                 # taxa ids list for only downloading nogt specific to lineage
-                elif 'nog_tax=' in line:
+                elif line.startswith('nog_tax='):
                     line_path = line.replace('nog_tax=', '')
                     self.set_nogt_line(line_path)
 
-                elif 'pfam_ref_folder=' in line:
+                elif line.startswith('pfam_ref_folder='):
                     line_path = add_slash(line.replace('pfam_ref_folder=', ''))
                     if line_path: self.mantis_paths['pfam'] = line_path
 
-                elif 'kofam_ref_folder=' in line:
+                elif line.startswith('kofam_ref_folder='):
                     line_path = add_slash(line.replace('kofam_ref_folder=', ''))
                     if line_path: self.mantis_paths['kofam'] = line_path
 
-                elif 'ncbi_ref_folder=' in line:
+                elif line.startswith('ncbi_ref_folder='):
                     line_path = add_slash(line.replace('ncbi_ref_folder=', ''))
                     if line_path: self.mantis_paths['NCBI'] = line_path
 
-                elif 'tcdb_ref_folder=' in line:
+                elif line.startswith('tcdb_ref_folder='):
                     line_path = add_slash(line.replace('tcdb_ref_folder=', ''))
                     if line_path: self.mantis_paths['tcdb'] = line_path
 
 
-                elif '_weight=' in line:
+                elif line.startswith('_weight='):
                     ref_source, weight = line.split('_weight=')
                     self.mantis_ref_weights[ref_source] = float(weight)
             line = file.readline()
+        if nog_dmnd=='NA/': nog_dmnd=None
+        if nog_hmm=='NA/': nog_hmm=None
+        if nog_dmnd and nog_hmm:
+            self.nog_db='dmnd'
+            self.mantis_paths['NOG']=nog_dmnd
+        elif nog_dmnd and not nog_hmm:
+            self.nog_db='dmnd'
+            self.mantis_paths['NOG']=nog_dmnd
+        elif not nog_dmnd and nog_hmm:
+            self.nog_db='hmm'
+            self.mantis_paths['NOG']=nog_hmm
         file.close()
 
     def read_config_file(self):
@@ -254,7 +276,6 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
         if not os.path.isdir(self.mantis_paths['custom']):
             Path(self.mantis_paths['custom']).mkdir(parents=True, exist_ok=True)
         if self.verbose: print(self, flush=True, file=self.redirect_verbose)
-
 
 
     def order_by_size_descending(self, refs_list):
@@ -328,16 +349,23 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
             if file_exists(gtdb_resources + 'gtdb_to_ncbi.db', force_download):
                 return True
         elif database == 'NOGSQL':
-            if file_exists(self.mantis_paths['default'] + 'eggnog.db', force_download):
+            if file_exists(self.mantis_paths['NOG'] + 'eggnog.db', force_download):
                 return True
         elif database == 'tcdb':
             if file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd', force_download):
                 return True
+        elif database == 'NOG_DMND':
+            if file_exists(self.mantis_paths['NOG'] + 'eggnog_proteins.dmnd', force_download):
+                return True
         target_file = self.get_path_default_ref(database, taxon_id)
         if target_file:
-            for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
-                if not file_exists(target_file + extension, force_download=force_download):
+            if target_file.endswith('.dmnd'):
+                if not file_exists(target_file, force_download=force_download):
                     return False
+            else:
+                for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
+                    if not file_exists(target_file + extension, force_download=force_download):
+                        return False
         else:
             return False
         return True
@@ -485,7 +513,7 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
         res = []
         res = self.check_installation_extras(res, verbose)
 
-        if verbose: yellow('Checking HMM installation', flush=True, file=self.redirect_verbose)
+        if verbose: yellow('Checking references installation', flush=True, file=self.redirect_verbose)
         requirements = {
             self.mantis_paths['pfam']: ['metadata.tsv'],
             self.mantis_paths['tcdb']: ['metadata.tsv'],
@@ -493,21 +521,17 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
         }
         # per tax level FOR EGGNOG
         if self.mantis_paths['NOG'][0:2] != 'NA':
-            tax_hmms = self.get_taxon_refs(db='NOG', folder=True)
-            if not tax_hmms:
-                if verbose: red('Failed installation check on [path unavailable]: ' + self.mantis_paths['NOG'],
-                                flush=True, file=self.redirect_verbose)
+            tax_refs = self.get_taxon_refs(db='NOG', folder=True)
+            if not tax_refs:
+                if verbose: red('Failed installation check on [path unavailable]: ' + self.mantis_paths['NOG'],flush=True, file=self.redirect_verbose)
                 res.append(self.mantis_paths['NOG'])
-            for tax_hmm_folder in tax_hmms:
-                # we skip the taxon 1 since it has no hmms
-                tax_hmm = tax_hmm_folder.split(SPLITTER)[-2]
-                if tax_hmm != '1':
-                    self.check_installation_folder(tax_hmm_folder, res, verbose=False,
-                                                   extra_requirements=[f'{tax_hmm}_sql_annotations.tsv'])
+            for tax_ref_folder in tax_refs:
+                self.check_installation_folder(tax_ref_folder, res, verbose=False,extra_requirements=['metadata.tsv'])
             nogt_check = [i for i in res if self.mantis_paths['NOG'] in i]
             if not nogt_check:
                 if verbose: green('Passed installation check on: ' + self.mantis_paths['NOG'], flush=True,
                                   file=self.redirect_verbose)
+
         # per tax level FOR NCBI
         if self.mantis_paths['NCBI'][0:2] != 'NA':
             #checking those already present
@@ -645,11 +669,18 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
                 if folder:
                     res.append(add_slash(self.mantis_paths[db] + t))
                 else:
-                    res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
-            if folder:
-                res.append(add_slash(self.mantis_paths[db] + db + 'G'))
-            else:
+                    if self.nog_db=='hmm':
+                        res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.hmm')
+                    else:
+                        res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.dmnd')
+        if folder:
+            res.append(add_slash(self.mantis_paths[db] + db + 'G'))
+        else:
+            if self.nog_db == 'hmm':
                 res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.hmm')
+            else:
+                res.append(add_slash(self.mantis_paths[db] + db + 'G') + f'{db}G_merged.dmnd')
+
         return res
 
 
@@ -677,4 +708,4 @@ class MANTIS_Assembler(MANTIS_DB,MANTIS_Taxonomy):
 
 
 if __name__ == '__main__':
-    p = MANTIS_Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.config')
+    p = Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.config')
