@@ -9,6 +9,7 @@ BadNumberWorkers='You should not be seeing this, please contact the developer. I
 ConnectionError='Could not connect to url:\n'
 InvalidTranslation='Invalid residues for translation. Please make sure you provided a CDS of DNA or RNA in the target file:\n'
 InvalidGFFVersion='No valid GFF version found!'
+InvalidNOGType='Your config file does not contain a valid database type for NOG (i.e. <dmnd> or <hmm>)!'
 
 class RequirementsNotMet(Exception):
     def __init__(self, *args):
