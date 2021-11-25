@@ -200,8 +200,6 @@ class Database_generator(UniFunc_wrapper):
         if self.mantis_paths['NOG'][0:2] != 'NA':
             print_cyan('Will now extract metadata from NOG!', flush=True, file=self.redirect_verbose)
             stdout_file = open(self.mantis_out, 'a+')
-            print('Checking which NOGs we need to extract metadata from', flush=True, file=stdout_file)
-            #self.unpack_NOG_sql(stdout_file=stdout_file)
             for taxon_id in os.listdir(self.mantis_paths['NOG']):
                 if os.path.isdir(self.mantis_paths['NOG'] + taxon_id) and taxon_id!='NOGG':
                     target_annotation_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + f'{taxon_id}_annotations.tsv'
@@ -884,66 +882,6 @@ class Database_generator(UniFunc_wrapper):
         download_file(url, output_folder=self.mantis_paths['NOG'], stdout_file=stdout_file)
         uncompress_archive(source_filepath=self.mantis_paths['NOG'] + 'eggnog.db.gz', stdout_file=stdout_file,
                            remove_source=True)
-
-    def pack_NOG_sql(self):
-        #for distribution purposes
-        resources_path = self.mantis_paths['resources']
-        NOG_sql_resources_folder = add_slash(resources_path + 'NOG_sql')
-
-    def unpack_NOG_sql(self, stdout_file=None):
-        '''
-        splitting into different folders for github pushing (without lfs restrictions)
-        x=("NOGT1" "NOGT2" "NOGT3" "NOGT4" "NOGT5")
-        c=0
-        for f in *
-        do
-            mv "$f" "../${x[c]}/"
-            c=$(( (c+1)%5 ))
-        done
-
-        split into 6 subfolders(5 NOGT + NOGG) which should be compressed with:
-        export GZIP=-9
-        then in the NOGT folder do:
-        for i in *; do tar cvzf $i.tar.gz $i; done
-        '''
-        passed = True
-        if self.mantis_paths['NOG'][0:2] == 'NA': return
-        if self.mantis_nogt_tax:
-            for tax_id in self.mantis_nogt_tax:
-                if not file_exists(add_slash(self.mantis_paths['NOG'] + str(tax_id)) + 'metadata.tsv'): passed = False
-            if passed:
-                print('All chosen NOGT were already extracted! Skipping...', flush=True, file=stdout_file)
-                return
-        resources_path = self.mantis_paths['resources']
-        NOG_sql_resources_folder = add_slash(resources_path + 'NOG_sql')
-        NOGT_sql_folder = add_slash(self.mantis_paths['NOG'] + 'NOG_sql')
-        Path(NOGT_sql_folder).mkdir(parents=True, exist_ok=True)
-        Path(NOG_sql_resources_folder).mkdir(parents=True, exist_ok=True)
-
-
-        if not file_exists(NOG_sql_resources_folder): return
-        for compressed_sql in os.listdir(NOG_sql_resources_folder):
-            if 'NOG' in compressed_sql and '.tar.gz' in compressed_sql:
-                uncompress_archive(source_filepath=NOG_sql_resources_folder + compressed_sql,
-                                   extract_path=NOGT_sql_folder, stdout_file=stdout_file, remove_source=False)
-        for sql_folder in os.listdir(NOGT_sql_folder):
-            # sql_folder - e.g. NOGT1
-            if re.search('NOGT\d+', sql_folder) and 'tar.gz' not in sql_folder:
-                for tax_sql in os.listdir(NOGT_sql_folder + sql_folder):
-                    tax_id = tax_sql.split('_')[0]
-                    passed = False
-                    if self.mantis_nogt_tax:
-                        if str(tax_id) in self.mantis_nogt_tax:
-                            passed = True
-                    else:
-                        passed = True
-                    if passed:
-                        Path(add_slash(self.mantis_paths['NOG'] + tax_id)).mkdir(parents=True, exist_ok=True)
-                        move_file(add_slash(NOGT_sql_folder + sql_folder) + tax_sql,
-                                  add_slash(self.mantis_paths['NOG'] + tax_id) + tax_sql)
-        # removing empty folders
-        if file_exists(NOGT_sql_folder):
-            shutil.rmtree(NOGT_sql_folder)
 
     ### Support functions for setting up queue to download NOGT hmms
 

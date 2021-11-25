@@ -10,6 +10,7 @@ class Metadata_SQLITE_Connector():
         self.db_file=metadata_file.replace('.tsv','')+'.db'
         self.db_headers=self.get_db_headers()
         self.insert_step=5000
+        self.info_splitter='##'
         if not file_exists(self.db_file):
             print('Creating SQL database',self.db_file)
             self.create_sql_table()
@@ -38,7 +39,7 @@ class Metadata_SQLITE_Connector():
         res=[ref]
         for db in self.db_headers:
             if db in row_info:
-                res.append(','.join(row_info[db]))
+                res.append(self.info_splitter.join(row_info[db]))
             else:
                 res.append(None)
         return res
@@ -135,7 +136,7 @@ class Metadata_SQLITE_Connector():
             db=self.db_headers[i]
             db_res=sql_result[i]
             if db_res:
-                db_res=db_res.split(',')
+                db_res=db_res.split(self.info_splitter)
                 if db not in res: res[db]=set()
                 res[db].update(db_res)
         return res
@@ -150,6 +151,6 @@ class Metadata_SQLITE_Connector():
 
 
 if __name__ == '__main__':
-    metadata_connector=Metadata_SQLITE_Connector('/home/pedroq/Desktop/test_cr/metadata.tsv')
-    res=metadata_connector.fetch_metadata('D0I9C4')
+    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NCBI/2/metadata.tsv')
+    res=metadata_connector.fetch_metadata('lysidine_TilS_N')
     print(res)
