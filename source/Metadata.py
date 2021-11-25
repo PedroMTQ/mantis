@@ -26,7 +26,7 @@ class Metadata():
     def add_to_dict(self, dict_hits, dict_key, to_add):
         if not to_add: return
         if dict_key not in dict_hits['link']:
-            dict_hits['link'][dict_key] = []
+            dict_hits['link'][dict_key] = set()
         if isinstance(to_add, str):
             list_to_add = [to_add]
         else:
@@ -36,7 +36,7 @@ class Metadata():
                 if i not in dict_hits['link'][dict_key]:
                     i = i.strip()
                     if i:
-                        dict_hits['link'][dict_key].append(i)
+                        dict_hits['link'][dict_key].add(i)
 
     def get_link_compiled_metadata(self, dict_hits, ref_file_path):
         cursor=Metadata_SQLITE_Connector(ref_file_path)
@@ -176,8 +176,8 @@ class Metadata():
             while line:
                 line = line.strip('\n').split('\t')
                 query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore,direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line
-                print('maybe we need to fix this')
-                #if 'NOG' in ref_file: ref_hit = ref_hit.split('.')[0]
+                if self.nog_db == 'hmm' and 'NOG' in ref_file:
+                    ref_hit = ref_hit.split('.')[0]
                 if ref_file not in links_to_get: links_to_get[ref_file] = {}
                 if ref_hit not in links_to_get[ref_file]: links_to_get[ref_file][ref_hit] = {'link': {'hit': ref_hit},
                                                                                              'lines': []}
