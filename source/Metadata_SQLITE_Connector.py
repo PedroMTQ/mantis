@@ -148,9 +148,20 @@ class Metadata_SQLITE_Connector():
         res=self.convert_sql_to_dict(res_fetch)
         return res
 
-
+    def test_database(self):
+        res=set()
+        with open(self.metadata_file_tsv) as file:
+            for line in file:
+                ref=line.split('\t')[0]
+                try:
+                    ref_info=self.fetch_metadata(ref)
+                except:
+                    print(f'Failed retrieving {ref} in {self.db_file}')
+                    res.add(ref)
+        return res
 
 if __name__ == '__main__':
-    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NCBI/2/metadata.tsv')
-    res=metadata_connector.fetch_metadata('lysidine_TilS_N')
-    print(res)
+    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/pfam/metadata.tsv')
+    metadata_connector.test_database()
+    #res=metadata_connector.fetch_metadata('lysidine_TilS_N')
+    #print(res)

@@ -212,6 +212,9 @@ if __name__ == '__main__':
     elif args.execution_type == 'check_installation':
         mantis_config = args.mantis_config
         check_installation(mantis_config=mantis_config)
+    elif args.execution_type == 'check_sql':
+        mantis_config = args.mantis_config
+        check_installation(mantis_config=mantis_config,check_sql=True)
     elif args.execution_type == 'extract_nog_metadata':
         output_folder = args.output_folder
         mantis_config = args.mantis_config

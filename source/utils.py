@@ -1247,4 +1247,4 @@ if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
     print(MANTIS_FOLDER)
-    download_file('http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz',output_folder='/home/pedroq/PycharmProjects/metadata_extraction/')
+    download_file('https://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt',output_folder='/home/pedroq/Desktop/test_uniprot/')

@@ -142,8 +142,8 @@ class Database_generator(UniFunc_wrapper):
 
     def prepare_queue_setup_databases_tax(self, force_download):
         stdout_file = open(self.mantis_out, 'a+')
+        passed_tax_check = True
         if self.mantis_paths['NOG'][0:2] != 'NA':
-            passed_tax_check=True
             Path(self.mantis_paths['NOG']).mkdir(parents=True, exist_ok=True)
             list_taxon_ids = self.get_taxon_for_queue_NOGT()
             if not file_exists(self.mantis_paths['NOG']): passed_tax_check=False
@@ -284,7 +284,7 @@ class Database_generator(UniFunc_wrapper):
         except:
             pass
         taxonomy_url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
-        translation_tables_url='ftp.ncbi.nih.gov/entrez/misc/data/gc.prt'
+        translation_tables_url='https://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt'
         with open(ncbi_resources + 'readme.md', 'w+') as file:
             datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             file.write(f'These files were downloaded on {datetime_str} from:\n{taxonomy_url}\n{translation_tables_url}\nThey are used to traceback organism lineage for taxonomically resolved annotations and to translate CDS')
