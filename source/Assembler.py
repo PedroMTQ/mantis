@@ -37,10 +37,10 @@ def merge_hmm_folder(target_folder):
     mantis.merge_hmm_folder(target_folder)
 
 
-def check_installation(mantis_config=None):
+def check_installation(mantis_config=None,check_sql=False):
     yellow('Checking installation')
     mantis = Assembler(mantis_config=mantis_config)
-    mantis.check_installation()
+    mantis.check_installation(check_sql=check_sql)
 
 
 def extract_nog_metadata(metadata_path,mantis_config = None):
@@ -517,11 +517,33 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 cursor = Metadata_SQLITE_Connector(metadata_file)
                 cursor.close_sql_connection()
 
+    def check_sql_databases(self,ref_dbs):
+        broken_refs=set()
+        broken_ids={}
+        for db in ref_dbs:
+            yellow(f'Checking {db}metadata.db', flush=True,file=self.redirect_verbose)
+            cursor = Metadata_SQLITE_Connector(f'{db}metadata.tsv')
+            db_res=cursor.test_database()
+            if db_res: broken_refs.add(db)
+            if db_res: broken_ids[db]=db_res
+            cursor.close_sql_connection()
+        for db in broken_ids:
+            red(f'Failed SQL check in {db} for the following IDs:\n{broken_ids[db]}', flush=True,file=self.redirect_verbose)
+        if not broken_refs:
+            green('------------------------------------------', flush=True, file=self.redirect_verbose)
+            green('-------------SQL CHECK PASSED-------------', flush=True, file=self.redirect_verbose)
+            green('------------------------------------------', flush=True, file=self.redirect_verbose)
+        else:
+            red('------------------------------------------', flush=True, file=self.redirect_verbose)
+            red('-------------SQL CHECK FAILED-------------', flush=True, file=self.redirect_verbose)
+            red('------------------------------------------', flush=True, file=self.redirect_verbose)
 
-    def check_installation(self, verbose=True):
+
+    def check_installation(self, verbose=True,check_sql=False):
         # we use the verbose mode when running the check_installation directly
         self.compile_sql_metadata()
         self.passed_check = True
+        ref_dbs=set()
         if not cython_compiled():
             self.passed_check = False
             if verbose: red('Cython needs to be compiled!', flush=True,
@@ -545,22 +567,24 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 res.append(self.mantis_paths['NOG'])
             for tax_ref_folder in tax_refs:
                 self.check_installation_folder(tax_ref_folder, res, verbose=False,extra_requirements=['metadata.tsv'])
+                ref_dbs.add(tax_ref_folder)
             nogt_check = [i for i in res if self.mantis_paths['NOG'] in i]
             if not nogt_check:
-                if verbose: green('Passed installation check on: ' + self.mantis_paths['NOG'], flush=True,
-                                  file=self.redirect_verbose)
+                if verbose: green('Passed installation check on: ' + self.mantis_paths['NOG'], flush=True,file=self.redirect_verbose)
 
         # per tax level FOR NCBI
         if self.mantis_paths['NCBI'][0:2] != 'NA':
             #checking those already present
-            tax_hmms = self.get_taxon_refs(db='NCBI', folder=True)
-            if not tax_hmms:
+            tax_refs = self.get_taxon_refs(db='NCBI', folder=True)
+            if not tax_refs:
                 if verbose: red('Failed installation check on [path unavailable]: ' + self.mantis_paths['NCBI'],
                                 flush=True, file=self.redirect_verbose)
                 res.append(self.mantis_paths['NCBI'])
-            for tax_hmm_folder in tax_hmms:
+            for tax_ref_folder in tax_refs:
                 # we skip the taxon 1 since it has no hmms
-                self.check_installation_folder(tax_hmm_folder, res, verbose=False, extra_requirements=['metadata.tsv'])
+                self.check_installation_folder(tax_ref_folder, res, verbose=False, extra_requirements=['metadata.tsv'])
+                ref_dbs.add(tax_ref_folder)
+
             ncbi_check = [i for i in res if self.mantis_paths['NCBI'] in i]
             if not ncbi_check:
                 if verbose: green('Passed installation check on: ' + self.mantis_paths['NCBI'], flush=True,
@@ -570,6 +594,7 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 self.check_installation_folder(ref_folder, res, verbose, extra_requirements=requirements[ref_folder])
             else:
                 self.check_installation_folder(ref_folder, res, verbose)
+            ref_dbs.add(ref_folder)
         if res:
             self.passed_check = False
             fail_res = ''
@@ -577,9 +602,9 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
             if verbose: red(f'Installation check failed on:\n{fail_res}', flush=True, file=self.redirect_verbose)
         if self.passed_check:
             if verbose:
-                yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
+                green('------------------------------------------', flush=True, file=self.redirect_verbose)
                 green('--------INSTALLATION CHECK PASSED!--------', flush=True, file=self.redirect_verbose)
-                yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
+                green('------------------------------------------', flush=True, file=self.redirect_verbose)
             else:
                 print_cyan('Installation check passed', flush=True, file=self.redirect_verbose)
 
@@ -590,6 +615,8 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
             else:
                 print_cyan('Installation check failed', flush=True, file=self.redirect_verbose)
+        if check_sql: self.check_sql_databases(ref_dbs)
+
 
     def get_custom_refs_paths(self, folder=False):
         try:
