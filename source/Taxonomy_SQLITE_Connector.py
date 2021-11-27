@@ -96,27 +96,29 @@ class Taxonomy_SQLITE_Connector():
 
 
     def create_taxonomy_db(self):
-        Path(self.temp_folder).mkdir(parents=True, exist_ok=True)
-        self.download_data()
-        #this will probably need to be changed to an output_folder provided by the user
-        if os.path.exists(self.db_file):
-            os.remove(self.db_file)
-        self.sqlite_connection = sqlite3.connect(self.db_file)
-        self.cursor = self.sqlite_connection.cursor()
+        if not os.path.exists(self.db_file):
 
-        create_table_command = f'CREATE TABLE GTDB2NCBI (' \
-                            f'GTDB TEXT,' \
-                            f'NCBI  INTEGER )'
-        self.cursor.execute(create_table_command)
+            Path(self.temp_folder).mkdir(parents=True, exist_ok=True)
+            self.download_data()
+            #this will probably need to be changed to an output_folder provided by the user
+            if os.path.exists(self.db_file):
+                os.remove(self.db_file)
+            self.sqlite_connection = sqlite3.connect(self.db_file)
+            self.cursor = self.sqlite_connection.cursor()
 
-        create_table_command = f'CREATE TABLE NCBILINEAGE (' \
-                            f'NCBI INTEGER,' \
-                            f'LINEAGE  TEXT )'
-        self.cursor.execute(create_table_command)
-        self.sqlite_connection.commit()
-        self.store_gtdb2ncbi()
-        self.store_ncbi_lineage()
-        shutil.rmtree(self.temp_folder)
+            create_table_command = f'CREATE TABLE GTDB2NCBI (' \
+                                f'GTDB TEXT,' \
+                                f'NCBI  INTEGER )'
+            self.cursor.execute(create_table_command)
+
+            create_table_command = f'CREATE TABLE NCBILINEAGE (' \
+                                f'NCBI INTEGER,' \
+                                f'LINEAGE  TEXT )'
+            self.cursor.execute(create_table_command)
+            self.sqlite_connection.commit()
+            self.store_gtdb2ncbi()
+            self.store_ncbi_lineage()
+            shutil.rmtree(self.temp_folder)
 
 
 
@@ -188,14 +190,14 @@ class Taxonomy_SQLITE_Connector():
 
     def fetch_gtdb_id(self,ncbi_id):
         res=set()
-        fetch_command = f"SELECT GTDB,NCBI FROM GTDB2NCBI WHERE NCBI = {ncbi_id}"
+        fetch_command = f'SELECT GTDB,NCBI FROM GTDB2NCBI WHERE NCBI = "{ncbi_id}"'
         res_fetch=self.cursor.execute(fetch_command).fetchall()
         for i in res_fetch:
             res.add(i[0])
         return res
 
     def fetch_ncbi_lineage(self,ncbi_id):
-        fetch_command = f"SELECT NCBI,LINEAGE FROM NCBILINEAGE WHERE NCBI = {ncbi_id}"
+        fetch_command = f'SELECT NCBI,LINEAGE FROM NCBILINEAGE WHERE NCBI = "{ncbi_id}"'
         res_fetch=self.cursor.execute(fetch_command).fetchone()
         if res_fetch:
             taxon_id,lineage=res_fetch
@@ -225,7 +227,6 @@ class Taxonomy_SQLITE_Connector():
         for taxon_id in list_taxons:
             taxon_lineage=self.fetch_ncbi_lineage(taxon_id)
             if taxon_lineage:
-                taxon_lineage=taxon_lineage.split(',')
                 all_lineages.append(taxon_lineage)
                 if not min_size: min_size=len(taxon_lineage)
                 if len(taxon_lineage)<min_size: min_size=len(taxon_lineage)
@@ -267,6 +268,8 @@ class Taxonomy_SQLITE_Connector():
 if __name__ == '__main__':
     gtdb_connector=Taxonomy_SQLITE_Connector()
     gtdb_connector.launch_taxonomy_connector(resources_folder='/home/pedroq/Desktop/test_cr/')
+    gtdb_connector.create_taxonomy_db()
+
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
     print(a)
     a=gtdb_connector.fetch_ncbi_id('Clostridium_P perfringens')
