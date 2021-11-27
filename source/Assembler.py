@@ -1,11 +1,11 @@
 try:
     from source.Database_generator import *
-    from source.GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
+    from source.Taxonomy_SQLITE_Connector import Taxonomy_SQLITE_Connector
     from source.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 
 except:
     from Database_generator import *
-    from GTDB_SQLITE_Connector import GTDB_SQLITE_Connector
+    from Taxonomy_SQLITE_Connector import Taxonomy_SQLITE_Connector
     from Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 
 
@@ -20,12 +20,12 @@ grep "Disk quota exceeded" *
 '''
 
 
-def setup_databases(force_download=False, chunk_size=None, mantis_config=None,cores=None):
+def setup_databases(force_download=False, chunk_size=None,no_taxonomy=False,mantis_config=None,cores=None):
     print_cyan('Setting up databases')
     if force_download == 'None': force_download = None
     if chunk_size: chunk_size = int(chunk_size)
     if cores: cores=int(cores)
-    mantis = Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores)
+    mantis = Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores,no_taxonomy=no_taxonomy)
     mantis.setup_databases(force_download)
 
 
@@ -37,24 +37,21 @@ def merge_hmm_folder(target_folder):
     mantis.merge_hmm_folder(target_folder)
 
 
-def check_installation(mantis_config=None,check_sql=False):
+def check_installation(mantis_config=None,no_taxonomy=False,check_sql=False):
     yellow('Checking installation')
-    mantis = Assembler(mantis_config=mantis_config)
+    mantis = Assembler(mantis_config=mantis_config,no_taxonomy=no_taxonomy)
     mantis.check_installation(check_sql=check_sql)
 
 
-def extract_nog_metadata(metadata_path,mantis_config = None):
-    yellow('Extracting NOG metadata')
-    mantis = Assembler(mantis_config=mantis_config)
-    mantis.extract_nog_metadata(metadata_path)
 
-
-class Assembler(Database_generator,GTDB_SQLITE_Connector):
-    def __init__(self, verbose=True, redirect_verbose=None, mantis_config=None,
+class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
+    def __init__(self, verbose=True, redirect_verbose=None,no_taxonomy=False, mantis_config=None,
                  hmm_chunk_size=None,keep_files=False,user_cores=None):
         self.redirect_verbose = redirect_verbose
         self.keep_files = keep_files
         self.verbose = verbose
+        if no_taxonomy: self.use_taxonomy = False
+        else:           self.use_taxonomy=True
         self.mantis_config = mantis_config
         self.user_cores = user_cores
         self.broken_merged_hmms = set()
@@ -73,6 +70,7 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
         # we need manager.list because a normal list cant communicate during multiprocessing
         self.manager = Manager()
         self.queue = self.manager.list()
+
 
     def __str__(self):
         custom_refs = self.get_custom_refs_paths(folder=True)
@@ -167,12 +165,12 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                 for t_id in tax_ids:
                     try:
                         ncbi_taxon_id = int(t_id)
-                        organism_lineage = self.get_organism_lineage(ncbi_taxon_id)
+                        organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id)
                         res.update(organism_lineage)
                     except:
                         ncbi_taxon_id = self.get_taxa_ncbi(t_id)
                         if ncbi_taxon_id:
-                            organism_lineage = self.get_organism_lineage(ncbi_taxon_id)
+                            organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id)
                             res.update(organism_lineage)
             for i in res:
                 self.mantis_nogt_tax.add(str(i))
@@ -181,6 +179,7 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
         self.nog_db = 'dmnd'
         file = open(self.config_file, 'r')
         line = file.readline()
+        nogt_line=None
         while line:
             line = line.strip('\n')
             if not line.startswith('#') and line:
@@ -200,8 +199,7 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
 
                 # taxa ids list for only downloading nogt specific to lineage
                 elif line.startswith('nog_tax='):
-                    line_path = line.replace('nog_tax=', '')
-                    self.set_nogt_line(line_path)
+                    nogt_line = line.replace('nog_tax=', '')
 
                 elif line.startswith('pfam_ref_folder='):
                     line_path = add_slash(line.replace('pfam_ref_folder=', ''))
@@ -232,6 +230,11 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                         self.nog_db=nog_db
             line = file.readline()
         file.close()
+        if self.use_taxonomy:
+            if nogt_line:
+                if self.launch_taxonomy_connector(resources_folder=self.mantis_paths['resources']):
+                    self.set_nogt_line(nogt_line)
+
 
     def read_config_file(self):
         self.mantis_ref_weights = {'else': 0.7}
@@ -268,6 +271,9 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
                              'tcdb': add_slash(default_ref_path + 'tcdb'),
                              }
         self.setup_paths_config_file()
+        if not self.use_taxonomy:
+            self.mantis_paths['NOG']=f'NA{SPLITTER}'
+            self.mantis_paths['NCBI']=f'NA{SPLITTER}'
         if not os.path.isdir(self.mantis_paths['custom']):
             Path(self.mantis_paths['custom']).mkdir(parents=True, exist_ok=True)
         if self.verbose: print(self, flush=True, file=self.redirect_verbose)
@@ -334,14 +340,16 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
         return target_file
 
     def check_reference_exists(self, database, taxon_id=None, force_download=False):
+        ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
+
         if database == 'ncbi_res':
-            ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
-            if file_exists(ncbi_resources + 'taxidlineage.dmp', force_download) and \
+            if file_exists(ncbi_resources + 'gc.prt', force_download) and \
                     file_exists(ncbi_resources + 'gc.prt', force_download):
                 return True
-        elif database == 'gtdb_res':
+        elif database == 'taxonomy':
+            taxonomy_db=self.mantis_paths['resources'] + 'Taxonomy.db'
             gtdb_resources = add_slash(self.mantis_paths['resources'] + 'GTDB')
-            if file_exists(gtdb_resources + 'gtdb_to_ncbi.db', force_download):
+            if file_exists(taxonomy_db, force_download):
                 return True
         elif database == 'NOGSQL':
             if file_exists(self.mantis_paths['NOG'] + 'eggnog.db', force_download):
@@ -370,9 +378,8 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
 
     def check_installation_extras(self, res, verbose=True):
         ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
-        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
         essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
-
+        taxonomy_db=self.mantis_paths['resources']+'Taxonomy.db'
 
         if verbose: yellow('Checking extra files', flush=True, file=self.redirect_verbose)
 
@@ -383,23 +390,19 @@ class Assembler(Database_generator,GTDB_SQLITE_Connector):
         else:
             if verbose: green('Passed installation check on: ' + self.mantis_paths['resources'] + 'essential_genes',flush=True, file=self.redirect_verbose)
 
-        if not file_exists(ncbi_resources + 'taxidlineage.dmp'):
-            if verbose: red('Failed installation check on [files missing]: ' + ncbi_resources + 'taxidlineage.dmp',flush=True, file=self.redirect_verbose)
-            res.append(ncbi_resources)
-        else:
-            if verbose: green('Passed installation check on: ' + ncbi_resources+ 'taxidlineage.dmp', flush=True,file=self.redirect_verbose)
-
         if not file_exists(ncbi_resources + 'gc.prt'):
             if verbose: red('Failed installation check on [files missing]: ' + ncbi_resources + 'gc.prt.dmp',flush=True, file=self.redirect_verbose)
             res.append(ncbi_resources)
         else:
             if verbose: green('Passed installation check on: ' + ncbi_resources+'gc.prt.dmp', flush=True,file=self.redirect_verbose)
 
-        if not file_exists(gtdb_resources + 'gtdb_to_ncbi.db'):
-            if verbose: red('Failed installation check on [files missing]: ' + gtdb_resources + 'gtdb_to_ncbi.db',flush=True, file=self.redirect_verbose)
-            res.append(gtdb_resources)
-        else:
-            if verbose: green('Passed installation check on: ' + gtdb_resources+'gtdb_to_ncbi.db', flush=True,file=self.redirect_verbose)
+
+        if self.use_taxonomy:
+            if not file_exists(taxonomy_db):
+                if verbose: red(f'Failed installation check on [files missing]: {taxonomy_db}',flush=True, file=self.redirect_verbose)
+                res.append(taxonomy_db)
+            else:
+                if verbose: green(f'Passed installation check on: {taxonomy_db}', flush=True,file=self.redirect_verbose)
         return res
 
     def check_chunks_dir(self,chunks_dir):

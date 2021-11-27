@@ -34,13 +34,13 @@ class Database_generator(UniFunc_wrapper):
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
         dbs_list = [
             'ncbi_res',
-            'gtdb_res',
             'pfam' if self.mantis_paths['pfam'][0:2] != 'NA' else None,
             'kofam' if self.mantis_paths['kofam'][0:2] != 'NA' else None,
             'tcdb' if self.mantis_paths['tcdb'][0:2] != 'NA' else None,
             'NCBI' if self.mantis_paths['NCBI'][0:2] != 'NA' else None,
         ]
-
+        if self.use_taxonomy:
+            dbs_list.insert(0,'taxonomy')
         # DOWNLOADING
         self.prepare_queue_setup_databases(dbs_list, force_download)
         # for unzipping tax specific hmms
@@ -97,39 +97,7 @@ class Database_generator(UniFunc_wrapper):
         print_cyan('Finished setting up databases!', flush=True, file=self.redirect_verbose)
 
 
-    #this is a standalone execution, this is just for the developers to update the NOG tars and then upload them to Github
-    @timeit_class
-    def extract_nog_metadata(self, metadata_path):
-        # metadata_path where we are extracting metadata to. This is an auxilliary function for compillation of NOG's metadata
-        self.mantis_paths['NOG'] = add_slash(metadata_path + 'NOG')
-        self.output_folder = metadata_path + 'extract_nog_metadata/'
-        self.mantis_out = self.output_folder + 'Mantis.out'
-        self.mantis_paths['resources'] = add_slash(metadata_path + 'Resources')
-        self.mantis_paths['default'] = add_slash(metadata_path)
 
-        Path(self.output_folder).mkdir(parents=True, exist_ok=True)
-        Path(self.mantis_paths['resources']).mkdir(parents=True, exist_ok=True)
-        Path(self.mantis_paths['NOG']).mkdir(parents=True, exist_ok=True)
-        self.download_pfam_id_to_acc()
-        if file_exists(self.mantis_out):
-            os.remove(self.mantis_out)
-        stdout_file = open(self.mantis_out, 'a+')
-        taxon_ids = self.get_ref_taxon_ids('NOG')
-        self.download_and_unzip_eggnogdb()
-        print(f'The following taxons will be extracted:{taxon_ids}', flush=True, file=self.redirect_verbose)
-
-        for t in taxon_ids:
-            Path(self.mantis_paths['NOG'] + t).mkdir(parents=True, exist_ok=True)
-            url = f'http://eggnog5.embl.de/download/latest/per_tax_level/{t}/{t}_annotations.tsv.gz'
-            download_file(url, output_folder=add_slash(self.mantis_paths['NOG'] + t), stdout_file=stdout_file)
-            uncompress_archive(source_filepath=add_slash(self.mantis_paths['NOG'] + t) + f'{t}_annotations.tsv.gz',
-                               stdout_file=stdout_file, remove_source=True)
-        self.prepare_queue_extract_metadata_NOG_HMM()
-        worker_count = estimate_number_workers_setup_database(len(self.queue), minimum_jobs_per_worker=2, user_cores=self.user_cores)
-        print(f'Metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
-        self.processes_handler(self.worker_extract_NOG_metadata_HMM, worker_count)
-        self.pack_NOG_sql()
-        remove_file(self.mantis_paths['resources'] + 'Pfam-A.hmm.dat')
 
 
 
@@ -141,6 +109,7 @@ class Database_generator(UniFunc_wrapper):
                 self.queue.append([database, force_download, self.mantis_out])
 
     def prepare_queue_setup_databases_tax(self, force_download):
+        if not self.use_taxonomy: return True
         stdout_file = open(self.mantis_out, 'a+')
         passed_tax_check = True
         if self.mantis_paths['NOG'][0:2] != 'NA':
@@ -259,8 +228,8 @@ class Database_generator(UniFunc_wrapper):
 
     def download_database(self, database, force_download=False, taxon_id=None, stdout_path=None):
         stdout_file = open(stdout_path, 'a+')
-        if database == 'ncbi_res':      self.download_ncbi_resources(force_download=force_download, stdout_file=stdout_file)
-        elif database == 'gtdb_res':    self.download_gtdb_resources(force_download=force_download, stdout_file=stdout_file)
+        if database == 'taxonomy':      self.download_taxonomy_resources(force_download=force_download, stdout_file=stdout_file)
+        elif database == 'ncbi_res':    self.download_ncbi_resources(force_download=force_download, stdout_file=stdout_file)
         elif database == 'pfam':        self.download_pfam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'kofam':       self.download_kofam(force_download=force_download, stdout_file=stdout_file)
         elif database == 'tcdb':        self.download_tcdb(force_download=force_download, stdout_file=stdout_file)
@@ -276,32 +245,27 @@ class Database_generator(UniFunc_wrapper):
     def download_ncbi_resources(self, force_download=False, stdout_file=None):
         ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
         Path(ncbi_resources).mkdir(parents=True, exist_ok=True)
-        if file_exists(ncbi_resources + 'taxidlineage.dmp', force_download) and file_exists(ncbi_resources + 'gc.prt', force_download):
-            print('NCBI taxonomic lineage file already exists! Skipping...', flush=True, file=stdout_file)
+        if  file_exists(ncbi_resources + 'gc.prt', force_download):
+            print('Translation tables already exist! Skipping...', flush=True, file=stdout_file)
             return
         try:
-            os.remove(ncbi_resources + 'taxidlineage.dmp')
+            os.remove(ncbi_resources + 'gc.prt')
         except:
             pass
-        taxonomy_url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
         translation_tables_url='https://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt'
         with open(ncbi_resources + 'readme.md', 'w+') as file:
             datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            file.write(f'These files were downloaded on {datetime_str} from:\n{taxonomy_url}\n{translation_tables_url}\nThey are used to traceback organism lineage for taxonomically resolved annotations and to translate CDS')
+            file.write(f'These files were downloaded on {datetime_str} from:\n{translation_tables_url}\nThey are used to translate CDS')
         print_cyan('Downloading and unzipping NCBI resources', flush=True, file=stdout_file)
-        for url in [taxonomy_url,translation_tables_url]:
+        for url in [translation_tables_url]:
             download_file(url, output_folder=ncbi_resources, stdout_file=stdout_file)
-        uncompress_archive(source_filepath=ncbi_resources + 'new_taxdump.tar.gz',
-                           extract_path=ncbi_resources, stdout_file=stdout_file, remove_source=True)
-        # deleting the extra files that come with the tar dump
-        files_dir = os.listdir(ncbi_resources)
-        for file in files_dir:
-            if file not in ['taxidlineage.dmp','gc.prt','readme.md']:
-                os.remove(ncbi_resources + file)
 
-    def download_gtdb_resources(self, force_download=False, stdout_file=None):
-        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
-        self.launch_gtdb_connector(resources_folder=gtdb_resources)
+
+    def download_taxonomy_resources(self, force_download=False, stdout_file=None):
+        if not file_exists(self.mantis_paths['resources']+'Taxonomy.db'):
+            self.launch_taxonomy_connector(resources_folder=self.mantis_paths['resources'])
+            self.create_taxonomy_db()
+            self.close_taxonomy_connection()
 
     def get_common_links_metadata(self, string, res):
         ec = find_ecs(string)
