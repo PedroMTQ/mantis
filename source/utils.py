@@ -726,6 +726,7 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
             return
     target_size = target_file.info()['Content-Length']
     transfer_encoding = target_file.info()['Transfer-Encoding']
+    print(file_path)
     if target_size: target_size = int(target_size)
     if file_exists(file_path):
         if transfer_encoding == 'chunked':

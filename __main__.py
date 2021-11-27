@@ -10,7 +10,6 @@ try:
     from source.Assembler import add_slash, \
         get_path_level, \
         check_installation, \
-        extract_nog_metadata, \
         setup_databases, \
         merge_hmm_folder
     from source.utils import MANTIS_FOLDER
@@ -47,7 +46,7 @@ if __name__ == '__main__':
                              '\tquery_name_3\ttarget_path_3\t\n' +
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
-                                 'extract_nog_metadata','test_nlp','citation','version'])
+                                 'test_nlp','citation','version'])
     parser.add_argument('-t', '--target', help='[required]\tAnnotation target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
@@ -79,6 +78,8 @@ if __name__ == '__main__':
                         help='[optional]\tdo not use UniFunc for similarity analysis during consensus generation.')
     parser.add_argument('-nce', '--no_consensus_expansion', action='store_true',
                         help='[optional]\tdo not expand hits during consensus generation.')
+    parser.add_argument('-notax', '--no_taxonomy', action='store_true',
+                        help='[optional]\tDo not download and use taxonomy databases.')
     parser.add_argument('-km', '--kegg_matrix', action='store_true',
                         help='[optional]\tgenerate KEGG modules completeness matrix.')
     parser.add_argument('-vkm', '--verbose_kegg_matrix', action='store_true',
@@ -138,6 +139,7 @@ if __name__ == '__main__':
         skip_managed_memory = args.skip_managed_memory
         force_evalue = args.force_evalue
         no_consensus_expansion = args.no_consensus_expansion
+        no_taxonomy = args.no_taxonomy
         no_unifunc = args.no_unifunc
         kegg_matrix = args.kegg_matrix
         verbose_kegg_matrix = args.verbose_kegg_matrix
@@ -179,6 +181,7 @@ if __name__ == '__main__':
                            skip_managed_memory=skip_managed_memory,
                            force_evalue=force_evalue,
                            no_consensus_expansion=no_consensus_expansion,
+                           no_taxonomy=no_taxonomy,
                            no_unifunc=no_unifunc,
                            kegg_matrix=kegg_matrix,
                            verbose_kegg_matrix=verbose_kegg_matrix,
@@ -200,8 +203,9 @@ if __name__ == '__main__':
         mantis_config = args.mantis_config
         force_download = args.force_download
         chunk_size = args.chunk_size
+        no_taxonomy = args.no_taxonomy
         cores = args.cores
-        setup_databases(force_download=force_download, chunk_size=chunk_size, mantis_config=mantis_config,cores=cores)
+        setup_databases(force_download=force_download, chunk_size=chunk_size,no_taxonomy=no_taxonomy, mantis_config=mantis_config,cores=cores)
         print_citation_mantis()
     elif args.execution_type == 'citation':
         print_citation_mantis()
@@ -211,20 +215,12 @@ if __name__ == '__main__':
         print_citation_mantis()
     elif args.execution_type == 'check_installation':
         mantis_config = args.mantis_config
-        check_installation(mantis_config=mantis_config)
+        no_taxonomy = args.no_taxonomy
+        check_installation(mantis_config=mantis_config,no_taxonomy=no_taxonomy)
     elif args.execution_type == 'check_sql':
         mantis_config = args.mantis_config
-        check_installation(mantis_config=mantis_config,check_sql=True)
-    elif args.execution_type == 'extract_nog_metadata':
-        output_folder = args.output_folder
-        mantis_config = args.mantis_config
-        if not output_folder:
-            output_folder = add_slash(os.getcwd()) + 'metadata_extraction'
-            print(f'No output folder provided! Saving data to: {output_folder}')
-        output_folder = add_slash(output_folder)
-        extract_nog_metadata(metadata_path=output_folder,mantis_config=mantis_config)
-        print_citation_mantis()
-
+        no_taxonomy = args.no_taxonomy
+        check_installation(mantis_config=mantis_config,check_sql=True,no_taxonomy=no_taxonomy)
     elif args.execution_type == 'test_nlp':
         test_nlp()
     elif args.execution_type == 'version':

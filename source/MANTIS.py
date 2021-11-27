@@ -36,6 +36,7 @@ def run_mantis(target_path,
                skip_managed_memory=False,
                force_evalue=False,
                no_consensus_expansion=False,
+               no_taxonomy=False,
                no_unifunc=False,
                kegg_matrix=False,
                verbose_kegg_matrix=False,
@@ -77,6 +78,7 @@ def run_mantis(target_path,
         skip_managed_memory=skip_managed_memory,
         force_evalue=force_evalue,
         no_consensus_expansion=no_consensus_expansion,
+        no_taxonomy=no_taxonomy,
         no_unifunc=no_unifunc,
         kegg_matrix=kegg_matrix,
         verbose_kegg_matrix=verbose_kegg_matrix,
@@ -144,6 +146,7 @@ class MANTIS(Multiprocessing):
                  skip_managed_memory=False,
                  force_evalue=False,
                  no_consensus_expansion=False,
+                 no_taxonomy=False,
                  no_unifunc=False,
                  kegg_matrix=False,
                  verbose_kegg_matrix=False,
@@ -213,9 +216,7 @@ class MANTIS(Multiprocessing):
         self.diamond_db_size=1e6
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
         Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
-                                  mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores)
-        gtdb_resources=add_slash(self.mantis_paths['resources']+'GTDB')
-        self.launch_gtdb_connector(resources_folder=gtdb_resources)
+                                  mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores,no_taxonomy=no_taxonomy)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.target_path:
             print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
@@ -263,6 +264,7 @@ class MANTIS(Multiprocessing):
             'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
             'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
             'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
+            'Do not use taxonomy:\t' + str(self.use_taxonomy) + '\n' if not self.use_taxonomy else '',
             'Skip text similarity analysis:\t' + str(self.no_unifunc) + '\n' if self.no_unifunc else '',
             kegg_matrix_str,
             '------------------------------------------']
@@ -378,17 +380,18 @@ class MANTIS(Multiprocessing):
              count_seqs_original_file,count_residues_original_file])
 
     def setup_organism_lineage(self, organism_details, stdout_file):
+        if not self.use_taxonomy: return []
         if not organism_details:
             print_cyan('No data provided for organism lineage!', flush=True, file=stdout_file)
             return []
         if re.match('\d+', organism_details):
             print_cyan('Setting up organism lineage from provided NCBI taxon id', flush=True, file=stdout_file)
-            organism_lineage = self.get_organism_lineage(organism_details, stdout_file=stdout_file)
+            organism_lineage = self.fetch_ncbi_lineage(organism_details, stdout_file=stdout_file)
         else:
             print_cyan('Setting up organism lineage from provided taxon synonym or GTDB lineage', flush=True, file=stdout_file)
             organism_details_dict = {'synonyms': organism_details}
             ncbi_taxon_id = self.get_taxa_ncbi(organism_details)
-            organism_lineage = self.get_organism_lineage(ncbi_taxon_id, stdout_file=stdout_file)
+            organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id, stdout_file=stdout_file)
         return organism_lineage
 
 
@@ -443,6 +446,9 @@ class MANTIS(Multiprocessing):
         self.generate_fastas_to_annotate()
         self.generate_translated_sample()
         self.generate_sample_lineage()
+        if self.use_taxonomy:
+            self.close_taxonomy_connection()
+
         self.split_sample()
 
         self.set_chunks_to_annotate()
@@ -488,7 +494,7 @@ class MANTIS(Multiprocessing):
 
     @timeit_class
     def run_mantis(self):
-        self.check_installation(verbose=False)
+        self.check_installation(verbose=True)
         if not self.passed_check:
             kill_switch(InstallationCheckNotPassed)
 
@@ -498,6 +504,8 @@ class MANTIS(Multiprocessing):
         print_cyan('Determining lineage', flush=True, file=self.redirect_verbose)
         self.generate_translated_sample()
         self.generate_sample_lineage()
+        if self.use_taxonomy:
+            self.close_taxonomy_connection()
         self.split_sample()
         self.set_chunks_to_annotate()
         start_time = time()
