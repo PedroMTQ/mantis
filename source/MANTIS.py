@@ -315,7 +315,6 @@ class MANTIS(Multiprocessing):
                             genetic_code = None
                         count_seqs_original_file = get_seqs_count(line_path)
                         count_residues_original_file = count_residues(line_path)
-                        print(organism_details)
                         if os.path.exists(line_path):
                             self.fastas_to_annotate.append([line_path, add_slash(self.output_folder + query_name),
                                                             organism_details,genetic_code,
@@ -505,7 +504,8 @@ class MANTIS(Multiprocessing):
         self.generate_translated_sample()
         self.generate_sample_lineage()
         if self.use_taxonomy:
-            self.close_taxonomy_connection()
+            try:    self.close_taxonomy_connection()
+            except: pass
         self.split_sample()
         self.set_chunks_to_annotate()
         start_time = time()

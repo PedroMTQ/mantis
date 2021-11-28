@@ -46,7 +46,7 @@ if __name__ == '__main__':
                              '\tquery_name_3\ttarget_path_3\t\n' +
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
-                                 'test_nlp','citation','version'])
+                                 'test_nlp','citation','version','check_sql'])
     parser.add_argument('-t', '--target', help='[required]\tAnnotation target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
