@@ -116,10 +116,11 @@ class Database_generator(UniFunc_wrapper):
             Path(self.mantis_paths['NOG']).mkdir(parents=True, exist_ok=True)
             list_taxon_ids = self.get_taxon_for_queue_NOGT()
             if not file_exists(self.mantis_paths['NOG']): passed_tax_check=False
-            if passed_tax_check:
-                for taxon_id in list_taxon_ids:
+            for taxon_id in list_taxon_ids:
+                if taxon_id!='1':
                     if not self.check_reference_exists('NOGT',taxon_id=taxon_id):
                         passed_tax_check = False
+                        break
             if self.nog_db=='hmm':
                 if not passed_tax_check:
                     for taxon_id in list_taxon_ids:
@@ -137,6 +138,7 @@ class Database_generator(UniFunc_wrapper):
                 file.write(f'This data was downloaded on {datetime_str}')
             self.download_and_unzip_eggnogdb()
             self.download_pfam_id_to_acc()
+
         return passed_tax_check
 
 
@@ -355,36 +357,41 @@ class Database_generator(UniFunc_wrapper):
                 link_line += f'\t{link_type}:{inner_link}'
         return hmm + f'\t|{link_line}\n'
 
+    def get_hmm_info_pfam(self,line,file,pfam2go):
+        if line.startswith('#=GF ID'):
+            hmm=line.replace('#=GF ID','').strip('\n').strip()
+        if hmm:
+            line = file.readline()
+            if line.startswith('#=GF AC'):
+                pfam_accession = line.replace('#=GF AC', '').strip('\n').strip().split('.')[0]
+            line = file.readline()
+            if line.startswith('#=GF DE'):
+                hmm_description = line.replace('#=GF DE', '').strip('\n').strip()
+
+            if pfam_accession in pfam2go:
+                current_metadata = pfam2go[pfam_accession]
+            else:
+                current_metadata = {'description': set()}
+
+            current_metadata['pfam'] = set()
+            current_metadata['pfam'].add(pfam_accession)
+            current_metadata['pfam'].add(hmm)
+            if self.is_good_description(hmm, hmm_description):
+                current_metadata['description'].add(hmm_description)
+            get_common_links_metadata(hmm_description, current_metadata)
+            metadata_line = self.build_pfam_line(hmm, current_metadata)
+            return metadata_line
+
+
     def compile_pfam_metadata(self):
         pfam2go = self.read_pfam2go()
         with open(self.mantis_paths['pfam'] + 'metadata.tsv', 'w+') as pfam_metadata_file:
             with open(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat') as pfam_dat_file:
-                stop = False
-                line = pfam_dat_file.readline()
-                while line:
-                    line = line.strip('\n').split('   ')
-                    if len(line) == 2:
-                        row_header, row_description = line
-                        if row_header == '#=GF ID':
-                            stop = True
-                            hmm = str(row_description)
-                        elif row_header == '#=GF AC':
-                            pfam_accession = str(row_description)
-                            pfam_accession = pfam_accession.split('.')[0].strip()
-                        elif row_header == '#=GF DE' and stop:
-                            if pfam_accession in pfam2go:
-                                current_metadata = pfam2go[pfam_accession]
-                            else:
-                                current_metadata = {'description': set()}
-                            current_metadata['pfam'] = set()
-                            current_metadata['pfam'].add(pfam_accession)
-                            if self.is_good_description(hmm, row_description):
-                                current_metadata['description'].add(row_description)
-                            get_common_links_metadata(row_description, current_metadata)
-                            stop = False
-                            metadata_line = self.build_pfam_line(hmm, current_metadata)
-                            pfam_metadata_file.write(metadata_line)
-                    line = pfam_dat_file.readline()
+                for line in pfam_dat_file:
+                    line = line.strip('\n')
+                    if line.startswith('#=GF ID'):
+                        metadata_line=self.get_hmm_info_pfam(line,pfam_dat_file,pfam2go)
+                        pfam_metadata_file.write(metadata_line)
         remove_file(self.mantis_paths['pfam'] + 'Pfam-A.hmm.dat')
         remove_file(self.mantis_paths['pfam'] + 'pfam2go')
 

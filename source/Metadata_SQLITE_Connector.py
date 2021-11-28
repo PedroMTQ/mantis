@@ -8,6 +8,8 @@ class Metadata_SQLITE_Connector():
     def __init__(self,metadata_file):
         self.metadata_file_tsv=metadata_file
         self.db_file=metadata_file.replace('.tsv','')+'.db'
+        if not file_exists(self.metadata_file_tsv):
+            kill_switch(MissingMetadataFile)
         self.db_headers=self.get_db_headers()
         self.insert_step=5000
         self.info_splitter='##'
@@ -145,8 +147,12 @@ class Metadata_SQLITE_Connector():
     def fetch_metadata(self,ref_id):
         fetch_command=self.generate_fetch_command(ref_id)
         res_fetch=self.cursor.execute(fetch_command).fetchone()
-        res=self.convert_sql_to_dict(res_fetch)
-        return res
+        try:
+            res=self.convert_sql_to_dict(res_fetch)
+            return res
+        except:
+            print(f'Failed retrieving {ref_id} in {self.db_file}')
+            return {}
 
     def test_database(self):
         res=set()
@@ -162,6 +168,8 @@ class Metadata_SQLITE_Connector():
 
 if __name__ == '__main__':
     metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/pfam/metadata.tsv')
-    metadata_connector.test_database()
-    #res=metadata_connector.fetch_metadata('lysidine_TilS_N')
-    #print(res)
+    #metadata_connector.test_database()
+    res=metadata_connector.fetch_metadata('DUF2628')
+    print(res)
+    res=metadata_connector.fetch_metadata('PF10947')
+    print(res)
