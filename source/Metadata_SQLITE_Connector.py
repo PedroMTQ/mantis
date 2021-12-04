@@ -10,7 +10,6 @@ class Metadata_SQLITE_Connector():
         self.db_file=metadata_file.replace('.tsv','')+'.db'
         if not file_exists(self.metadata_file_tsv):
             kill_switch(MissingMetadataFile)
-        self.db_headers=self.get_db_headers()
         self.insert_step=5000
         self.info_splitter='##'
         if not file_exists(self.db_file):
@@ -24,6 +23,7 @@ class Metadata_SQLITE_Connector():
     def start_sqlite_cursor(self):
         self.sqlite_connection = sqlite3.connect(self.db_file)
         self.cursor = self.sqlite_connection.cursor()
+        self.get_db_headers()
 
     def commit_and_close_sqlite_cursor(self):
         self.sqlite_connection.commit()
@@ -87,21 +87,30 @@ class Metadata_SQLITE_Connector():
         return res
 
     def get_db_headers(self):
-        res=set()
-        with open(self.metadata_file_tsv, 'r') as file:
-            for line in file:
-                line = line.strip('\n')
-                line = line.split('\t')
-                annotations = line[2:]
-                for link in annotations:
-                    if link:
-                        temp_link = link.split(':')
-                        link_type = temp_link[0]
-                        res.add(link_type)
-        return sorted(list(res))
+        res = set()
+        try:
+            schema_command = f'PRAGMA table_info(METADATA);'
+            res_fetch = self.cursor.execute(schema_command).fetchall()
+            res_fetch.pop(0)
+            for line in res_fetch:
+                link_type=line[1]
+                res.add(link_type)
+        except:
+            with open(self.metadata_file_tsv, 'r') as file:
+                for line in file:
+                    line = line.strip('\n')
+                    line = line.split('\t')
+                    annotations = line[2:]
+                    for link in annotations:
+                        if link:
+                            temp_link = link.split(':')
+                            link_type = temp_link[0]
+                            res.add(link_type)
+        self.db_headers=sorted(list(res))
 
 
     def create_sql_table(self):
+        self.get_db_headers()
         if os.path.exists(self.db_file):
             os.remove(self.db_file)
         self.start_sqlite_cursor()
@@ -113,6 +122,9 @@ class Metadata_SQLITE_Connector():
         create_table_command+=')'
         self.cursor.execute(create_table_command)
         self.sqlite_connection.commit()
+        create_index_command=f'CREATE INDEX REF_IDX ON METADATA (REF)'
+        self.cursor.execute(create_index_command)
+
         self.store_metadata()
 
         self.commit_and_close_sqlite_cursor()
@@ -135,7 +147,7 @@ class Metadata_SQLITE_Connector():
         sql_result=sql_result[1:]
         res={}
         for i in range(len(self.db_headers)):
-            db=self.db_headers[i]
+            db=self.db_headers[i].lower()
             db_res=sql_result[i]
             if db_res:
                 db_res=db_res.split(self.info_splitter)
@@ -167,9 +179,10 @@ class Metadata_SQLITE_Connector():
         return res
 
 if __name__ == '__main__':
-    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/pfam/metadata.tsv')
+    import time
+    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NOG_dmnd/NOGG/metadata.tsv')
     #metadata_connector.test_database()
-    res=metadata_connector.fetch_metadata('DUF2628')
+    start=time.time()
+    res=metadata_connector.fetch_metadata('1134474.O59_000005')
     print(res)
-    res=metadata_connector.fetch_metadata('PF10947')
-    print(res)
+    print(time.time()-start)

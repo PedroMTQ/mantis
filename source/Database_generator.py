@@ -917,7 +917,7 @@ class Database_generator(UniFunc_wrapper):
                     res.append(taxon_id)
             else:
                 res.append(taxon_id)
-        print('Will compile data for the following NOGT:\n' + ','.join(res), flush=True, file=stdout_file)
+        print('Will check data for the following NOGT:\n' + ','.join(res), flush=True, file=stdout_file)
         return res
 
     ### Support functions for setting up queue for split hmms

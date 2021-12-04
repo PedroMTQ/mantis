@@ -344,8 +344,8 @@ class Metadata():
         if best_score:
             available_kos=best_path.intersection(sample_kos)
             missing_kos=best_path.difference(available_kos)
-            available=','.join(best[2])
-            missing=','.join(best[3])
+            available=','.join(available_kos)
+            missing=','.join(missing_kos)
         else:
             available='NA'
             missing='NA'

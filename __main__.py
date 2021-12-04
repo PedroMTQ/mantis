@@ -47,7 +47,7 @@ if __name__ == '__main__':
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
                                  'test_nlp','citation','version','check_sql'])
-    parser.add_argument('-t', '--target', help='[required]\tAnnotation target file path. Required when using <run_mantis>.')
+    parser.add_argument('-i', '--input', help='[required]\tInput target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
                         help='Custom MANTIS.config file. Default is in Mantis\' folder')
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     # if no input is given , arg is of class None. If it's a store_true or store_false , arg is bool
     # otherwise it's a str
     if args.execution_type == 'run_mantis':
-        target_path = args.target
+        input_path = args.input
         output_folder = args.output_folder
         mantis_config = args.mantis_config
         evalue_threshold = args.evalue_threshold
@@ -151,11 +151,11 @@ if __name__ == '__main__':
         hmmer_threads = args.hmmer_threads
         cores = args.cores
         memory = args.memory
-        if target_path:
-            if os.path.exists(target_path):
+        if input_path:
+            if os.path.exists(input_path):
                 if not output_folder:
                     datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
-                    output_folder = add_slash(os.getcwd()) + get_path_level(target_path,remove_extension=True) + '_' + datetime_str
+                    output_folder = add_slash(os.getcwd()) + get_path_level(input_path,remove_extension=True) + '_' + datetime_str
                     print(f'No output folder provided! Saving data to: {output_folder}')
                 if os.path.exists(output_folder):
                     if not force_output and os.listdir(output_folder):
@@ -165,7 +165,7 @@ if __name__ == '__main__':
                         print(f'The output folder already contains something! New output folder will be: {output_folder}')
                 output_folder = add_slash(output_folder)
 
-                run_mantis(target_path=target_path,
+                run_mantis(input_path=input_path,
                            output_folder=output_folder,
                            mantis_config=mantis_config,
                            evalue_threshold=evalue_threshold,
@@ -210,8 +210,8 @@ if __name__ == '__main__':
     elif args.execution_type == 'citation':
         print_citation_mantis()
     elif args.execution_type == 'merge_hmm_folder':
-        target = args.target
-        merge_hmm_folder(target_folder=target)
+        input_path = args.input_path
+        merge_hmm_folder(target_folder=input_path)
         print_citation_mantis()
     elif args.execution_type == 'check_installation':
         mantis_config = args.mantis_config
@@ -237,7 +237,7 @@ if __name__ == '__main__':
                 output_folder += '_' + datetime_str+hex_random
                 print(f'The output folder already contains something! New output folder will be: {output_folder}')
         output_folder = add_slash(output_folder)
-        run_mantis_test(target_path=add_slash(MANTIS_FOLDER + 'tests')+ 'test_sample.faa',
+        run_mantis_test(input_path=add_slash(MANTIS_FOLDER + 'tests')+ 'test_sample.faa',
                         output_folder=output_folder,
                         mantis_config=add_slash(MANTIS_FOLDER + 'tests')+ 'test_MANTIS.config',
                         )

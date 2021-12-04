@@ -110,11 +110,16 @@ class Taxonomy_SQLITE_Connector():
                                 f'GTDB TEXT,' \
                                 f'NCBI  INTEGER )'
             self.cursor.execute(create_table_command)
+            create_index_command = f'CREATE INDEX GTDB2NCBI_IDX ON GTDB2NCBI (GTDB,NCBI)'
+            self.cursor.execute(create_index_command)
+
 
             create_table_command = f'CREATE TABLE NCBILINEAGE (' \
                                 f'NCBI INTEGER,' \
                                 f'LINEAGE  TEXT )'
             self.cursor.execute(create_table_command)
+            create_index_command = f'CREATE INDEX NCBILINEAGEI_IDX ON NCBILINEAGE (NCBI)'
+            self.cursor.execute(create_index_command)
             self.sqlite_connection.commit()
             self.store_gtdb2ncbi()
             self.store_ncbi_lineage()
