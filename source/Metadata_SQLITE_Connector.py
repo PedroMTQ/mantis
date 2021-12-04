@@ -180,9 +180,9 @@ class Metadata_SQLITE_Connector():
 
 if __name__ == '__main__':
     import time
-    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NOG_dmnd/NOGG/metadata.tsv')
+    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NOG_dmnd/10/metadata.tsv')
     #metadata_connector.test_database()
     start=time.time()
-    res=metadata_connector.fetch_metadata('1134474.O59_000005')
-    print(res)
+    for i in range(10000):
+        res=metadata_connector.fetch_metadata('1134474.O59_000005')
     print(time.time()-start)
