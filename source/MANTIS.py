@@ -20,7 +20,7 @@ def print_version(user,project):
     else:
         print('No release available')
 
-def run_mantis(target_path,
+def run_mantis(input_path,
                output_folder,
                mantis_config=None,
                evalue_threshold=None,
@@ -62,7 +62,7 @@ def run_mantis(target_path,
     if memory:                              memory = int(memory)
     if genetic_code:                        genetic_code = int(genetic_code)
     mantis = MANTIS(
-        target_path=target_path,
+        input_path=input_path,
         output_folder=output_folder,
         mantis_config=mantis_config,
         evalue_threshold=evalue_threshold,
@@ -94,12 +94,12 @@ def run_mantis(target_path,
     mantis.run_mantis()
 
 
-def run_mantis_test(target_path,
+def run_mantis_test(input_path,
                     output_folder,
                     mantis_config,
                     ):
     mantis = MANTIS(
-        target_path=target_path,
+        input_path=input_path,
         output_folder=output_folder,
         mantis_config=mantis_config,
         keep_files=True)
@@ -129,7 +129,7 @@ utils and Exceptions are only general funtions and therefore don't respect this 
 '''
 class MANTIS(Multiprocessing):
     def __init__(self,
-                 target_path=None,
+                 input_path=None,
                  output_folder=None,
                  mantis_config=None,
                  evalue_threshold=None,
@@ -164,7 +164,7 @@ class MANTIS(Multiprocessing):
         print('------------------------------------------', flush=True, file=self.redirect_verbose)
         print_cyan('Setting up Mantis!', flush=True, file=self.redirect_verbose)
         print('------------------------------------------', flush=True, file=self.redirect_verbose)
-        self.target_path = target_path
+        self.input_path = input_path
         self.mantis_config = mantis_config
 
         #Prediction parameters
@@ -218,7 +218,7 @@ class MANTIS(Multiprocessing):
         Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
                                   mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores,no_taxonomy=no_taxonomy)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        if self.target_path:
+        if self.input_path:
             print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
         self.chunks_to_annotate = []
         self.chunks_to_fasta = {}
@@ -248,7 +248,7 @@ class MANTIS(Multiprocessing):
         output_list = [
             'Output folder:\t\t\t' + str(self.output_folder) + '\n' if self.output_folder else '',
             'Mantis config:\t\t\t' + str(self.mantis_config) + '\n' if self.mantis_config else '',
-            'Target path:\t\t\t' + str(self.target_path) + '\n' if self.target_path else '',
+            'Target path:\t\t\t' + str(self.input_path) + '\n' if self.input_path else '',
             'E-value threshold:\t\t' + str(self.evalue_threshold) + '\n' if self.evalue_threshold else '',
             'E-value threshold:\t\t' + str(self.default_evalue_threshold) + '\n' if not self.evalue_threshold else '',
             'Forcing e-value:\t\t' + str(self.force_evalue) + '\n' if self.force_evalue else '',
@@ -271,18 +271,18 @@ class MANTIS(Multiprocessing):
         return 'User configuration:' + '\n' + '------------------------------------------' + '\n' + ''.join(output_list)
 
     def generate_fastas_to_annotate(self):
-        if '.' not in self.target_path:
+        if '.' not in self.input_path:
             kill_switch(InvalidTargetFile,'Your file does not have an extension, so Mantis can\'t detect the file format.\nPlease provide a valid target file',flush=True, file=self.redirect_verbose)
         else:
-            if os.path.isdir(self.target_path):
+            if os.path.isdir(self.input_path):
                 self.annotate_directory()
-            elif self.target_path.endswith('.tsv'):
+            elif self.input_path.endswith('.tsv'):
                 self.annotate_multiple_samples()
-            elif self.target_path.split('.')[-2] in ['tar']:
+            elif self.input_path.split('.')[-2] in ['tar']:
                 self.annotate_compressed_sample()
-            elif self.target_path.endswith('.gz') or self.target_path.endswith('.zip'):
+            elif self.input_path.endswith('.gz') or self.input_path.endswith('.zip'):
                 self.annotate_compressed_sample()
-            elif is_fasta(self.target_path):
+            elif is_fasta(self.input_path):
                 self.annotate_one_sample()
             else:
                 kill_switch(InvalidTargetFile,'Your file does not appear to be a fasta. If you want to annotate multiple samples, make sure your file has the <.tsv> extension.',flush=True, file=self.redirect_verbose)
@@ -293,7 +293,7 @@ class MANTIS(Multiprocessing):
 
     def annotate_multiple_samples(self):
         try:
-            with open(self.target_path) as file:
+            with open(self.input_path) as file:
                 line = file.readline()
                 if SPLITTER not in line:
                     line = file.readline()
@@ -329,11 +329,11 @@ class MANTIS(Multiprocessing):
 
     def annotate_directory(self):
         try:
-            list_dir = os.listdir(self.target_path)
+            list_dir = os.listdir(self.input_path)
             for file in list_dir:
                 if 'faa' in file.split('.')[-1]:
                     query_name = '.'.join(file.split('.')[0:-1])
-                    query_path = self.target_path + file
+                    query_path = self.input_path + file
                     count_seqs_original_file = get_seqs_count(query_path)
                     count_residues_original_file = count_residues(query_path)
                     self.fastas_to_annotate.append([query_path, add_slash(self.output_folder + query_name), None,None,
@@ -345,7 +345,7 @@ class MANTIS(Multiprocessing):
         try:
             uncompressed_path = self.output_folder + 'uncompressed_samples/'
             Path(uncompressed_path).mkdir(parents=True, exist_ok=True)
-            uncompressing_function = uncompress_archive(source_filepath=self.target_path,
+            uncompressing_function = uncompress_archive(source_filepath=self.input_path,
                                                         extract_path=uncompressed_path)
             list_dir = os.listdir(uncompressed_path)
             for file in list_dir:
@@ -372,10 +372,10 @@ class MANTIS(Multiprocessing):
             kill_switch(InvalidTargetFile,'Something went wrong when annotating the provided compressed file!',flush=True, file=self.redirect_verbose)
 
     def annotate_one_sample(self):
-        count_seqs_original_file = get_seqs_count(self.target_path)
-        count_residues_original_file = count_residues(self.target_path)
+        count_seqs_original_file = get_seqs_count(self.input_path)
+        count_residues_original_file = count_residues(self.input_path)
         self.fastas_to_annotate.append(
-            [self.target_path, self.output_folder, self.organism_details,self.genetic_code,
+            [self.input_path, self.output_folder, self.organism_details,self.genetic_code,
              count_seqs_original_file,count_residues_original_file])
 
     def setup_organism_lineage(self, organism_details, stdout_file):
