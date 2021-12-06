@@ -47,7 +47,7 @@ If you use Mantis, please make sure you cite the respective paper https://doi.or
 2. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
 3. Run `conda activate mantis_env`
 4. Go up one folder and run `python mantis setup_databases`
-5. Run `python mantis run_mantis -t target_faa`
+5. Run `python mantis run_mantis -i target_faa`
 
 
 **Custom references**  
@@ -89,15 +89,15 @@ python  mantis/  check_sql
 ````
 **5. Annotate one sample**  
 ````
-python mantis/ run_mantis -t target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config    
+python mantis/ run_mantis -i target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config    
 ````
-*example*: `python mantis run_mantis -t mantis/tests/test_sample.faa -od "Escherichia coli"`
+*example*: `python mantis run_mantis -i mantis/tests/test_sample.faa -od "Escherichia coli"`
 
 **6. Annotate multiple samples**  
 ````
-python mantis/ run_mantis -t target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config
+python mantis/ run_mantis -i target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config
 ````
-*example*: `python mantis run_mantis -t mantis/tests/test_file.tsv`
+*example*: `python mantis run_mantis -i mantis/tests/test_file.tsv`
 
 ### Output files  
 
