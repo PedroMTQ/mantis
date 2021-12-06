@@ -70,7 +70,8 @@ class Metadata_SQLITE_Connector():
                 line = line.strip('\n')
                 line = line.split('\t')
                 current_ref = line[0]
-                annotations = line[2:]
+                if '|' in line:  line.remove('|')
+                annotations = line[1:]
                 for link in annotations:
                     if link:
                         temp_link = link.split(':')

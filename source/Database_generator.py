@@ -603,6 +603,7 @@ class Database_generator(UniFunc_wrapper):
     def sort_hmms_NCBI(self):
         general_taxon_ids = self.get_ncbi_domains()
         res = {'NCBIG': []}
+        already_added_NCBIG=set()
         metadata = self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv'
         with open(metadata) as file:
             line = file.readline()
@@ -625,9 +626,13 @@ class Database_generator(UniFunc_wrapper):
                     if taxa_id not in res: res[taxa_id] = []
                     res[taxa_id].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
                     if taxa_id in general_taxon_ids:
-                        res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
+                        if hmm not in already_added_NCBIG:
+                            res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
+                            already_added_NCBIG.add(hmm)
                 else:
-                    res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
+                    if hmm not in already_added_NCBIG:
+                        res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec,go_terms,common_links])
+                        already_added_NCBIG.add(hmm)
         return res
 
 #####################   TCDB
@@ -1192,6 +1197,30 @@ class Database_generator(UniFunc_wrapper):
         download_file(url, output_folder=folder_path, stdout_file=stdout_file)
         uncompress_archive(source_filepath=f'{folder_path}eggnog_proteins.dmnd.gz', extract_path=folder_path,stdout_file=stdout_file, remove_source=False)
 
+
+
+    def merge_fasta_files(self,target_merged_faa,all_faa):
+        already_added=set()
+        with open(target_merged_faa,'w+') as file:
+            for faa_file in all_faa:
+                for query, seq in read_protein_fasta_generator(faa_file):
+                    if query not in already_added:
+                        line=f'>{query}\n{seq}\n'
+                        file.write(line)
+                        already_added.add(query)
+
+    def merge_metadata_files(self,target_metadata_file,all_metadata):
+        already_added=set()
+        with open(target_merged_faa,'w+') as outfile:
+            for metadata_file in all_metadata:
+                with open(metadata_file) as infile:
+                    for line in infile:
+                        query=line.split('\t')[0]
+                        if query not in already_added:
+                            outfile.write(line)
+                            already_added.add(query)
+
+
     def compile_NOGG_DMND(self,force_download=False):
         if self.mantis_paths['NOG'][0:2] != 'NA':
             stdout_file = open(self.mantis_out, 'a+')
@@ -1215,7 +1244,7 @@ class Database_generator(UniFunc_wrapper):
                 print('NOGG already compiled, skipping...', flush=True, file=stdout_file)
                 return
             print_cyan('Compiling global NOG diamond database ', flush=True, file=stdout_file)
-            concat_files(target_merged_faa,all_faa)
+            self.merge_fasta_files(target_merged_faa,all_faa)
             concat_files(target_metadata_file,all_metadata)
 
             nogg_dmnd = f'{nogg_folder_path}NOGG_merged'
@@ -1338,13 +1367,15 @@ class Database_generator(UniFunc_wrapper):
                     for t in taxons:
                         if t not in res: res[t]=set()
                         res[t].add(seq_name)
-                    link_line = f'{seq_name}'
+
+                    link_line = [seq_name,'|']
                     for link_type in row_info:
                         for inner_link in row_info[link_type]:
                             inner_link = inner_link.strip()
                             if inner_link:
-                                link_line += '\t' + link_type + ':' + inner_link
-                    if link_line!=f'{seq_name}':
+                                link_line.append(f'{link_type}:{inner_link}')
+                    if len(link_line)>2:
+                        link_line='\t'.join(link_line)
                         file.write(f'{link_line}\n')
         stdout_file.close()
         return res

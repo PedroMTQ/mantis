@@ -29,12 +29,6 @@ def setup_databases(force_download=False, chunk_size=None,no_taxonomy=False,mant
     mantis.setup_databases(force_download)
 
 
-def merge_hmm_folder(target_folder):
-    print_cyan('Merging HMM folder')
-    s_target_folder = add_slash(target_folder)
-    if target_folder == 'None': return
-    mantis = Assembler()
-    mantis.merge_hmm_folder(target_folder)
 
 
 def check_installation(mantis_config=None,no_taxonomy=False,check_sql=False):
@@ -47,6 +41,7 @@ def check_installation(mantis_config=None,no_taxonomy=False,check_sql=False):
 class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
     def __init__(self, verbose=True, redirect_verbose=None,no_taxonomy=False, mantis_config=None,
                  hmm_chunk_size=None,keep_files=False,user_cores=None):
+        Taxonomy_SQLITE_Connector.__init__(self)
         self.redirect_verbose = redirect_verbose
         self.keep_files = keep_files
         self.verbose = verbose
@@ -313,15 +308,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         return refs_list
 
     #####SETTING UP DATABASE#####
-
-    def merge_hmm_folder(self, target_folder):
-        self.output_folder = target_folder
-        print_cyan(f'Merging hmm folder:\n{target_folder}', flush=True, file=self.redirect_verbose)
-        output_file = get_path_level(target_folder)
-        print(f'Merging hmm folder: {target_folder}', flush=True, file=self.redirect_verbose)
-        run_command(f'[ -f {target_folder}{output_file}_merged.hmm ] && rm {target_folder}{output_file}_merged.hmm*',stdout_file=self.redirect_verbose)
-        run_command('for i in ' + target_folder + '*.hmm; do cat ${i} >> ' + target_folder + output_file + '_merged.hmm; done',stdout_file=self.redirect_verbose,shell=True,join_command=True)
-        run_command(f'hmmpress {target_folder}{output_file}_merged.hmm', stdout_file=self.redirect_verbose)
 
     def get_path_default_ref(self, database, taxon_id=None):
         target_file = None

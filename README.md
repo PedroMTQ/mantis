@@ -83,9 +83,9 @@ python  mantis/  setup_databases
 ````
 python  mantis/  check_installation
 ````
-**4. Merge HMM folder**  
+**4. Check SQL metadata files**  
 ````
-python  mantis/  merge_hmm_folder -t target
+python  mantis/  check_sql
 ````
 **5. Annotate one sample**  
 ````

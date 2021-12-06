@@ -10,8 +10,7 @@ try:
     from source.Assembler import add_slash, \
         get_path_level, \
         check_installation, \
-        setup_databases, \
-        merge_hmm_folder
+        setup_databases
     from source.utils import MANTIS_FOLDER
 except ImportError as e:
     import signal
@@ -31,10 +30,9 @@ if __name__ == '__main__':
                                      , formatter_class=argparse.RawTextHelpFormatter)
     #run mantis
     parser.add_argument('execution_type',
-                        help='Please choose from :\n\trun_mantis\n\tsetup_databases\n\tmerge_hmm_folder\n\textract_nog_metadata\n\tcheck_installation\n\trun_test\n\n' +
+                        help='Please choose from :\n\trun_mantis\n\tsetup_databases\n\textract_nog_metadata\n\tcheck_installation\n\trun_test\n\n' +
                              'If this is your first time running this software, please run <setup_databases> to download and unzip the necessary files.\n'
                              'If you have custom hmms, please include them in the <custom_hmms> folder.\n' +
-                             'If your custom hmms are split 1 file/1 hmm please use <merge_hmm_folder> followed by the hmm folder path. These will be automatically pressed\n' +
                              'Custom hmms need to be pressed, to do so just run HMMER\'s hmmpress.' +
                              'To check recognized hmms please run <check_installation>\n\n' +
                              'If you have a taxonomic classification of this sample, include <-od> followed by the organism name or NCBI taxon ID\n' +
@@ -45,7 +43,7 @@ if __name__ == '__main__':
                              '\tquery_name_2\ttarget_path_2\tProteobacteria\n' +
                              '\tquery_name_3\ttarget_path_3\t\n' +
                              '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
-                        choices=['run_mantis', 'setup_databases', 'merge_hmm_folder', 'check_installation', 'run_test',
+                        choices=['run_mantis', 'setup_databases', 'check_installation', 'run_test',
                                  'test_nlp','citation','version','check_sql'])
     parser.add_argument('-i', '--input', help='[required]\tInput target file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
@@ -208,10 +206,6 @@ if __name__ == '__main__':
         setup_databases(force_download=force_download, chunk_size=chunk_size,no_taxonomy=no_taxonomy, mantis_config=mantis_config,cores=cores)
         print_citation_mantis()
     elif args.execution_type == 'citation':
-        print_citation_mantis()
-    elif args.execution_type == 'merge_hmm_folder':
-        input_path = args.input_path
-        merge_hmm_folder(target_folder=input_path)
         print_citation_mantis()
     elif args.execution_type == 'check_installation':
         mantis_config = args.mantis_config
