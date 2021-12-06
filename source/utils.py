@@ -556,14 +556,16 @@ def read_protein_fasta_generator(protein_fasta_path):
         while line:
             if line.startswith('>'):
                 if query:
-                    yield query,''.join(seq).upper()
+                    if seq:
+                        yield query,''.join(seq).upper()
                     seq=[]
                 query=line.replace('>','').strip()
             else:
                 seq.append(line.strip())
             line = file.readline()
         if query:
-            yield query, ''.join(seq).upper()
+            if seq:
+                yield query, ''.join(seq).upper()
 
 #low memory footprint_version
 def write_fasta_generator(seqs_generator, fasta_file):

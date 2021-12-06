@@ -7,6 +7,11 @@ except:
 
 
 class Taxonomy_SQLITE_Connector():
+
+    def __init__(self):
+        self.info_splitter='##'
+
+
     '''
     this just creates an sql database from two gtdb files to convert gtdb to ncbi. first we download them and create the db
     then anytime we need to fetch info we just open the db, fetch the info, and close the connection
@@ -32,9 +37,15 @@ class Taxonomy_SQLITE_Connector():
         temp=gtdb_lineage.split(';')
         if len(temp)>1:
             temp = ['_'.join(i.split('_')[2:]) for i in temp]
+            for i in range(len(temp)):
+                current_str=temp[i].split('_')
+                current_str=[i for i in current_str if len(i)>1]
+                temp[i]='_'.join(current_str)
+
+        lineage_str=self.info_splitter.join(temp)
         while temp and not res:
             res = temp.pop(-1).strip()
-        return res
+        return res,lineage_str
 
     def read_gtdb_tsv(self,gtdb_tsv):
         #to avoid duplicate entries in sql
@@ -45,11 +56,11 @@ class Taxonomy_SQLITE_Connector():
                 line = line.strip('\n')
                 line = line.split('\t')
                 gtdb_taxonomy = line[16]
-                most_resolved = self.process_gtdb_taxonomy(gtdb_taxonomy)
+                most_resolved,lineage_str = self.process_gtdb_taxonomy(gtdb_taxonomy)
                 ncbi_id = line[77]
-                yield_str='##'.join([most_resolved,ncbi_id])
+                yield_str=self.info_splitter.join([most_resolved,ncbi_id])
                 if yield_str not in already_added:
-                    yield most_resolved,ncbi_id
+                    yield most_resolved,lineage_str,ncbi_id
                 already_added.add(yield_str)
 
     def download_data(self):
@@ -108,9 +119,10 @@ class Taxonomy_SQLITE_Connector():
 
             create_table_command = f'CREATE TABLE GTDB2NCBI (' \
                                 f'GTDB TEXT,' \
+                                f'GTDBLINEAGE TEXT,' \
                                 f'NCBI  INTEGER )'
             self.cursor.execute(create_table_command)
-            create_index_command = f'CREATE INDEX GTDB2NCBI_IDX ON GTDB2NCBI (GTDB,NCBI)'
+            create_index_command = f'CREATE INDEX GTDB2NCBI_IDX ON GTDB2NCBI (GTDB,GTDBLINEAGE,NCBI)'
             self.cursor.execute(create_index_command)
 
 
@@ -150,7 +162,7 @@ class Taxonomy_SQLITE_Connector():
         gtdb2ncbi=self.chain_generators()
         generator_insert = self.generate_inserts(gtdb2ncbi)
         for table_chunk in generator_insert:
-            insert_command = f'INSERT INTO GTDB2NCBI (GTDB, NCBI) values (?,?)'
+            insert_command = f'INSERT INTO GTDB2NCBI (GTDB,GTDBLINEAGE, NCBI) values (?,?,?)'
             self.cursor.executemany(insert_command, table_chunk)
         self.sqlite_connection.commit()
 
@@ -183,22 +195,32 @@ class Taxonomy_SQLITE_Connector():
 
     def fetch_ncbi_id(self,gtdb_lineage):
         res=set()
-        gtdb_id=self.process_gtdb_taxonomy(gtdb_lineage)
+        gtdb_id,_=self.process_gtdb_taxonomy(gtdb_lineage)
         fetch_command = f'SELECT GTDB,NCBI FROM GTDB2NCBI WHERE GTDB = "{gtdb_id}"'
         res_fetch=self.cursor.execute(fetch_command).fetchall()
         for i in res_fetch:
             res.add(i[1])
         if len(res)==1: res=list(res)[0]
         elif len(res)==0: res=None
-        elif len(res)>1: res= self.get_lowest_common_ancestor(res)
+        elif len(res)>1: res= self.get_lowest_common_ancestor_ncbi(res)
         return res
 
     def fetch_gtdb_id(self,ncbi_id):
         res=set()
-        fetch_command = f'SELECT GTDB,NCBI FROM GTDB2NCBI WHERE NCBI = "{ncbi_id}"'
+        fetch_command = f'SELECT GTDB,GTDBLINEAGE,NCBI FROM GTDB2NCBI WHERE NCBI = "{ncbi_id}"'
         res_fetch=self.cursor.execute(fetch_command).fetchall()
         for i in res_fetch:
-            res.add(i[0])
+            res.add(i)
+        if len(res)==1: res=list(res)[0][1]
+        elif len(res)==0: res=None
+        #if the ncbi matches with more than one gtdb id
+        elif len(res)>1:
+            all_lineages=[]
+            for gtdb_id,lineage,ncbi_id in res:
+                lineage=lineage.split(self.info_splitter)
+                all_lineages.append(lineage)
+            lca=self.get_lowest_common_ancestor_gtdb(all_lineages)
+            res=lca
         return res
 
     def fetch_ncbi_lineage(self,ncbi_id):
@@ -225,8 +247,8 @@ class Taxonomy_SQLITE_Connector():
             print(f'Database file {self.db_file} does not exist')
             return False
 
-    def get_lowest_common_ancestor(self,list_taxons):
-        print('Retrieved multiple entries from GTDB, retrieving lowest common ancestry taxon ID')
+    def get_lowest_common_ancestor_ncbi(self,list_taxons):
+        print('Retrieved multiple NCBI entries, retrieving lowest common ancestry NCBI ID')
         all_lineages=[]
         min_size=None
         for taxon_id in list_taxons:
@@ -243,6 +265,22 @@ class Taxonomy_SQLITE_Connector():
             if len(temp)>1:
                 break
         lca=all_lineages[0][0:i+1]
+        return lca[-1]
+
+    def get_lowest_common_ancestor_gtdb(self,list_taxon_lineages):
+        print('Retrieved multiple GTDB entries, retrieving lowest common ancestry GTDB ID')
+        min_size=None
+        for taxon_lineage in list_taxon_lineages:
+            if not min_size: min_size=len(taxon_lineage)
+            if len(taxon_lineage)<min_size: min_size=len(taxon_lineage)
+        i=0
+        for i in range(min_size):
+            temp=set()
+            for taxon_lineage in list_taxon_lineages:
+                temp.add(taxon_lineage[i])
+            if len(temp)>1:
+                break
+        lca=list_taxon_lineages[0][0:i+1]
         return lca[-1]
 
     def get_taxa_ncbi_url(self,url):
@@ -274,10 +312,10 @@ if __name__ == '__main__':
     gtdb_connector=Taxonomy_SQLITE_Connector()
     gtdb_connector.launch_taxonomy_connector(resources_folder='/home/pedroq/Desktop/test_cr/')
     gtdb_connector.create_taxonomy_db()
-
+    #gtdb_connector.process_gtdb_taxonomy('d__Archaea;p__Thermoproteota;c__Nitrososphaeria;o__Nitrososphaerales;f__Nitrosopumilaceae_C;g__JACEMX01;s__JACEMX01 sp011773785')
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
     print(a)
     a=gtdb_connector.fetch_ncbi_id('Clostridium_P perfringens')
     print(a)
-    a=gtdb_connector.fetch_gtdb_id('1094980')
+    a=gtdb_connector.fetch_gtdb_id('1423')
     print(a)
