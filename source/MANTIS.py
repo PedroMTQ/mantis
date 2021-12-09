@@ -445,8 +445,7 @@ class MANTIS(Multiprocessing):
         self.generate_fastas_to_annotate()
         self.generate_translated_sample()
         self.generate_sample_lineage()
-        if self.use_taxonomy:
-            self.close_taxonomy_connection()
+
 
         self.split_sample()
 
@@ -488,6 +487,7 @@ class MANTIS(Multiprocessing):
         for output_path in self.chunks_to_fasta:
             self.queue.append([output_path, self.chunks_to_fasta[output_path]])
         self.processes_handler(self.worker_merge_mantis_output, worker_count)
+        self.generate_matrix()
 
         print('Mantis ran sucessfully!', flush=True)
 

@@ -9,16 +9,6 @@ except:
     from Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 
 
-'''
-This module handles the setup of MANTIS - setting paths and setting up the databases.
-The assembler is inherited by the main MANTIS class
-
-check broken installation slurm output
-wc -l *.out | sort -rn | awk  '$1 > 18'
-grep "Disk quota exceeded" *
-
-'''
-
 
 def setup_databases(force_download=False, chunk_size=None,no_taxonomy=False,mantis_config=None,cores=None):
     print_cyan('Setting up databases')
@@ -75,24 +65,24 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             custom_refs_str += cref + '\n'
         if custom_refs_str:
             custom_res = f'# Custom references:\n{custom_refs_str}'
-        res= 'Output folder:\n' + self.output_folder if hasattr(self, 'output_folder') else '' + \
-                  '#  External data folders:' + '\n' + \
-                  '------------------------------------------' + '\n' + \
-                  'Default references folder:\n' + \
-                  self.mantis_paths['default'] + '\n' + \
-                  'Custom references folder:\n' + \
-                  self.mantis_paths['custom'] + '\n' + \
-                  'TAX NOG reference folder:\n' + \
-                  self.mantis_paths['NOG'] + '\n' + \
-                  'TAX NCBI reference folder:\n' + \
-                  self.mantis_paths['NCBI'] + '\n' + \
-                  'Pfam reference folder:\n' + \
-                  self.mantis_paths['pfam'] + '\n' + \
-                  'KOfam reference folder:\n' + \
-                  self.mantis_paths['kofam'] + '\n' + \
-                  'TCDB reference folder:\n' + \
-                  self.mantis_paths['tcdb'] + '\n' + \
-                '------------------------------------------' + '\n'
+
+        res=[]
+        if hasattr(self, 'output_folder'):
+            res.append(f'Output folder:\nself.output_folder')
+        res.append(f'Default references folder:\n{self.mantis_paths["default"]}')
+        res.append(f'Custom references folder:\n{self.mantis_paths["custom"]}')
+        if self.mantis_paths['NOG'][0:2] != 'NA':
+            res.append(f'TAX NOG references folder:\n{self.mantis_paths["NOG"]}')
+        if self.mantis_paths['NCBI'][0:2] != 'NA':
+            res.append(f'TAX NCBI references folder:\n{self.mantis_paths["NCBI"]}')
+        if self.mantis_paths['pfam'][0:2] != 'NA':
+            res.append(f'Pfam reference folder:\n{self.mantis_paths["pfam"]}')
+        if self.mantis_paths['kofam'][0:2] != 'NA':
+            res.append(f'KOfam reference folder:\n{self.mantis_paths["kofam"]}')
+        if self.mantis_paths['tcdb'][0:2] != 'NA':
+            res.append(f'TCDB reference folder:\n{self.mantis_paths["tcdb"]}')
+        res.append('------------------------------------------')
+        res='\n'.join(res)
         if custom_res: res+='\n'+custom_res
         ref_weights=', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i!='else'])
         if ref_weights:
