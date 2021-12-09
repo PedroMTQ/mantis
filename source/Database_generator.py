@@ -58,7 +58,7 @@ class Database_generator(UniFunc_wrapper):
                 #for NOG HMM we just recompile incomplete ones
                 self.prepare_queue_extract_metadata_NOG_HMM()
                 worker_count = estimate_number_workers_setup_database(len(self.queue), minimum_jobs_per_worker=2, user_cores=self.user_cores)
-                if worker_count:print(f'Metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
+                if worker_count:print(f'NOG metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
                 self.processes_handler(self.worker_extract_NOG_metadata_HMM, worker_count)
                 print('NOGG will now be compiled',flush=True,file=self.redirect_verbose)
                 self.compile_NOGG_HMM(force_download)
@@ -71,8 +71,10 @@ class Database_generator(UniFunc_wrapper):
                 seqs_taxons=self.compile_NOG_DMND()
                 self.prepare_queue_extract_fastas_DMND(seqs_taxons)
                 worker_count = estimate_number_workers_setup_database(len(self.queue), minimum_jobs_per_worker=2,user_cores=self.user_cores)
-                if worker_count: print(f'Metadata will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
+                if worker_count: print(f'NOG diamond fastas will be extracted with {worker_count} workers!', flush=True,file=self.redirect_verbose)
                 self.processes_handler(self.worker_extract_fastas_DMND, worker_count)
+                print('Creating NOGT diamond databases',flush=True,file=self.redirect_verbose)
+                self.compile_NOGT_DMND(force_download)
                 self.compile_NOGG_DMND(force_download)
                 for file in ['eggnog_proteins.dmnd','eggnog_proteins.dmnd.gz','eggnog.db','eggnog_seqs.faa','metadata.tsv','Pfam-A.hmm.dat']:
                     file_path = self.mantis_paths['NOG'] + file
@@ -1221,6 +1223,16 @@ class Database_generator(UniFunc_wrapper):
                             already_added.add(query)
 
 
+    def compile_NOGT_DMND(self,force_download=False):
+        if self.mantis_paths['NOG'][0:2] != 'NA':
+            for taxon in self.get_ref_taxon_ids('NOG'):
+                taxon_folder = self.mantis_paths['NOG'] + taxon + SPLITTER
+                taxon_fasta = f'{taxon_folder}{taxon}_merged.faa'
+                taxon_dmnd = f'{taxon_folder}{taxon}'
+                if not file_exists(f'{taxon_dmnd}.dmnd') and file_exists(taxon_fasta):
+                    run_command(f'{DIAMOND_PATH} makedb --in {taxon_faa} -d {taxon_dmnd}')
+
+
     def compile_NOGG_DMND(self,force_download=False):
         if self.mantis_paths['NOG'][0:2] != 'NA':
             stdout_file = open(self.mantis_out, 'a+')
@@ -1412,7 +1424,6 @@ class Database_generator(UniFunc_wrapper):
         taxon_folder = self.mantis_paths['NOG'] + taxon + SPLITTER
         taxon_faa = f'{taxon_folder}{taxon}_merged.faa'
         taxon_metadata = f'{taxon_folder}metadata.tsv'
-        taxon_dmnd = f'{taxon_folder}{taxon}'
 
         Path(taxon_folder).mkdir(parents=True, exist_ok=True)
 
@@ -1424,6 +1435,5 @@ class Database_generator(UniFunc_wrapper):
             for met_seq in metadata_generator:
                 met_file.write(met_seq)
 
-        if not file_exists(f'{taxon_dmnd}.dmnd'):
-            run_command(f'{DIAMOND_PATH} makedb --in {taxon_faa} -d {taxon_dmnd}', stdout_file=stdout_file)
+
         stdout_file.close()
