@@ -50,32 +50,9 @@ def kill_switch(error_type,message='',flush=False, file=None):
 
 PSUTIL_EXCEPTIONS = (psutil.NoSuchProcess, AttributeError, FileNotFoundError)
 
-def get_slurm_value(wanted_val, regex_pattern):
-    res = None
-    slurm_job_id = os.environ.get('SLURM_JOBID')
-    if slurm_job_id:
-        process = subprocess.run('sacct -j ' + str(slurm_job_id) + ' -o ' + wanted_val, shell=True,
-                                 stdout=subprocess.PIPE)
-        wanted = re.search(regex_pattern, str(process.stdout))
-        if wanted: res = wanted.group()
-    return res
-
-
 def check_environment_cores():
-    res = get_slurm_value('AllocCPUS', re.compile('\d+'))
-    if res:
-        if int(res):
-            # print('Cores allocated by slurm:', res)
-            return int(res)
-        else:
-            res = cpu_count()
-            # print('Cores allocated:', res)
-            return int(res)
-    else:
-        res = cpu_count()
-        # print('Cores allocated:', res)
-        return int(res)
-
+    res = cpu_count()
+    return int(res)
 
 def check_process_overhead():
     process = psutil.Process()
@@ -83,22 +60,8 @@ def check_process_overhead():
     del process
     return ram_consumption_gb
 
-
 def check_available_ram():
-    required_ram = get_slurm_value('ReqMem', re.compile('\d+G[nc]'))
-    if required_ram:
-        if 'Gc' in required_ram:
-            required_ram = required_ram.replace('Gc', '')
-            ram_per_core = int(required_ram)
-            res = ENVIRONMENT_CORES * ram_per_core
-        if 'Gn' in required_ram:
-            required_ram = required_ram.replace('Gn', '')
-            res = int(required_ram)
-        # print('RAM allocated by slurm:',res,'GB')
-    else:
-        # im not sure if this is the best implementation
-        res = psutil.virtual_memory().available / (1024 * 1024 * 1024)
-        # print('RAM allocated:',res,'GB')
+    res = psutil.virtual_memory().available / (1024 * 1024 * 1024)
     return res
 
 
