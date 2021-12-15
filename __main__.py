@@ -39,13 +39,13 @@ if __name__ == '__main__':
                              'For multiple protein fastas annotations, use <run_mantis>, with a tsv file path.\n' +
                              'This file should have the following structure:\n' +
                              '\tQuery name\tQuery path\tOrganism details\n' +
-                             '\tquery_name_1\ttarget_path_1\t561\n' +
-                             '\tquery_name_2\ttarget_path_2\tProteobacteria\n' +
-                             '\tquery_name_3\ttarget_path_3\t\n' +
-                             '\tquery_name_4\ttarget_path_4\tEscherichia coli\n',
+                             '\tquery_name_1\tinput_path_1\t561\n' +
+                             '\tquery_name_2\tinput_path_2\tProteobacteria\n' +
+                             '\tquery_name_3\tinput_path_3\t\n' +
+                             '\tquery_name_4\tinput_path_4\tEscherichia coli\n',
                         choices=['run_mantis', 'setup_databases', 'check_installation', 'run_test',
                                  'test_nlp','citation','version','check_sql'])
-    parser.add_argument('-i', '--input', help='[required]\tInput target file path. Required when using <run_mantis>.')
+    parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
                         help='Custom MANTIS.config file. Default is in Mantis\' folder')
@@ -60,13 +60,13 @@ if __name__ == '__main__':
     parser.add_argument('-tl', '--time_limit',
                         help='[optional]\ttime limit in seconds when running Mantis\' DFS algorithm. Default is 60 seconds')
     parser.add_argument('-od', '--organism_details',
-                        help='[optional]\tIf your target fasta has been taxonimically classified please introduce details.\n'
+                        help='[optional]\tIf your input fasta has been taxonimically classified please introduce details.\n'
                              '\t\tTwo formats are allowed:\n'
                              '\t\t\ttaxon name, e.g. "Proteobacteria" or "Escherichia coli"\n'
                              '\t\t\tNCBI taxon ID, e.g.: 561 for Escherichia coli\n'
                              'Providing NCBI IDs is faster and safer.')
     parser.add_argument('-gc', '--genetic_code',
-                        help='[optional]\tIf you want Mantis to translate your target fasta, please provide a genetic code. Default is 11. \n'
+                        help='[optional]\tIf you want Mantis to translate your input fasta, please provide a genetic code. Default is 11. \n'
                              '\t\tFor further details please see https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/index.cgi?chapter=cgencodes\n')
     parser.add_argument('-k', '--keep_files', action='store_true',
                         help='[optional]\tKeep intermediary output files')
@@ -194,9 +194,9 @@ if __name__ == '__main__':
                 print_citation_mantis()
 
             else:
-                print('Target path not found, quitting now!')
+                print('Input path not found, quitting now!')
         else:
-            print("Missing target, quitting now!")
+            print("Missing input file, quitting now!")
     elif args.execution_type == 'setup_databases':
         mantis_config = args.mantis_config
         force_download = args.force_download

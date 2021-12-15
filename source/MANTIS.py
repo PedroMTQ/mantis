@@ -105,28 +105,7 @@ def run_mantis_test(input_path,
         keep_files=True)
     mantis.run_mantis_test()
 
-'''
-The MANTIS class is just a wrapper:
-    -   Exceptions.py contains custom exceptions raised by Mantis
-    -   Assembler.py contains methods responsible for the basic initialization of Mantis (i.e. reading config file, getting taxa lineage, and checking installation)
-    -   Consensus.py contains methods responsible for generating the consensus_annotation.tsv
-    -   Database_generator.py contains methods responsible for setting up the reference databases
-    -   Metadata.py contains methods responsible for integrating the metadata/generating the integrated_annotation.tsv
-    -   Multiprocessing.py contains most methods responsible for annotation, it wraps around other classes and uses their methods in a multi processing environment
-    -   UniFunc_wrapper.py is a wrapper for UniFunc, it has no methods
-    -   Homology_processor.py contains methods responsible for the processing of hits (e.g. hit processing algorithms)
-    -   utils.py contains functions common to most classes
-    -   __main__.py contains the front end for user interaction
-    
-This is how the classes are connected
-UniFunc----------->UniFunc_wrapper------>Database_generator-->Assembler--v
-                                ^-->Consensus-------------------->Multiprocessing--->MANTIS--->__main__
-Metadata---------------------------------------------^  ^
-Homology_processor-----------------------------------------------^
 
-utils and Exceptions are only general funtions and therefore don't respect this hierarchy, they are imported as needed
-
-'''
 class MANTIS(Multiprocessing):
     def __init__(self,
                  input_path=None,
@@ -215,8 +194,7 @@ class MANTIS(Multiprocessing):
         #diamond db size for scaling. we increase the db size to avoid overly good e-values, i.e., 0 where sample scaling by multiplication wouldn't change anything
         self.diamond_db_size=1e6
         print_cyan('Reading config file and setting up paths', flush=True, file=self.redirect_verbose)
-        Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,
-                                  mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores,no_taxonomy=no_taxonomy)
+        Assembler.__init__(self, verbose=verbose, redirect_verbose=redirect_verbose,mantis_config=mantis_config,keep_files=keep_files,user_cores=user_cores,no_taxonomy=no_taxonomy)
         datetime_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.input_path:
             print_cyan(f'This MANTIS process started running at {datetime_str}',flush=True, file=self.redirect_verbose)
@@ -385,12 +363,12 @@ class MANTIS(Multiprocessing):
             return []
         if re.match('\d+', organism_details):
             print_cyan('Setting up organism lineage from provided NCBI taxon id', flush=True, file=stdout_file)
-            organism_lineage = self.fetch_ncbi_lineage(organism_details, stdout_file=stdout_file)
+            organism_lineage = self.fetch_ncbi_lineage(organism_details)
         else:
             print_cyan('Setting up organism lineage from provided taxon synonym or GTDB lineage', flush=True, file=stdout_file)
             organism_details_dict = {'synonyms': organism_details}
             ncbi_taxon_id = self.get_taxa_ncbi(organism_details)
-            organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id, stdout_file=stdout_file)
+            organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id)
         return organism_lineage
 
 
@@ -414,6 +392,7 @@ class MANTIS(Multiprocessing):
 
 
     def generate_sample_lineage(self):
+        self.start_taxonomy_connection()
         for i in range(len(self.fastas_to_annotate)):
             file_path, output_path, organism_details,genetic_code, count_seqs_original_file,count_residues_original_file = self.fastas_to_annotate[i]
             stdout_file = open(output_path + 'Mantis.out', 'a+')
@@ -425,7 +404,6 @@ class MANTIS(Multiprocessing):
             else:
                 print_cyan('Target file:\n' + file_path + '\n has no organism lineage!', flush=True, file=stdout_file)
             print('------------------------------------------', flush=True, file=stdout_file)
-
             stdout_file.close()
 
     def remove_non_essential_files(self):
@@ -452,7 +430,10 @@ class MANTIS(Multiprocessing):
         self.set_chunks_to_annotate()
 
         worker_count = 1
-        for hmm_path in [MANTIS_FOLDER + 'tests/test_hmm/test1/test1.hmm', MANTIS_FOLDER + 'tests/test_hmm/test2/test2.hmm']:
+        for hmm_path in [MANTIS_FOLDER + 'tests/test_hmm/test1/test1.hmm',
+                         MANTIS_FOLDER + 'tests/test_hmm/test2/test2.hmm',
+                         MANTIS_FOLDER + 'tests/test_hmm/test3/test3.hmm',
+                         ]:
             for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
                 self.create_chunk_output_dirs(current_chunk_dir)
                 command, output_file = self.compile_annotation_job(hmm_path,
