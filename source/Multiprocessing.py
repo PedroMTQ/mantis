@@ -127,7 +127,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
         if ref_path.endswith('.hmm'):
             return self.compile_annotation_job_hmmer(ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials,)
         elif ref_path.endswith('.dmnd'):
-            return self.compile_annotation_job_diamond(ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials)
+            return self.compile_annotation_job_diamond(ref_path, target_path, output_folder, output_initials)
 
 
     def compile_annotation_job_hmmer(self, hmm_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials=''):
@@ -167,7 +167,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
         command += f' --notextw {hmm_path} {target_path}'
         return command, domtblout_path
 
-    def compile_annotation_job_diamond(self, ref_path, target_path, output_folder,count_seqs_chunk,count_seqs_original_file, output_initials=''):
+    def compile_annotation_job_diamond(self, ref_path, target_path, output_folder, output_initials=''):
         ref = get_path_level(ref_path)
         ref = ref.split('.')[0]
         #dbsize is set so we can scale it  to sample size
@@ -294,28 +294,29 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                 self.run_annotation(hs_command=hs_command,stdout_path=stdout_path, master_pid=master_pid, output_file=output_file)
             elif record_type in ['NOGG_checkpoint', 'NCBIG_checkpoint']:
                 _, current_chunk_dir, fasta_path, count_seqs_original_file, chunks_n = record
-                target_hmm = record_type.split('_')[0]
-                target_db = target_hmm[0:-1]
-                if self.taxon_annotation_finished(target_hmm, current_chunk_dir, chunks_n):
+                target_ref = record_type.split('_')[0]
+                target_db = target_ref[0:-1]
+                if self.taxon_annotation_finished(target_ref, current_chunk_dir, chunks_n):
                     remove_temp_fasta(fasta_path, target_db)
                 else:
                     self.queue.insert(0, record)
 
             elif record_type in ['NOGT_checkpoint', 'NCBIT_checkpoint']:
-                _, current_chunk_dir, fasta_path, taxon_id, organism_lineage, original_lineage, count_seqs_original_file, chunks_n, stdout_path = record
-                target_hmm = record_type.split('_')[0]
-                target_db = target_hmm[0:-1]
+                _, current_chunk_dir, fasta_path, taxon_id, organism_lineage, original_lineage, count_seqs_original_file,count_residues_original_file, chunks_n, stdout_path = record
+                target_ref = record_type.split('_')[0]
+                target_db = target_ref[0:-1]
 
-                if self.taxon_annotation_finished(target_hmm + str(taxon_id), current_chunk_dir, chunks_n):
+                if self.taxon_annotation_finished(target_ref + str(taxon_id), current_chunk_dir, chunks_n):
                     protein_sequences = read_protein_fasta(fasta_path)
                     count_seqs_chunk = len(protein_sequences)
-                    domtblout_path = add_slash(f'{current_chunk_dir}searchout')
-                    taxon_domtblouts = self.get_taxon_chunks(taxon_id, domtblout_path, target_hmm)
+                    searchout_path = add_slash(f'{current_chunk_dir}searchout')
+                    taxon_searchouts = self.get_taxon_chunks(taxon_id, searchout_path, target_ref)
                     annotated_queries = set()
-                    for dp in taxon_domtblouts:
-                        _, hit_counter = self.read_domtblout(output_path=domtblout_path + dp,
+                    for dp in taxon_searchouts:
+                        _, hit_counter = self.read_searchout(output_path=searchout_path + dp,
                                                              count_seqs_chunk=count_seqs_chunk,
                                                              count_seqs_original_file=count_seqs_original_file,
+                                                             count_residues_original_file=count_residues_original_file,
                                                              get_output=False)
                         annotated_queries.update(hit_counter)
                     # in each iteration we only annotate the missing sequences
@@ -326,6 +327,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                                                              organism_lineage=list(organism_lineage),
                                                              original_lineage=list(original_lineage),
                                                              count_seqs_original_file=count_seqs_original_file,
+                                                             count_residues_original_file=count_residues_original_file,
                                                              stdout_path=stdout_path,
                                                              dbs_to_use=[target_db])
                 # if annotations havent finished, we add the checker back into the queue
@@ -338,28 +340,31 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
         for ref_path in refs_list:
             chunked_refs_list.extend(get_chunks_path(ref_path))
         chunked_refs_list = self.order_by_size_descending(chunked_refs_list)
-        # this will build the hmmer processes to run as well as give the domtblout we want
+        # taxonomy processes
         for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             self.create_chunk_output_dirs(current_chunk_dir)
             self.add_to_queue_lineage_annotation(fasta_path=chunk_path, current_chunk_dir=current_chunk_dir,
                                                  organism_lineage=list(organism_lineage),
                                                  original_lineage=list(organism_lineage),
                                                  count_seqs_original_file=count_seqs_original_file,
+                                                 count_residues_original_file=count_residues_original_file,
                                                  stdout_path=f'{output_path}Mantis.out')
+        #general processes
         for chunk_name, chunk_path, current_chunk_dir, organism_lineage, count_seqs_chunk, count_seqs_original_file,count_residues_original_file, output_path in self.chunks_to_annotate:
             for ref_path in chunked_refs_list:
-                # full hmmer command to be run with subprocess
                 command, output_file = self.compile_annotation_job(ref_path, target_path=chunk_path,
                                                                    output_folder=current_chunk_dir,
                                                                    count_seqs_chunk=count_seqs_chunk,
-                                                                   count_seqs_original_file=count_seqs_original_file)
-                # adding our hmmer command to be consumed by the hmmer processes later on
+                                                                   count_seqs_original_file=count_seqs_original_file,
+                                                                   count_residues_original_file=count_residues_original_file,
+                                                                   )
                 self.queue.append(['General', command, f'{output_path}Mantis.out'])
+
 
     ####For the lineage HMMs
 
     def add_to_queue_lineage_annotation(self, fasta_path, current_chunk_dir, organism_lineage, original_lineage,
-                                        count_seqs_original_file, stdout_path, dbs_to_use=['NCBI', 'NOG']):
+                                        count_seqs_original_file,count_residues_original_file, stdout_path, dbs_to_use=['NCBI', 'NOG']):
         count_seqs_chunk = get_seqs_count(fasta_path)
         # taxa specific dbs include nog and ncbi
         for db in dbs_to_use:
@@ -385,12 +390,13 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                                                                                    output_initials=db_tax,
                                                                                    output_folder=current_chunk_dir,
                                                                                    count_seqs_chunk=count_seqs_chunk,
-                                                                                   count_seqs_original_file=count_seqs_original_file)
+                                                                                   count_seqs_original_file=count_seqs_original_file,
+                                                                                   )
                                 self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                             # will be used for checking whether chunks have been annotated
                             self.queue.insert(len(chunks_path),
                                               [f'{db_tax}_checkpoint', current_chunk_dir, fasta_path, current_taxon,
-                                               current_lineage, original_lineage, count_seqs_original_file,
+                                               current_lineage, original_lineage, count_seqs_original_file,count_residues_original_file,
                                                len(chunks_path), stdout_path])
                             self.save_temp_fasta_length(current_chunk_dir, db_tax + str(current_taxon),
                                                         count_seqs_chunk, db)
@@ -399,13 +405,15 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                             # if there are still missing annotations from the lineage annotation or there's no taxonomic classification we query against the whole TSHMM database
                             if self.mantis_paths[path_general][0:2] != 'NA':
                                 ref_path = get_ref_in_folder(self.mantis_paths[path_general] + hmm_db_general)
+
                                 chunks_path = get_chunks_path(ref_path)
                                 for chunk_hmm in chunks_path:
                                     command, output_file = self.compile_annotation_job(chunk_hmm,
                                                                                        target_path=fasta_path,
                                                                                        output_folder=current_chunk_dir,
                                                                                        count_seqs_chunk=count_seqs_chunk,
-                                                                                       count_seqs_original_file=count_seqs_original_file)
+                                                                                       count_seqs_original_file=count_seqs_original_file,
+                                                                                       )
                                     self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                                 self.queue.insert(len(chunks_path),
                                                   [f'{db_general}_checkpoint', current_chunk_dir, fasta_path,
@@ -423,7 +431,8 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                                                                                    target_path=fasta_path,
                                                                                    output_folder=current_chunk_dir,
                                                                                    count_seqs_chunk=count_seqs_chunk,
-                                                                                   count_seqs_original_file=count_seqs_original_file)
+                                                                                   count_seqs_original_file=count_seqs_original_file,
+                                                                                   )
                                 self.queue.insert(0, [db_tax, command, stdout_path, output_file])
                             self.queue.insert(len(chunks_path),
                                               [f'{db_general}_checkpoint', current_chunk_dir, fasta_path,

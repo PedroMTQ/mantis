@@ -76,19 +76,28 @@ class Metadata():
         return res
 
 
-    def get_essential_genes_list(self):
+    def get_essential_genes(self):
         essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
         if file_exists(essential_genes):
             with open(essential_genes) as file: lines = file.readlines()
             lines = [l.strip('\n') for l in lines]
-            return lines
+            return set(lines)
 
     def is_essential(self, dict_hits):
-        essential_genes_list = self.get_essential_genes_list()
-        if essential_genes_list:
-            for essential_gene in essential_genes_list:
-                if essential_gene in dict_hits:
-                    self.add_to_dict(dict_hits[essential_gene], 'is_essential_gene', 'True')
+        essential_genes = self.get_essential_genes()
+        if essential_genes:
+            for hit in dict_hits:
+                valid_ids=set()
+                if 'pfam' in dict_hits[hit]['link']:
+                    valid_ids.update(dict_hits[hit]['link']['pfam'])
+                if 'tigrfam' in dict_hits[hit]['link']:
+                    valid_ids.update(dict_hits[hit]['link']['tigrfam'])
+                valid_ids.update(find_tigrfam(dict_hits[hit]['link']['hit']))
+                valid_ids.update(find_tigrfam(dict_hits[hit]['link']['accession']))
+                valid_ids.update(find_pfam(dict_hits[hit]['link']['hit']))
+                valid_ids.update(find_pfam(dict_hits[hit]['link']['accession']))
+                if valid_ids.intersection(essential_genes):
+                    self.add_to_dict(dict_hits[hit], 'is_essential_gene', 'True')
 
     def get_hit_links(self, dict_hits, ref_file):
 

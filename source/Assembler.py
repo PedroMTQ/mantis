@@ -31,7 +31,6 @@ def check_installation(mantis_config=None,no_taxonomy=False,check_sql=False):
 class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
     def __init__(self, verbose=True, redirect_verbose=None,no_taxonomy=False, mantis_config=None,
                  hmm_chunk_size=None,keep_files=False,user_cores=None):
-        Taxonomy_SQLITE_Connector.__init__(self)
         self.redirect_verbose = redirect_verbose
         self.keep_files = keep_files
         self.verbose = verbose
@@ -50,6 +49,8 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         else:
             self.hmm_chunk_size = hmm_chunk_size
         self.read_config_file()
+        Taxonomy_SQLITE_Connector.__init__(self,resources_folder=self.mantis_paths['resources'])
+
         #self.requirements_met()
         # I use manager instead of queue since I need to be able to add records to the end and start of the 'queue' (actually a list) which is not possible with the multiprocessing.Queue
         # we need manager.list because a normal list cant communicate during multiprocessing
@@ -647,9 +648,12 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                 line = file.readline()
 
     def get_taxon_ref_path(self, taxon_id, db):
-        tax_hmms = self.get_local_ref_taxon_ids(db=db)
-        if taxon_id in tax_hmms:
-            return add_slash(self.mantis_paths[db] + taxon_id) + f'{taxon_id}_merged.hmm'
+        tax_refs = self.get_local_ref_taxon_ids(db=db)
+        if taxon_id in tax_refs:
+            if db=='NOG' and self.nog_db == 'dmnd':
+                return add_slash(self.mantis_paths[db] + taxon_id) + f'{taxon_id}.dmnd'
+            else:
+                return add_slash(self.mantis_paths[db] + taxon_id) + f'{taxon_id}_merged.hmm'
         else:
             return None
 

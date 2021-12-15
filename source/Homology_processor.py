@@ -58,16 +58,16 @@ class Homology_processor():
                 res.append(domtblout)
         return res
 
-    def taxon_annotation_finished(self, target_hmm, output_folder, chunks_n):
+    def taxon_annotation_finished(self, target_ref, output_folder, chunks_n):
         c = 0
         domtblout_folder = add_slash(add_slash(output_folder) + 'searchout')
         domtblout_files = os.listdir(domtblout_folder)
         for domtblout in domtblout_files:
-            if target_hmm in domtblout:
+            if target_ref in domtblout:
                 if '_finished' in domtblout: c += 1
         if c == chunks_n:
             for domtblout in domtblout_files:
-                if target_hmm in domtblout:
+                if target_ref in domtblout:
                     if '_finished' in domtblout:
                         move_file(domtblout_folder + domtblout, domtblout_folder + domtblout.strip('_finished'))
             return True

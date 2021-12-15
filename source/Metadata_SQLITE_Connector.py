@@ -161,7 +161,6 @@ class Metadata_SQLITE_Connector():
                 res[db].update(db_res)
         return res
 
-
     def fetch_metadata(self,ref_id):
         if not file_exists(self.db_file):
             return {}

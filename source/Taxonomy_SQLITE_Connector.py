@@ -8,16 +8,18 @@ except:
 
 class Taxonomy_SQLITE_Connector():
 
-    def __init__(self):
+    def __init__(self,resources_folder):
         self.info_splitter='##'
+        self.resources_folder=resources_folder
+        self.taxonomy_db_file = f'{self.resources_folder}Taxonomy.db'
 
 
     '''
     this just creates an sql database from two gtdb files to convert gtdb to ncbi. first we download them and create the db
     then anytime we need to fetch info we just open the db, fetch the info, and close the connection
     '''
-    def start_sqlite_cursor(self):
-        self.sqlite_connection = sqlite3.connect(self.db_file)
+    def start_taxonomy_connection(self):
+        self.sqlite_connection = sqlite3.connect(self.taxonomy_db_file)
         self.cursor = self.sqlite_connection.cursor()
 
     def commit_and_close_sqlite_cursor(self):
@@ -107,14 +109,14 @@ class Taxonomy_SQLITE_Connector():
 
 
     def create_taxonomy_db(self):
-        if not os.path.exists(self.db_file):
+        if not os.path.exists(self.taxonomy_db_file):
 
             Path(self.temp_folder).mkdir(parents=True, exist_ok=True)
             self.download_data()
             #this will probably need to be changed to an output_folder provided by the user
-            if os.path.exists(self.db_file):
-                os.remove(self.db_file)
-            self.sqlite_connection = sqlite3.connect(self.db_file)
+            if os.path.exists(self.taxonomy_db_file):
+                os.remove(self.taxonomy_db_file)
+            self.sqlite_connection = sqlite3.connect(self.taxonomy_db_file)
             self.cursor = self.sqlite_connection.cursor()
 
             create_table_command = f'CREATE TABLE GTDB2NCBI (' \
@@ -234,17 +236,15 @@ class Taxonomy_SQLITE_Connector():
         return []
 
 
-    def launch_taxonomy_connector(self,resources_folder):
-        self.resources_folder=resources_folder
+    def launch_taxonomy_connector(self):
         self.temp_folder=f'{self.resources_folder}Taxonomy_temp{SPLITTER}'
         Path(self.resources_folder).mkdir(parents=True, exist_ok=True)
-        self.db_file = f'{self.resources_folder}Taxonomy.db'
         self.insert_step=50000
-        if os.path.exists(self.db_file):
-            self.start_sqlite_cursor()
+        if os.path.exists(self.taxonomy_db_file):
+            self.start_taxonomy_connection()
             return True
         else:
-            print(f'Database file {self.db_file} does not exist')
+            print(f'Database file {self.taxonomy_db_file} does not exist')
             return False
 
     def get_lowest_common_ancestor_ncbi(self,list_taxons):
@@ -309,8 +309,8 @@ class Taxonomy_SQLITE_Connector():
 
 
 if __name__ == '__main__':
-    gtdb_connector=Taxonomy_SQLITE_Connector()
-    gtdb_connector.launch_taxonomy_connector(resources_folder='/home/pedroq/Desktop/test_cr/')
+    gtdb_connector=Taxonomy_SQLITE_Connector(resources_folder='/home/pedroq/Desktop/test_cr/')
+    gtdb_connector.launch_taxonomy_connector()
     gtdb_connector.create_taxonomy_db()
     #gtdb_connector.process_gtdb_taxonomy('d__Archaea;p__Thermoproteota;c__Nitrososphaeria;o__Nitrososphaerales;f__Nitrosopumilaceae_C;g__JACEMX01;s__JACEMX01 sp011773785')
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
