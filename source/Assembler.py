@@ -218,7 +218,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         file.close()
         if self.use_taxonomy:
             if nogt_line:
-                if self.launch_taxonomy_connector(resources_folder=self.mantis_paths['resources']):
+                if self.launch_taxonomy_connector():
                     self.set_nogt_line(nogt_line)
 
 

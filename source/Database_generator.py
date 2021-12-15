@@ -267,7 +267,7 @@ class Database_generator(UniFunc_wrapper):
 
     def download_taxonomy_resources(self, force_download=False, stdout_file=None):
         if not file_exists(self.mantis_paths['resources']+'Taxonomy.db'):
-            self.launch_taxonomy_connector(resources_folder=self.mantis_paths['resources'])
+            self.launch_taxonomy_connector()
             self.create_taxonomy_db()
             self.close_taxonomy_connection()
 

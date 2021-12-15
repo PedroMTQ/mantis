@@ -356,7 +356,6 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
                                                                    output_folder=current_chunk_dir,
                                                                    count_seqs_chunk=count_seqs_chunk,
                                                                    count_seqs_original_file=count_seqs_original_file,
-                                                                   count_residues_original_file=count_residues_original_file,
                                                                    )
                 self.queue.append(['General', command, f'{output_path}Mantis.out'])
 

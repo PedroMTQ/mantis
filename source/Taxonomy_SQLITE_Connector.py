@@ -10,8 +10,11 @@ class Taxonomy_SQLITE_Connector():
 
     def __init__(self,resources_folder):
         self.info_splitter='##'
+        self.insert_step=50000
         self.resources_folder=resources_folder
         self.taxonomy_db_file = f'{self.resources_folder}Taxonomy.db'
+        Path(self.resources_folder).mkdir(parents=True, exist_ok=True)
+
 
 
     '''
@@ -110,6 +113,7 @@ class Taxonomy_SQLITE_Connector():
 
     def create_taxonomy_db(self):
         if not os.path.exists(self.taxonomy_db_file):
+            self.temp_folder = f'{self.resources_folder}Taxonomy_temp{SPLITTER}'
 
             Path(self.temp_folder).mkdir(parents=True, exist_ok=True)
             self.download_data()
@@ -188,13 +192,6 @@ class Taxonomy_SQLITE_Connector():
         self.sqlite_connection.commit()
 
 
-
-
-
-
-
-
-
     def fetch_ncbi_id(self,gtdb_lineage):
         res=set()
         gtdb_id,_=self.process_gtdb_taxonomy(gtdb_lineage)
@@ -237,9 +234,6 @@ class Taxonomy_SQLITE_Connector():
 
 
     def launch_taxonomy_connector(self):
-        self.temp_folder=f'{self.resources_folder}Taxonomy_temp{SPLITTER}'
-        Path(self.resources_folder).mkdir(parents=True, exist_ok=True)
-        self.insert_step=50000
         if os.path.exists(self.taxonomy_db_file):
             self.start_taxonomy_connection()
             return True
