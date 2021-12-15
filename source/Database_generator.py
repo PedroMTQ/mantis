@@ -1230,7 +1230,7 @@ class Database_generator(UniFunc_wrapper):
                 taxon_fasta = f'{taxon_folder}{taxon}_merged.faa'
                 taxon_dmnd = f'{taxon_folder}{taxon}'
                 if not file_exists(f'{taxon_dmnd}.dmnd') and file_exists(taxon_fasta):
-                    run_command(f'{DIAMOND_PATH} makedb --in {taxon_faa} -d {taxon_dmnd}')
+                    run_command(f'{DIAMOND_PATH} makedb --in {taxon_fasta} -d {taxon_dmnd}')
 
 
     def compile_NOGG_DMND(self,force_download=False):

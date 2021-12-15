@@ -9,13 +9,15 @@ class Metadata_SQLITE_Connector():
         self.metadata_file_tsv=metadata_file
         self.db_file=metadata_file.replace('.tsv','')+'.db'
         if not file_exists(self.metadata_file_tsv):
-            kill_switch(MissingMetadataFile)
+            print(f'Metadata file missing: {metadata_file}')
+            return
         self.insert_step=5000
         self.info_splitter='##'
         if not file_exists(self.db_file):
             print('Creating SQL database',self.db_file)
             self.create_sql_table()
         self.start_sqlite_cursor()
+
 
 
 
@@ -30,7 +32,10 @@ class Metadata_SQLITE_Connector():
         self.sqlite_connection.close()
 
     def close_sql_connection(self):
-        self.sqlite_connection.close()
+        try:
+            self.sqlite_connection.close()
+        except:
+            return
 
     def check_all_tables(self):
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -158,6 +163,8 @@ class Metadata_SQLITE_Connector():
 
 
     def fetch_metadata(self,ref_id):
+        if not file_exists(self.db_file):
+            return {}
         fetch_command=self.generate_fetch_command(ref_id)
         res_fetch=self.cursor.execute(fetch_command).fetchone()
         try:
@@ -169,6 +176,7 @@ class Metadata_SQLITE_Connector():
 
     def test_database(self):
         res=set()
+        if not file_exists(self.metadata_file_tsv): return res
         with open(self.metadata_file_tsv) as file:
             for line in file:
                 ref=line.split('\t')[0]
@@ -182,7 +190,7 @@ class Metadata_SQLITE_Connector():
 if __name__ == '__main__':
     import time
     metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NOG_dmnd/10/metadata.tsv')
-    #metadata_connector.test_database()
+    metadata_connector.test_database()
     start=time.time()
     for i in range(10000):
         res=metadata_connector.fetch_metadata('1134474.O59_000005')
