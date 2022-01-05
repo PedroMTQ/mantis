@@ -22,6 +22,12 @@ If you have only loose reads, you need to assemble them first; when you have ass
 # Citation
 If you use Mantis, please make sure you cite the respective paper https://doi.org/10.1093/gigascience/giab042
 
+# Wiki
+
+Do you have any questions you can't find the answer to in here? Please read the [wiki](https://github.com/PedroMTQ/mantis/wiki).
+
+Still can't find the answer? Just post an issue and I'll answer as soon as possible!
+
 
 # Workflow overview
 
@@ -39,8 +45,9 @@ If you use Mantis, please make sure you cite the respective paper https://doi.or
 - [HMMER](#10-references-and-acknowledgements), tested with v3.2.1
 - **GCC**, for compilation of cython code (most systems should have it by default)
 
-**Mantis can only run on Linux-based systems**  
+**Mantis can only run on Linux or MacOS systems. If you want to run Mantis on MacOS make sure you use python 3.7**
 
+The multiprocessing package above Python 3.7 has some issues outside of Linux environments.
 
 ### Quick configuration
 1. `git clone git@github.com:PedroMTQ/mantis.git`  
@@ -67,6 +74,7 @@ You may also redifine the **custom_refs** folder path by adding your preferred p
 
         custom_refs_folder=path/to/custom_refs/
 
+To integrate metadata, each custom reference folder should contain a `metadata.tsv` file -  see [Custom References](https://github.com/PedroMTQ/mantis/wiki/Configuration#custom-references) for more details.
 
 ### Functions
 
@@ -108,7 +116,7 @@ There are 3 output files:
 
 The first two files can have the same query sequence in several lines (query sequence/reference source) while the `consensus_annotation.tsv` will only have one line per query sequence (consensus/query).
 
-Mantis can additionally output in gff format and also a kegg module matrix completeness. Please see [Output](https://github.com/PedroMTQ/mantis/wiki/Output) for more details.
+**GFF formatted output files can also be generated, as well as KEGG modules completeness tsv. Please see the [Output](https://github.com/PedroMTQ/mantis/wiki/output) page for information on the additional output files.**
 
 # Further details
 

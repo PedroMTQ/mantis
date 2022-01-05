@@ -305,7 +305,7 @@ class Taxonomy_SQLITE_Connector():
 if __name__ == '__main__':
     gtdb_connector=Taxonomy_SQLITE_Connector(resources_folder='/home/pedroq/Desktop/test_cr/')
     gtdb_connector.launch_taxonomy_connector()
-    gtdb_connector.create_taxonomy_db()
+    #gtdb_connector.create_taxonomy_db()
     #gtdb_connector.process_gtdb_taxonomy('d__Archaea;p__Thermoproteota;c__Nitrososphaeria;o__Nitrososphaerales;f__Nitrosopumilaceae_C;g__JACEMX01;s__JACEMX01 sp011773785')
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
     print(a)
