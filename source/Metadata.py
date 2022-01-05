@@ -100,7 +100,6 @@ class Metadata():
                     self.add_to_dict(dict_hits[hit], 'is_essential_gene', 'True')
 
     def get_hit_links(self, dict_hits, ref_file):
-
         if re.search('NOG[GT]',ref_file):
             if 'NOGG' in ref_file:
                 taxon_id = 'NOGG'

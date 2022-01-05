@@ -68,29 +68,28 @@ class Metadata_SQLITE_Connector():
         return fetch_command
 
     def yield_metadata(self):
-        res=[]
         with open(self.metadata_file_tsv, 'r') as file:
             for line in file:
                 row_info={}
                 line = line.strip('\n')
-                line = line.split('\t')
-                current_ref = line[0]
-                if '|' in line:  line.remove('|')
-                annotations = line[1:]
-                for link in annotations:
-                    if link:
-                        temp_link = link.split(':')
-                        link_type = temp_link[0]
-                        link_text = ':'.join(temp_link[1:])
-                        link_text=link_text.strip()
-                        if link_type not in row_info: row_info[link_type]=set()
-                        row_info[link_type].add(link_text)
-                        if link_type == 'description' and link_text == 'NA':
-                            link_text = None
-                        if link_text and link_type == 'description':
-                            get_common_links_metadata(link_text, res=row_info)
-                res.append(self.convert_row_to_sql(current_ref,row_info))
-        return res
+                if line:
+                    line = line.split('\t')
+                    current_ref = line[0]
+                    if '|' in line:  line.remove('|')
+                    annotations = line[1:]
+                    for link in annotations:
+                        if link:
+                            temp_link = link.split(':')
+                            link_type = temp_link[0]
+                            link_text = ':'.join(temp_link[1:])
+                            link_text=link_text.strip()
+                            if link_type not in row_info: row_info[link_type]=set()
+                            row_info[link_type].add(link_text)
+                            if link_type == 'description' and link_text == 'NA':
+                                link_text = None
+                            if link_text and link_type == 'description':
+                                get_common_links_metadata(link_text, res=row_info)
+                    yield self.convert_row_to_sql(current_ref,row_info)
 
     def get_db_headers(self):
         res = set()
@@ -135,19 +134,26 @@ class Metadata_SQLITE_Connector():
 
         self.commit_and_close_sqlite_cursor()
 
-    def generate_inserts(self, metadata):
+    def generate_inserts(self, metadata_yielder):
         step=self.insert_step
-        for i in range(0, len(metadata), step):
-            yield metadata[i:i + step]
-
+        temp=[]
+        for i in metadata_yielder:
+            if len(temp)<step:
+                temp.append(i)
+            else:
+                yield temp
+                temp=[]
+                temp.append(i)
+        yield temp
 
     def store_metadata(self):
         insert_command=self.generate_insert_command()
         metadata_yielder=self.yield_metadata()
-        generator_insert = self.generate_inserts(metadata_yielder)
-        for table_chunk in generator_insert:
-            self.cursor.executemany(insert_command, table_chunk)
-        self.sqlite_connection.commit()
+        if metadata_yielder:
+            generator_insert = self.generate_inserts(metadata_yielder)
+            for table_chunk in generator_insert:
+                self.cursor.executemany(insert_command, table_chunk)
+            self.sqlite_connection.commit()
 
     def convert_sql_to_dict(self,sql_result):
         sql_result=sql_result[1:]
@@ -165,8 +171,8 @@ class Metadata_SQLITE_Connector():
         if not file_exists(self.db_file):
             return {}
         fetch_command=self.generate_fetch_command(ref_id)
-        res_fetch=self.cursor.execute(fetch_command).fetchone()
         try:
+            res_fetch = self.cursor.execute(fetch_command).fetchone()
             res=self.convert_sql_to_dict(res_fetch)
             return res
         except:
@@ -188,9 +194,9 @@ class Metadata_SQLITE_Connector():
 
 if __name__ == '__main__':
     import time
-    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/NOG_dmnd/10/metadata.tsv')
+    metadata_connector=Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/tcdb/metadata.tsv')
     metadata_connector.test_database()
     start=time.time()
     for i in range(10000):
-        res=metadata_connector.fetch_metadata('1134474.O59_000005')
+        res=metadata_connector.fetch_metadata('P0A2U6')
     print(time.time()-start)

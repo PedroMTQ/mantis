@@ -49,7 +49,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         else:
             self.hmm_chunk_size = hmm_chunk_size
         self.read_config_file()
-        Taxonomy_SQLITE_Connector.__init__(self,resources_folder=self.mantis_paths['resources'])
 
         #self.requirements_met()
         # I use manager instead of queue since I need to be able to add records to the end and start of the 'queue' (actually a list) which is not possible with the multiprocessing.Queue
@@ -88,10 +87,9 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         ref_weights=', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i!='else'])
         if ref_weights:
             res+= f'#  Weights:\n{ref_weights}\n'
-
         nog_tax=', '.join([i for i in self.mantis_nogt_tax])
         if nog_tax:
-            res+= f'#  NOG tax IDs:\n{nog_tax}\n'
+            res+= f'\n#  NOG tax IDs:\n{nog_tax}\n'
 
         return res
 
@@ -204,7 +202,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                     if line_path: self.mantis_paths['tcdb'] = line_path
 
 
-                elif line.startswith('_weight='):
+                elif '_weight=' in line:
                     ref_source, weight = line.split('_weight=')
                     self.mantis_ref_weights[ref_source] = float(weight)
 
@@ -247,6 +245,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         # if there's no path, we just assume its in the default folder
         if not default_ref_path:  default_ref_path = add_slash(MANTIS_FOLDER + 'References')
         resources_path = add_slash(MANTIS_FOLDER + 'Resources')
+
         self.mantis_paths = {'default': default_ref_path,
                              'resources': resources_path,
                              'custom': add_slash(default_ref_path + 'Custom_references'),
@@ -256,6 +255,8 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                              'NCBI': add_slash(default_ref_path + 'NCBI'),
                              'tcdb': add_slash(default_ref_path + 'tcdb'),
                              }
+        Taxonomy_SQLITE_Connector.__init__(self,resources_folder=self.mantis_paths['resources'])
+
         self.setup_paths_config_file()
         if not self.use_taxonomy:
             self.mantis_paths['NOG']=f'NA{SPLITTER}'
