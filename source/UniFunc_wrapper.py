@@ -6,9 +6,9 @@ except:
 try:
     if not unifunc_downloaded():
         download_unifunc()
-    from Resources.UniFunc.source import UniFunc
+    from Resources.UniFunc.unifunc.source import UniFunc
 except:
-    from UniFunc.source import UniFunc
+    from UniFunc.unifunc.source import UniFunc
 
 
 def test_nlp():
