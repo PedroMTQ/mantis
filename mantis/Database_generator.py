@@ -1,9 +1,9 @@
 import re
 
 try:
-    from source.Exceptions import *
-    from source.utils import *
-    from source.UniFunc_wrapper import UniFunc_wrapper
+    from mantis.Exceptions import *
+    from mantis.utils import *
+    from mantis.UniFunc_wrapper import UniFunc_wrapper
 except:
     from Exceptions import *
     from utils import *

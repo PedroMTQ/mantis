@@ -1,8 +1,7 @@
 try:
-    from source.Multiprocessing import *
+    from mantis.Multiprocessing import *
 except:
-    from Multiprocessing import *
-
+    from mantis.Multiprocessing import *
 
 
 def print_citation_mantis():

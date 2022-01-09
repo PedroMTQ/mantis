@@ -1,8 +1,9 @@
 try:
-    from source.Assembler import *
-    from source.Homology_processor import Homology_processor
-    from source.Metadata import Metadata
-    from source.Consensus import Consensus
+    from mantis.Assembler import *
+    from mantis.Homology_processor import Homology_processor
+    from mantis.Metadata import Metadata
+    from mantis.Consensus import Consensus
+
 except:
     from Assembler import *
     from Homology_processor import Homology_processor

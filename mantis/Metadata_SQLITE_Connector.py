@@ -1,5 +1,5 @@
 try:
-    from source.utils import *
+    from mantis.utils import *
 except:
     from utils import *
 

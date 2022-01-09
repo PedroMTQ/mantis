@@ -1,5 +1,5 @@
 try:
-    from source.utils import unifunc_downloaded,download_unifunc
+    from mantis.utils import unifunc_downloaded,download_unifunc
 except:
     from utils import unifunc_downloaded,download_unifunc
 
@@ -15,7 +15,8 @@ def test_nlp():
     nlp = UniFunc_wrapper()
     str1 = 'Responsible for trypanothione reduction'
     str2 = 'Protein associated with trypanothione reductase activity'
-    nlp.get_similarity_score(str1, str2, verbose=True)
+    res=nlp.get_similarity_score(str1, str2, verbose=True)
+    print(res)
 
 #this is basically a wrapper for UniFunc
 class UniFunc_wrapper(UniFunc):
@@ -24,3 +25,4 @@ class UniFunc_wrapper(UniFunc):
 
 if __name__ == '__main__':
     nlp = UniFunc_wrapper()
+    test_nlp()

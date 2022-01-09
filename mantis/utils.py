@@ -76,6 +76,8 @@ WORKER_PER_CORE = 1
 
 MANTIS_FOLDER = os.path.abspath(os.path.dirname(__file__)).split(SPLITTER)[0:-1]
 MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER) + SPLITTER
+CYTHON_FOLDER = f'{MANTIS_FOLDER}mantis{SPLITTER}cython_src{SPLITTER}'
+
 DIAMOND_PATH= f'{MANTIS_FOLDER}Resources{SPLITTER}Diamond/diamond'
 
 
@@ -1054,17 +1056,13 @@ def diamond_downloaded():
     return True
 
 def compile_cython():
-    cython_folder = MANTIS_FOLDER + 'source' + SPLITTER + 'cython_src' + SPLITTER
-    for f in os.listdir(cython_folder):
+    for f in os.listdir(CYTHON_FOLDER):
         if 'get_non_overlapping_hits.c' in f:
-            remove_file(cython_folder + f)
-    run_command('python ' + cython_folder + 'setup_get_non_overlapping_hits.py build_ext ' +
-                '--build-lib ' + cython_folder)
-
+            remove_file(CYTHON_FOLDER + f)
+    run_command(f'python {CYTHON_FOLDER}setup_get_non_overlapping_hits.py build_ext --build-lib {CYTHON_FOLDER}')
 
 def cython_compiled():
-    cython_folder = MANTIS_FOLDER + 'source' + SPLITTER + 'cython_src' + SPLITTER
-    if not file_exists(cython_folder + 'get_non_overlapping_hits.c'): return False
+    if not file_exists(CYTHON_FOLDER + 'get_non_overlapping_hits.c'): return False
     return True
 
 
@@ -1213,5 +1211,3 @@ def count_residues(sample_path):
 if __name__ == '__main__':
     if not cython_compiled():
         compile_cython()
-    print(MANTIS_FOLDER)
-    download_file('https://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt',output_folder='/home/pedroq/Desktop/test_uniprot/')

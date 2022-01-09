@@ -1,5 +1,5 @@
 try:
-    from source.Assembler import *
+    from mantis.Assembler import *
 except:
     from Assembler import *
 

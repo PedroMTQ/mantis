@@ -1,33 +1,18 @@
 try:
-    from source.Assembler import *
+    from mantis.Assembler import *
 except:
     from Assembler import *
 
 try:
-    from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+    from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
 except:
-    try:
-        from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-    except:
-        if not cython_compiled():
-            compile_cython()
-            try:
-                from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-            except:
-                try:
-                    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-                except:
-                    kill_switch(CythonNotCompiled)
-        # when cython's version is not compatible with the current python version, we need to recompile it
-        else:
-            compile_cython()
-            try:
-                from source.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-            except:
-                try:
-                    from cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-                except:
-                    kill_switch(CythonNotCompiled)
+    if not cython_compiled():
+        compile_cython()
+        try:
+            from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+        except:
+            kill_switch(CythonNotCompiled,f'{MANTIS_FOLDER}mantis{SPLITTER}utils.py')
+
 
 # This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
