@@ -1,8 +1,7 @@
 try:
-    from source.Database_generator import *
-    from source.Taxonomy_SQLITE_Connector import Taxonomy_SQLITE_Connector
-    from source.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
-
+    from mantis.Database_generator import *
+    from mantis.Taxonomy_SQLITE_Connector import Taxonomy_SQLITE_Connector
+    from mantis.Metadata_SQLITE_Connector import Metadata_SQLITE_Connector
 except:
     from Database_generator import *
     from Taxonomy_SQLITE_Connector import Taxonomy_SQLITE_Connector

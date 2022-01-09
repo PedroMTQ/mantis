@@ -20,13 +20,24 @@ def move_o_file():
                 os.remove(o_file)
             return
 
+def move_so_file():
+    for root, dirs, files in walk(CYTHON_FOLDER):
+        for f in files:
+            if f.endswith('.so') and f.startswith('get_non_overlapping_hits.'):
+                so_file = path.join(root, f)
+                try:
+                    rename(so_file, CYTHON_FOLDER + 'get_non_overlapping_hits.so')
+                except:
+                    copy(so_file, CYTHON_FOLDER + 'get_non_overlapping_hits.so')
+                    os.remove(so_file)
+                return
+
 
 SPLITTER = '/'
-MANTIS_FOLDER = path.abspath(path.dirname(__file__)).split(SPLITTER)[0:-1]
-MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER)+SPLITTER
-CYTHON_FOLDER=MANTIS_FOLDER + 'cython_src'+SPLITTER
+CYTHON_FOLDER = os.path.abspath(os.path.dirname(__file__))+SPLITTER
 
 setup(name='Get non overlapping hits',
       ext_modules=cythonize([CYTHON_FOLDER + "get_non_overlapping_hits.pyx"]))
       
 move_o_file()
+move_so_file()
