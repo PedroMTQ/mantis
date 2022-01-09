@@ -11,9 +11,6 @@ except:
 
 if not unifunc_downloaded():
     download_unifunc()
-if not diamond_downloaded():
-    download_diamond()
-
 
 class Database_generator(UniFunc_wrapper):
 
@@ -24,8 +21,6 @@ class Database_generator(UniFunc_wrapper):
             compile_cython()
         if not unifunc_downloaded():
             download_unifunc()
-        if not diamond_downloaded():
-            download_diamond()
         self.output_folder = f'{MANTIS_FOLDER}setup_databases/'
         self.mantis_out = f'{self.output_folder}Mantis.out'
         if file_exists(self.mantis_out):
@@ -762,7 +757,7 @@ class Database_generator(UniFunc_wrapper):
         self.compile_tcdb_metadata()
 
         if not file_exists(self.mantis_paths['tcdb']+'tcdb.dmnd'):
-            run_command(f'{DIAMOND_PATH} makedb --in ' + self.mantis_paths['tcdb'] + 'tcdb.faa -d '+self.mantis_paths['tcdb']+'tcdb', stdout_file=stdout_file)
+            run_command(f'diamond makedb --in ' + self.mantis_paths['tcdb'] + 'tcdb.faa -d '+self.mantis_paths['tcdb']+'tcdb', stdout_file=stdout_file)
 
 #####################   NOG
 
@@ -1230,7 +1225,7 @@ class Database_generator(UniFunc_wrapper):
                 taxon_fasta = f'{taxon_folder}{taxon}_merged.faa'
                 taxon_dmnd = f'{taxon_folder}{taxon}'
                 if not file_exists(f'{taxon_dmnd}.dmnd') and file_exists(taxon_fasta):
-                    run_command(f'{DIAMOND_PATH} makedb --in {taxon_fasta} -d {taxon_dmnd}')
+                    run_command(f'diamond makedb --in {taxon_fasta} -d {taxon_dmnd}')
 
 
     def compile_NOGG_DMND(self,force_download=False):
@@ -1261,7 +1256,7 @@ class Database_generator(UniFunc_wrapper):
 
             nogg_dmnd = f'{nogg_folder_path}NOGG_merged'
             if not file_exists(f'{nogg_dmnd}.dmnd'):
-                run_command(f'{DIAMOND_PATH} makedb --in {target_merged_faa} -d {nogg_dmnd}', stdout_file=stdout_file)
+                run_command(f'diamond makedb --in {target_merged_faa} -d {nogg_dmnd}', stdout_file=stdout_file)
 
             stdout_file.close()
 
@@ -1272,7 +1267,7 @@ class Database_generator(UniFunc_wrapper):
             folder_path = add_slash(self.mantis_paths['NOG'])
             diamond_db = f'{folder_path}eggnog_proteins'
             eggnog_proteins_path = f'{folder_path}eggnog_seqs.faa'
-            extract_seqs_command = f'{DIAMOND_PATH} getseq -d {diamond_db} > {eggnog_proteins_path}'
+            extract_seqs_command = f'diamond getseq -d {diamond_db} > {eggnog_proteins_path}'
             if not file_exists(eggnog_proteins_path):
                 print('Extracting sequences from Diamond database',flush=True,file=self.redirect_verbose)
                 run_command(extract_seqs_command,join_command=True,shell=True)

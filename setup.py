@@ -33,6 +33,7 @@ HERE = pathlib.Path(__file__).parent
 
 # The text of the README file
 README = (HERE / "README.md").read_text(encoding='utf-8')
+LICENSE = (HERE / "LICENSE").read_text(encoding='utf-8')
 
 long_description='Mantis is protein function annotation, that dynamically integrates multiple reference databases to produce consensus-driven annotations.'
 
@@ -55,9 +56,9 @@ setup(
         'Operating System :: MacOS',
         'Operating System :: POSIX :: Linux',
     ],
-    license="MIT",
+    license=LICENSE,
     include_package_data=True,
-    install_requires=['cython','hmmer','nltk','psutil','requests'],
+    install_requires=['cython','hmmer>=3.2.1','nltk>=1.18.1','psutil>=5.6.7','requests>=2.22.0','diamond>=2.0.13'],
     entry_points={
         "console_scripts": [
             "mantis=mantis.__main__:main",

@@ -47,7 +47,7 @@ def main():
     parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
-                        help='Custom MANTIS.config file. Default is in Mantis\' folder')
+                        help='Custom MANTIS.cfg file. Default is in Mantis\' folder')
     parser.add_argument('-et', '--evalue_threshold',
                         help='[optional]\tCustom e-value threshold. Default is 1e-3. You can use <dynamic> to take into account sequence length.')
     parser.add_argument('-ov', '--overlap_value',
@@ -230,7 +230,7 @@ def main():
         output_folder = add_slash(output_folder)
         run_mantis_test(input_path=add_slash(MANTIS_FOLDER + 'tests') + 'test_sample.faa',
                         output_folder=output_folder,
-                        mantis_config=add_slash(MANTIS_FOLDER + 'tests') + 'test_MANTIS.config',
+                        mantis_config=add_slash(MANTIS_FOLDER + 'tests') + 'test_MANTIS.cfg',
                         )
         print_citation_mantis()
 

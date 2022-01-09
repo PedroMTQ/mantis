@@ -59,7 +59,7 @@ The multiprocessing package above Python 3.7 has some issues outside of Linux en
 
 **Custom references**  
 
-Custom references can be added in **MANTIS.config** by adding their absolute path or folder path, for example:
+Custom references can be added in **config/MANTIS.cfg** by adding their absolute path or folder path, for example:
 
         custom_ref=/path/to/ref_folder/file.hmm
         custom_ref=/path/to/ref_folder/file.dmnd
@@ -70,7 +70,7 @@ Alternatively you may add them to the **custom_refs** folder, for example:
         Mantis/References/Custom_references/custom1/custom1.hmm
         Mantis/References/Custom_references/custom2/custom2.dmnd
 
-You may also redifine the **custom_refs** folder path by adding your preferred path to `custom_refs_folder` in the **MANTIS.config** file, for example:
+You may also redifine the **custom_refs** folder path by adding your preferred path to `custom_refs_folder` in the **config/MANTIS.cfg** file, for example:
 
         custom_refs_folder=path/to/custom_refs/
 
@@ -97,13 +97,13 @@ python  mantis/  check_sql
 ````
 **5. Annotate one sample**  
 ````
-python mantis/ run_mantis -i target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config    
+python mantis/ run_mantis -i target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg    
 ````
 *example*: `python mantis run_mantis -i mantis/tests/test_sample.faa -od "Escherichia coli"`
 
 **6. Annotate multiple samples**  
 ````
-python mantis/ run_mantis -i target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.config
+python mantis/ run_mantis -i target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg
 ````
 *example*: `python mantis run_mantis -i mantis/tests/test_file.tsv`
 

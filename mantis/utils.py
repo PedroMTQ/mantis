@@ -78,7 +78,6 @@ MANTIS_FOLDER = os.path.abspath(os.path.dirname(__file__)).split(SPLITTER)[0:-1]
 MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER) + SPLITTER
 CYTHON_FOLDER = f'{MANTIS_FOLDER}mantis{SPLITTER}cython_src{SPLITTER}'
 
-DIAMOND_PATH= f'{MANTIS_FOLDER}Resources{SPLITTER}Diamond/diamond'
 
 
 def estimate_number_workers_annotation(n_chunks=0,
@@ -1043,17 +1042,7 @@ def unifunc_downloaded():
     return True
 
 
-def download_diamond():
-    diamond_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'Diamond/'
-    diamond_url='http://github.com/bbuchfink/diamond/releases/download/v2.0.9/diamond-linux64.tar.gz'
-    Path(diamond_folder).mkdir(parents=True, exist_ok=True)
-    download_file(url=diamond_url,output_folder=diamond_folder)
-    uncompress_archive(f'{diamond_folder}diamond-linux64.tar.gz',remove_source=True)
 
-def diamond_downloaded():
-    diamond_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'Diamond/'
-    if not file_exists(diamond_folder): return False
-    return True
 
 def compile_cython():
     for f in os.listdir(CYTHON_FOLDER):

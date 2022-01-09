@@ -224,18 +224,18 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         self.mantis_nogt_tax = set()
 
         if self.mantis_config:
-            print(f'Using custom MANTIS.config: {self.mantis_config}', flush=True, file=self.redirect_verbose)
+            print(f'Using custom MANTIS.cfg: {self.mantis_config}', flush=True, file=self.redirect_verbose)
             self.config_file = self.mantis_config
         else:
             if not os.path.isdir(MANTIS_FOLDER):
                 print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',
                     flush=True, file=self.redirect_verbose)
                 raise FileNotFoundError
-            self.config_file = MANTIS_FOLDER + 'MANTIS.config'
+            self.config_file =f'{MANTIS_FOLDER}config{SPLITTER}MANTIS.cfg'
         try:
             open(self.config_file, 'r')
         except:
-            print('MANTIS.config file has been deleted or moved, make sure you keep it in the root of the project!',
+            print('MANTIS.cfg file has been deleted or moved, make sure you keep it in the root of the project!',
                   flush=True, file=self.redirect_verbose)
             raise FileNotFoundError
 
@@ -742,4 +742,4 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
 
 
 if __name__ == '__main__':
-    p = Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.config')
+    p = Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.cfg')

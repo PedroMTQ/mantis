@@ -172,7 +172,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
         ref = get_path_level(ref_path)
         ref = ref.split('.')[0]
         #dbsize is set so we can scale it  to sample size
-        command = f'{DIAMOND_PATH} blastp --quiet --dbsize {self.diamond_db_size}' #--ultra-sensitive '# '
+        command = f'diamond blastp --quiet --dbsize {self.diamond_db_size}' #--ultra-sensitive '# '
         dmndout_path = f'{output_folder}searchout{SPLITTER}{output_initials}{ref}.dmndout'
         command += f' --out {dmndout_path} --outfmt 6 qseqid qlen sseqid slen qstart qend sstart send evalue bitscore'
         command += f' --threads {self.hmmer_threads}'
