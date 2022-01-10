@@ -42,8 +42,8 @@ def main():
                              '\tquery_name_2\tinput_path_2\tProteobacteria\n' +
                              '\tquery_name_3\tinput_path_3\t\n' +
                              '\tquery_name_4\tinput_path_4\tEscherichia coli\n',
-                        choices=['run', 'setup', 'check', 'run_test',
-                                 'test_nlp', 'citation', 'version', 'check_sql'])
+                        choices=['run', 'setup', 'check', 'run_test','citation','version',
+                                 'test_nlp', 'check_sql'])
     parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
@@ -193,6 +193,7 @@ def main():
                 print('Input path not found, quitting now!')
         else:
             print("Missing input file, quitting now!")
+
     elif args.execution_type == 'setup':
         mantis_config = args.mantis_config
         force_download = args.force_download
@@ -202,20 +203,12 @@ def main():
         setup_databases(force_download=force_download, chunk_size=chunk_size, no_taxonomy=no_taxonomy,
                         mantis_config=mantis_config, cores=cores)
         print_citation_mantis()
-    elif args.execution_type == 'citation':
-        print_citation_mantis()
+
     elif args.execution_type == 'check':
         mantis_config = args.mantis_config
         no_taxonomy = args.no_taxonomy
         check_installation(mantis_config=mantis_config, no_taxonomy=no_taxonomy)
-    elif args.execution_type == 'check_sql':
-        mantis_config = args.mantis_config
-        no_taxonomy = args.no_taxonomy
-        check_installation(mantis_config=mantis_config, check_sql=True, no_taxonomy=no_taxonomy)
-    elif args.execution_type == 'test_nlp':
-        test_nlp()
-    elif args.execution_type == 'version':
-        print_version('pedromtq', 'mantis')
+
     elif args.execution_type == 'run_test':
         output_folder = args.output_folder
         if not output_folder:
@@ -233,6 +226,20 @@ def main():
                         mantis_config=add_slash(MANTIS_FOLDER + 'tests') + 'test_MANTIS.cfg',
                         )
         print_citation_mantis()
+
+    elif args.execution_type == 'citation':
+        print_citation_mantis()
+
+    elif args.execution_type == 'version':
+        print_version('pedromtq', 'mantis')
+
+    elif args.execution_type == 'test_nlp':
+        test_nlp()
+    elif args.execution_type == 'check_sql':
+        mantis_config = args.mantis_config
+        no_taxonomy = args.no_taxonomy
+        check_installation(mantis_config=mantis_config, check_sql=True, no_taxonomy=no_taxonomy)
+
 
 
 if __name__ == '__main__':
