@@ -29,7 +29,7 @@ def main():
                                      , formatter_class=argparse.RawTextHelpFormatter)
     # run mantis
     parser.add_argument('execution_type',
-                        help='Please choose from :\n\trun_mantis\n\tsetup_databases\n\textract_nog_metadata\n\tcheck_installation\n\trun_test\n\n' +
+                        help='Please choose from :\n' +
                              'If this is your first time running this software, please run <setup_databases> to download and unzip the necessary files.\n'
                              'If you have custom hmms, please include them in the <custom_hmms> folder.\n' +
                              'Custom hmms need to be pressed, to do so just run HMMER\'s hmmpress.' +
@@ -42,7 +42,7 @@ def main():
                              '\tquery_name_2\tinput_path_2\tProteobacteria\n' +
                              '\tquery_name_3\tinput_path_3\t\n' +
                              '\tquery_name_4\tinput_path_4\tEscherichia coli\n',
-                        choices=['run_mantis', 'setup_databases', 'check_installation', 'run_test',
+                        choices=['run', 'setup', 'check', 'run_test',
                                  'test_nlp', 'citation', 'version', 'check_sql'])
     parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run_mantis>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
@@ -114,7 +114,7 @@ def main():
     args = parser.parse_args()
     # if no input is given , arg is of class None. If it's a store_true or store_false , arg is bool
     # otherwise it's a str
-    if args.execution_type == 'run_mantis':
+    if args.execution_type == 'run':
         input_path = args.input
         output_folder = args.output_folder
         mantis_config = args.mantis_config
@@ -193,7 +193,7 @@ def main():
                 print('Input path not found, quitting now!')
         else:
             print("Missing input file, quitting now!")
-    elif args.execution_type == 'setup_databases':
+    elif args.execution_type == 'setup':
         mantis_config = args.mantis_config
         force_download = args.force_download
         chunk_size = args.chunk_size
@@ -204,7 +204,7 @@ def main():
         print_citation_mantis()
     elif args.execution_type == 'citation':
         print_citation_mantis()
-    elif args.execution_type == 'check_installation':
+    elif args.execution_type == 'check':
         mantis_config = args.mantis_config
         no_taxonomy = args.no_taxonomy
         check_installation(mantis_config=mantis_config, no_taxonomy=no_taxonomy)
