@@ -26,44 +26,29 @@ def main():
                                                  '| |\\/| | / _` || \'_ \\ | __|| |/ __|\n'
                                                  '| |  | || (_| || | | || |_ | |\\__ \\\n'
                                                  '\\_|  |_/ \\__,_||_| |_| \\__||_||___/, a consensus driven protein function annotation tool\n'
+                                                 'Documentation is available at https://github.com/PedroMTQ/mantis/wiki'
                                      , formatter_class=argparse.RawTextHelpFormatter)
     # run mantis
     parser.add_argument('execution_type',
-                        help='Please choose from :\n' +
-                             'If this is your first time running this software, please run <setup_databases> to download and unzip the necessary files.\n'
-                             'If you have custom hmms, please include them in the <custom_hmms> folder.\n' +
-                             'Custom hmms need to be pressed, to do so just run HMMER\'s hmmpress.' +
-                             'To check recognized hmms please run <check_installation>\n\n' +
-                             'If you have a taxonomic classification of this sample, include <-od> followed by the organism name or NCBI taxon ID\n' +
-                             'For multiple protein fastas annotations, use <run_mantis>, with a tsv file path.\n' +
-                             'This file should have the following structure:\n' +
-                             '\tQuery name\tQuery path\tOrganism details\n' +
-                             '\tquery_name_1\tinput_path_1\t561\n' +
-                             '\tquery_name_2\tinput_path_2\tProteobacteria\n' +
-                             '\tquery_name_3\tinput_path_3\t\n' +
-                             '\tquery_name_4\tinput_path_4\tEscherichia coli\n',
+                        help='[required]\tExecution mode',
                         choices=['run', 'setup', 'check', 'run_test','citation','version',
                                  'test_nlp', 'check_sql'])
-    parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run_mantis>.')
+    parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run>.')
     parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
                         help='Custom MANTIS.cfg file. Default is in Mantis\' folder')
     parser.add_argument('-et', '--evalue_threshold',
-                        help='[optional]\tCustom e-value threshold. Default is 1e-3. You can use <dynamic> to take into account sequence length.')
+                        help='[optional]\tCustom e-value threshold. Default is 1e-3.')
     parser.add_argument('-ov', '--overlap_value',
                         help='[optional]\tcustom value for the allowed overlap between hits! Default is 0.1, maximum is 0.3')
     parser.add_argument('-mco', '--minimum_consensus_overlap',
                         help='[optional]\tcustom value for the minimum overlap between hits when generating the consensus annotation. Default is 0.7, 0 to accept any consistent hit, regardless of coordinate overlap.')
     parser.add_argument('-da', '--domain_algorithm', choices=['dfs', 'heuristic', 'bpo'],
-                        help='[optional]\tChoose how multiple domains should be processed. Default is dfs, more information on the algorithms in the wiki page.')
+                        help='[optional]\tChoose how multiple domains should be processed. Default is dfs.')
     parser.add_argument('-tl', '--time_limit',
                         help='[optional]\ttime limit in seconds when running Mantis\' DFS algorithm. Default is 60 seconds')
     parser.add_argument('-od', '--organism_details',
-                        help='[optional]\tIf your input fasta has been taxonimically classified please introduce details.\n'
-                             '\t\tTwo formats are allowed:\n'
-                             '\t\t\ttaxon name, e.g. "Proteobacteria" or "Escherichia coli"\n'
-                             '\t\t\tNCBI taxon ID, e.g.: 561 for Escherichia coli\n'
-                             'Providing NCBI IDs is faster and safer.')
+                        help='[optional]\tIf your input fasta has been taxonimically classified please introduce details.\n')
     parser.add_argument('-gc', '--genetic_code',
                         help='[optional]\tIf you want Mantis to translate your input fasta, please provide a genetic code. Default is 11. \n'
                              '\t\tFor further details please see https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/index.cgi?chapter=cgencodes\n')
@@ -85,7 +70,7 @@ def main():
                         help='[optional]\tgenerate GFF-formatted output files.')
 
     parser.add_argument('-fo', '--force_output', action='store_true',
-                        help='[optional]\tIf you would like to force the output to the folder you specified. This may result in errrors!')
+                        help='[optional]\tIf you would like to force the output to the folder you specified. This may result in errrors if data is already in the folder!')
     # setup databases
 
     parser.add_argument('-f', '--force_download', action='store_true',
@@ -93,13 +78,15 @@ def main():
 
     # general args
     parser.add_argument('-dw', '--default_workers',
-                        help='[optional]\tnumber of virtual workers used by Mantis. This is different from the physical <cores>. Default number of workers corresponds to the number of physical cores.')
-    parser.add_argument('-cs', '--chunk_size', help='[optional]\tchunk size when running Mantis')
-    parser.add_argument('-ht', '--hmmer_threads', help='[optional]\tnumber of threads used by HMMER. Default is 1.')
+                        help='[optional]\tnumber of virtual workers used by Mantis. This is different from the physical <cores>. By default, the number of workers is the same as <cores>.')
+    parser.add_argument('-cs', '--chunk_size',
+                        help='[optional]\tchunk size when running Mantis')
+    parser.add_argument('-ht', '--hmmer_threads',
+                        help='[optional]\tnumber of threads used by HMMER. Default is 1.')
     parser.add_argument('-c', '--cores',
-                        help='[optional]\tset the number of physical cores used by Mantis. Mantis uses all available physical cores by default.')
+                        help='[optional]\tset the number of physical cores used by Mantis (all are used by default).')
     parser.add_argument('-m', '--memory',
-                        help='[optional]\tset the amount of RAM used by Mantis (in GB). Mantis uses all available RAM by default.')
+                        help='[optional]\tset the amount of RAM used by Mantis (in GB) (all is used by default).')
 
     # developers only / testing tools
     parser.add_argument('-bcf', '--best_combo_formula', choices=[str(i) for i in range(1, 13)],
