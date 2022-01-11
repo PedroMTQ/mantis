@@ -58,7 +58,7 @@ setup(
     ],
     license=LICENSE,
     include_package_data=True,
-    install_requires=['cython','hmmer>=3.2.1','nltk>=1.18.1','psutil>=5.6.7','requests>=2.22.0','diamond>=2.0.13'],
+    install_requires=['cython','nltk>=1.18.1','psutil>=5.6.7','requests>=2.22.0','diamond>=2.0.13','python>=3.7'],
     entry_points={
         "console_scripts": [
             "mantis=mantis.__main__:main",
