@@ -14,8 +14,7 @@ If you have only loose reads, you need to assemble them first; when you have ass
 
 **Mantis is compatible with genomes and metagenomes.**
 
-- [Requirements](#requirements)
-- [Quick configuration](#quick-configuration)
+- [Installation](#installation)
 - [Functions](#functions)
 - [Further details](#further-details)
 
@@ -107,27 +106,20 @@ The first two files can have the same query sequence in several lines (query seq
 # Further details
 
 * [Configuration](https://github.com/PedroMTQ/mantis/wiki/Configuration)  
-  * [Requirements](https://github.com/PedroMTQ/mantis/wiki/Configuration#requirements)  
   * [Installation](https://github.com/PedroMTQ/mantis/wiki/Configuration#installation)  
-  * [Conda environment](https://github.com/PedroMTQ/mantis/wiki/Configuration#conda-environment)  
   * [Setting your own paths](https://github.com/PedroMTQ/mantis/wiki/Configuration#setting-your-own-paths)  
   * [Custom References](https://github.com/PedroMTQ/mantis/wiki/Configuration#custom-references)  
   * [Setting references weight](https://github.com/PedroMTQ/mantis/wiki/Configuration#setting-references-weight)  
 * [Functionalities](https://github.com/PedroMTQ/mantis/wiki/Functionalities)  
   * [Setup databases](https://github.com/PedroMTQ/mantis/wiki/Functionalities#setup-databases)  
   * [Check installation](https://github.com/PedroMTQ/mantis/wiki/Functionalities#check-installation)  
-  * [Merge HMM folder](https://github.com/PedroMTQ/mantis/wiki/Functionalities#merge-hmm-folder)  
   * [Annotating one sample](https://github.com/PedroMTQ/mantis/wiki/Functionalities#annotate-one-sample)  
   * [Annotating multiple samples](https://github.com/PedroMTQ/mantis/wiki/Functionalities#annotate-multiple-samples)  
   * [Annotating Metagenomes](https://github.com/PedroMTQ/mantis/wiki/Functionalities#annotating-metagenomes)   
 * [Output](https://github.com/PedroMTQ/mantis/wiki/Output)  
 * [Additional information](https://github.com/PedroMTQ/mantis/wiki/Additional-information)  
-  * [Reference data](https://github.com/PedroMTQ/mantis/wiki/Additional-information#reference-data)  
-  * [What is the default e-value?](https://github.com/PedroMTQ/mantis/wiki/Additional-information#what-is-the-e-value-threshold)  
-  * [Intra-reference hit processing](https://github.com/PedroMTQ/mantis/wiki/Additional-information#intra-reference-hit-processing)  
-  * [Inter-reference hit processing](https://github.com/PedroMTQ/mantis/wiki/Additional-information#inter-reference-hit-processing)  
-  * [A note on efficiency](https://github.com/PedroMTQ/mantis/wiki/Additional-information#notes-on-efficiency)  
-* [Project structure and architecture](https://github.com/PedroMTQ/mantis/wiki/Project-structure-and-architecture)  
+* [Reference data](https://github.com/PedroMTQ/mantis/wiki/Additional-information#reference-data)
+
 * [Copyright](https://github.com/PedroMTQ/mantis/wiki/Copyright)  
 
 
@@ -141,6 +133,8 @@ This project is available under the [MIT license](https://github.com/PedroMTQ/ma
 >
 > S. R. Eddy. HMMER: biosequence analysis using profile hidden Markov models. HMMER v.3.2.1 www.hmmer.org
 >
+> Buchfink, B., Xie, C., & Huson, D. H. (2015). Fast and sensitive protein alignment using DIAMOND. Nature methods, 12(1), 59–60. https://doi.org/10.1038/nmeth.3176
+> 
 > eggNOG 5.0: a hierarchical, functionally and phylogenetically annotated orthology resource based on 5090 organisms and 2502 viruses. Jaime Huerta-Cepas, Damian Szklarczyk, Davide Heller, Ana Hernández-Plaza, Sofia K Forslund, Helen Cook, Daniel R Mende, Ivica Letunic, Thomas Rattei, Lars J Jensen, Christian von Mering, Peer Bork Nucleic Acids Res. 2019 Jan 8; 47(Database issue): D309–D314. https://doi.org/10.1093/nar/gky1085
 >
 > The Pfam protein families database in 2019: S. El-Gebali, J. Mistry, A. Bateman, S.R. Eddy, A. Luciani, S.C. Potter, M. Qureshi, L.J. Richardson, G.A. Salazar, A. Smart, E.L.L. Sonnhammer, L. Hirsh, L. Paladin, D. Piovesan, S.C.E. Tosatto, R.D. Finn Nucleic Acids Research (2019)  https://doi.org/10.1093/nar/gky995
