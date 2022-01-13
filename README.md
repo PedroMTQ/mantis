@@ -33,31 +33,17 @@ Still can't find the answer? Just post an issue and I'll answer as soon as possi
 
 ![overview_small](./Images/overview2_small.png)
 
-# Straight to the point
-### Requirements
+# Installation
 
-- **Python**, tested with v3.7.3 but anything above v3 should be fine
-- **requests**, tested with v2.22.0
-- **numpy**, tested with v1.18.1
-- **nltk**, tested with v3.4.4
-- **sqlite**, tested with v3.30.1
-- **psutil**, tested with 5.6.7
-- [HMMER](#10-references-and-acknowledgements), tested with v3.2.1
-- **GCC**, for compilation of cython code (most systems should have it by default)
+1. `conda install -c bioconda mantis_pfa`
+2. `mantis setup`
+
+Mantis is now ready to run with: `mantis run -i target_faa`
 
 **Mantis can only run on Linux or MacOS systems. If you want to run Mantis on MacOS make sure you use python 3.7**
 
-The multiprocessing package above Python 3.7 has some issues outside of Linux environments.
 
-### Quick configuration
-1. `git clone git@github.com:PedroMTQ/mantis.git`  
-2. Go to cloned mantis folder and run `conda env create -f mantis_env.yml`
-3. Run `conda activate mantis_env`
-4. Go up one folder and run `python mantis setup_databases`
-5. Run `python mantis run_mantis -i target_faa`
-
-
-**Custom references**  
+# Customization
 
 Custom references can be added in **config/MANTIS.cfg** by adding their absolute path or folder path, for example:
 
@@ -80,32 +66,32 @@ To integrate metadata, each custom reference folder should contain a `metadata.t
 
 **1. Help**  
 ````
-python  mantis/  -h
+mantis  -h
 ````
 **2. Setup databases**  
 ````
-python  mantis/  setup_databases
+mantis setup
 ````
 
 **3. Check installation**  
 ````
-python  mantis/  check_installation
+mantis  check
 ````
 **4. Check SQL metadata files**  
 ````
-python  mantis/  check_sql
+mantis check_sql
 ````
 **5. Annotate one sample**  
 ````
-python mantis/ run_mantis -i target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg    
+mantis run -i target.faa -o output_folder-od organism_details -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg    
 ````
-*example*: `python mantis run_mantis -i mantis/tests/test_sample.faa -od "Escherichia coli"`
+*example*: `mantis run -i mantis/tests/test_sample.faa -od "Escherichia coli"`
 
 **6. Annotate multiple samples**  
 ````
-python mantis/ run_mantis -i target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg
+mantis run -i target.tsv -o output_folder -et evalue_threshold -ov overlap_value -mc custom_MANTIS.cfg
 ````
-*example*: `python mantis run_mantis -i mantis/tests/test_file.tsv`
+*example*: `mantis run -i mantis/tests/test_file.tsv`
 
 ### Output files  
 

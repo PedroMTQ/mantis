@@ -9,13 +9,12 @@ except:
 
 
 
-def setup_databases(force_download=False, chunk_size=None,no_taxonomy=False,mantis_config=None,cores=None):
+def setup_databases(chunk_size=None,no_taxonomy=False,mantis_config=None,cores=None):
     print_cyan('Setting up databases')
-    if force_download == 'None': force_download = None
     if chunk_size: chunk_size = int(chunk_size)
     if cores: cores=int(cores)
     mantis = Assembler(hmm_chunk_size=chunk_size, mantis_config=mantis_config,user_cores=cores,no_taxonomy=no_taxonomy)
-    mantis.setup_databases(force_download)
+    mantis.setup_databases()
 
 
 
@@ -316,35 +315,35 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             target_file = get_ref_in_folder(self.mantis_paths['NCBI'] + taxon_id)
         return target_file
 
-    def check_reference_exists(self, database, taxon_id=None, force_download=False):
+    def check_reference_exists(self, database, taxon_id=None):
         ncbi_resources=add_slash(self.mantis_paths['resources']+'NCBI')
 
         if database == 'ncbi_res':
-            if file_exists(ncbi_resources + 'gc.prt', force_download) and \
-                    file_exists(ncbi_resources + 'gc.prt', force_download):
+            if file_exists(ncbi_resources + 'gc.prt') and \
+                    file_exists(ncbi_resources + 'gc.prt'):
                 return True
         elif database == 'taxonomy':
             taxonomy_db=self.mantis_paths['resources'] + 'Taxonomy.db'
             gtdb_resources = add_slash(self.mantis_paths['resources'] + 'GTDB')
-            if file_exists(taxonomy_db, force_download):
+            if file_exists(taxonomy_db):
                 return True
         elif database == 'NOGSQL':
-            if file_exists(self.mantis_paths['NOG'] + 'eggnog.db', force_download):
+            if file_exists(self.mantis_paths['NOG'] + 'eggnog.db'):
                 return True
         elif database == 'tcdb':
-            if file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd', force_download):
+            if file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd'):
                 return True
         elif database == 'NOG_DMND':
-            if file_exists(self.mantis_paths['NOG'] + 'eggnog_proteins.dmnd', force_download):
+            if file_exists(self.mantis_paths['NOG'] + 'eggnog_proteins.dmnd'):
                 return True
         target_file = self.get_path_default_ref(database, taxon_id)
         if target_file:
             if target_file.endswith('.dmnd'):
-                if not file_exists(target_file, force_download=force_download):
+                if not file_exists(target_file):
                     return False
             else:
                 for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
-                    if not file_exists(target_file + extension, force_download=force_download):
+                    if not file_exists(target_file + extension):
                         return False
         else:
             return False

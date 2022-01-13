@@ -1055,9 +1055,9 @@ def cython_compiled():
     return True
 
 
-def file_exists(target_file, force_download=False):
+def file_exists(target_file):
     if not target_file: return False
-    if os.path.exists(target_file) and not force_download:
+    if os.path.exists(target_file):
         return True
     return False
 

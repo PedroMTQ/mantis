@@ -10,7 +10,7 @@ try:
         get_path_level, \
         check_installation, \
         setup_databases
-    from mantis.utils import MANTIS_FOLDER
+    from mantis.utils import MANTIS_FOLDER,SPLITTER
 
 except ImportError as e:
     import signal
@@ -19,6 +19,7 @@ except ImportError as e:
     os.kill(master_pid, signal.SIGKILL)
 
 def main():
+    default_config_path=f'{MANTIS_FOLDER}config{SPLITTER}MANTIS.cfg'
     print('Executing command:\n', ' '.join(sys.argv))
     parser = argparse.ArgumentParser(description='___  ___               _    _      \n'
                                                  '|  \\/  |              | |  (_)     \n'
@@ -31,12 +32,13 @@ def main():
     # run mantis
     parser.add_argument('execution_type',
                         help='[required]\tExecution mode',
-                        choices=['run', 'setup', 'check', 'run_test','citation','version',
-                                 'test_nlp', 'check_sql'])
-    parser.add_argument('-i', '--input', help='[required]\tInput file path. Required when using <run>.')
-    parser.add_argument('-o', '--output_folder', help='[optional]\tOutput folder path')
+                        choices=['run', 'setup', 'check', 'run_test','citation','version','test_nlp', 'check_sql'])
+    parser.add_argument('-i', '--input',
+                        help='[required]\tInput file path. Required when using <run>.')
+    parser.add_argument('-o', '--output_folder',
+                        help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
-                        help='Custom MANTIS.cfg file. Default is in Mantis\' folder')
+                        help=f'Custom MANTIS.cfg file. Default is in:{default_config_path}')
     parser.add_argument('-et', '--evalue_threshold',
                         help='[optional]\tCustom e-value threshold. Default is 1e-3.')
     parser.add_argument('-ov', '--overlap_value',
@@ -50,14 +52,13 @@ def main():
     parser.add_argument('-od', '--organism_details',
                         help='[optional]\tIf your input fasta has been taxonimically classified please introduce details.\n')
     parser.add_argument('-gc', '--genetic_code',
-                        help='[optional]\tIf you want Mantis to translate your input fasta, please provide a genetic code. Default is 11. \n'
-                             '\t\tFor further details please see https://www.ncbi.nlm.nih.gov/Taxonomy/taxonomyhome.html/index.cgi?chapter=cgencodes\n')
+                        help='[optional]\tIf you want Mantis to translate your input fasta, please provide a genetic code. Default is 11.')
     parser.add_argument('-k', '--keep_files', action='store_true',
                         help='[optional]\tKeep intermediary output files')
     parser.add_argument('-sc', '--skip_consensus', action='store_true',
                         help='[optional]\tSkip consensus generation.')
     parser.add_argument('-nuf', '--no_unifunc', action='store_true',
-                        help='[optional]\tdo not use UniFunc for similarity analysis during consensus generation.')
+                        help='[optional]\tdo not use UniFunc for descriptions similarity analysis during consensus generation.')
     parser.add_argument('-nce', '--no_consensus_expansion', action='store_true',
                         help='[optional]\tdo not expand hits during consensus generation.')
     parser.add_argument('-notax', '--no_taxonomy', action='store_true',
@@ -65,16 +66,12 @@ def main():
     parser.add_argument('-km', '--kegg_matrix', action='store_true',
                         help='[optional]\tgenerate KEGG modules completeness matrix.')
     parser.add_argument('-vkm', '--verbose_kegg_matrix', action='store_true',
-                        help='[optional]\tgenerate KEGG modules completeness matrix in verbose mode. Verbose mode gives, in addition to the default matrix, complete module name and missing KOs; it also exports a summary figure.')
+                        help='[optional]\tgenerate KEGG modules completeness matrix in verbose mode. Verbose mode additionally outputs the complete module name and missing KOs.')
     parser.add_argument('-gff', '--output_gff', action='store_true',
                         help='[optional]\tgenerate GFF-formatted output files.')
 
     parser.add_argument('-fo', '--force_output', action='store_true',
-                        help='[optional]\tIf you would like to force the output to the folder you specified. This may result in errrors if data is already in the folder!')
-    # setup databases
-
-    parser.add_argument('-f', '--force_download', action='store_true',
-                        help='[optional]\tIf you would like to force the download of the databases when running <setup_databases>')
+                        help='[optional]\tIf you would like to force the output to the folder you specified.')
 
     # general args
     parser.add_argument('-dw', '--default_workers',
@@ -183,14 +180,12 @@ def main():
 
     elif args.execution_type == 'setup':
         mantis_config = args.mantis_config
-        force_download = args.force_download
         chunk_size = args.chunk_size
         no_taxonomy = args.no_taxonomy
         cores = args.cores
-        setup_databases(force_download=force_download, chunk_size=chunk_size, no_taxonomy=no_taxonomy,
+        setup_databases(chunk_size=chunk_size, no_taxonomy=no_taxonomy,
                         mantis_config=mantis_config, cores=cores)
         print_citation_mantis()
-
     elif args.execution_type == 'check':
         mantis_config = args.mantis_config
         no_taxonomy = args.no_taxonomy
