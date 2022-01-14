@@ -187,7 +187,7 @@ class Database_generator(UniFunc_wrapper):
         while True:
             record = queue.pop(0)
             if record is None: break
-            if len(record) == 3:
+            if len(record) == 2:
                 database, stdout_path = record
                 taxon_id = None
             else:
