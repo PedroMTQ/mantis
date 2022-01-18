@@ -18,6 +18,13 @@ If you have only loose reads, you need to assemble them first; when you have ass
 - [Functions](#functions)
 - [Further details](#further-details)
 
+Current release info
+====================
+
+| Name                                                                                                                  | Downloads | Version | Platforms | Latest release |
+|-----------------------------------------------------------------------------------------------------------------------| --- |---|---|---|
+| [![Conda Recipe](https://img.shields.io/badge/recipe-mantis_pfa-green.svg)](https://anaconda.org/bioconda/mantis_pfa) | [![Conda Downloads](https://img.shields.io/conda/dn/bioconda/mantis_pfa.svg)](https://anaconda.org/bioconda/mantis_pfa) | [![Conda Version](https://img.shields.io/conda/vn/bioconda/mantis_pfa.svg)](https://anaconda.org/bioconda/mantis_pfa) | [![Conda Platforms](https://img.shields.io/conda/pn/bioconda/mantis_pfa.svg)](https://anaconda.org/bioconda/mantis_pfa) | [![Conda Platforms](https://anaconda.org/bioconda/mantis_pfa/badges/latest_release_relative_date.svg)](https://anaconda.org/bioconda/mantis_pfa) |
+
 # Citation
 If you use Mantis, please make sure you cite the respective paper https://doi.org/10.1093/gigascience/giab042
 
