@@ -381,7 +381,7 @@ class MANTIS(Multiprocessing):
             if sample_type=='dna' or sample_type=='rna':
                 if not genetic_code:
                     genetic_code=11
-                translated_fasta_path = f'{output_path}translated_gc_{genetic_code}.fasta'
+                translated_fasta_path = f'{output_path}translated_gc_{genetic_code}.faa'
                 try:
                     write_translated_fasta(original_fasta_path=file_path, translated_fasta_path=translated_fasta_path, translation_table=translation_tables[genetic_code],sample_type=sample_type)
                     self.fastas_to_annotate[i][0] = translated_fasta_path

@@ -1146,7 +1146,7 @@ def translate_protein_seq(sequence,translation_table):
     for i in range(0,len(sequence),step):
         codon=sequence[i:i+step]
         try:
-            if len(aminoacid)==step:
+            if len(codon)==step:
                 aminoacid=translation_table['table'][codon]
                 res.append(aminoacid)
         except:
