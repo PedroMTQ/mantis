@@ -131,16 +131,14 @@ def main():
             if os.path.exists(input_path):
                 if not output_folder:
                     datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
-                    output_folder = add_slash(os.getcwd()) + get_path_level(input_path,
-                                                                            remove_extension=True) + '_' + datetime_str
+                    output_folder = add_slash(os.getcwd()) + get_path_level(input_path,remove_extension=True) + '_' + datetime_str
                     print(f'No output folder provided! Saving data to: {output_folder}')
                 if os.path.exists(output_folder):
                     if not force_output and os.listdir(output_folder):
                         datetime_str = str(datetime.now().strftime("%Y-%m-%dT%H%M%S"))
                         hex_random = '_hex_' + uuid.uuid4().hex[:10]
                         output_folder += '_' + datetime_str + hex_random
-                        print(
-                            f'The output folder already contains something! New output folder will be: {output_folder}')
+                        print(f'The output folder already contains something! New output folder will be: {output_folder}')
                 output_folder = add_slash(output_folder)
 
                 run_mantis(input_path=input_path,

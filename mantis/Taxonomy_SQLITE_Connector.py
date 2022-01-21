@@ -311,5 +311,7 @@ if __name__ == '__main__':
     print(a)
     a=gtdb_connector.fetch_ncbi_id('Clostridium_P perfringens')
     print(a)
+    a=gtdb_connector.fetch_ncbi_id('s__Bacillus subtilis')
+    print(a)
     a=gtdb_connector.fetch_gtdb_id('1423')
     print(a)

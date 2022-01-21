@@ -170,11 +170,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                     line_path = add_slash(line.replace('custom_ref_folder=', ''))
                     if line_path: self.mantis_paths['custom'] = line_path
 
-                elif line.startswith('resources_folder='):
-                    line_path = add_slash(line.replace('resources_folder=', ''))
-                    if line_path:
-                        self.mantis_paths['resources'] = line_path
-
                 elif line.startswith('nog_ref_folder='):
                     line_path = add_slash(line.replace('nog_ref_folder=', ''))
                     if line_path: self.mantis_paths['NOG'] = line_path
