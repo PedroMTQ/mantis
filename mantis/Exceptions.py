@@ -1,9 +1,9 @@
-RequirementsNotMet='Installation check not passed! Make sure you\'ve setup the databases and your system meets all the requirements!'
 NoValidFiles='No valid files to annotate'
 TargetFileNotFound='Target file does not exist!\n'
 InvalidTargetFile='You did not insert a valid target file!\n'
 InvalidFastaFormat='Fasta format is not valid!\n'
 InstallationCheckNotPassed='Installation check not passed! Make sure you\'ve setup the databases and your system meets all the requirements!'
+SQLCheckNotPassed='SQL check not passed! Make sure you\'ve setup the databases and your system meets all the requirements!'
 CythonNotCompiled= 'Cython has not been correctly compiled! Please run:\n'
 BadNumberWorkers='You should not be seeing this, please contact the developer. Invalid number of workers in '
 ConnectionError='Could not connect to url:\n'
@@ -11,19 +11,21 @@ InvalidTranslation='Invalid residues for translation. Please make sure you provi
 InvalidGFFVersion='No valid GFF version found!'
 InvalidNOGType='Your config file does not contain a valid database type for NOG (i.e. <dmnd> or <hmm>)!'
 
-class RequirementsNotMet(Exception):
-    def __init__(self, *args):
-        if args:
-            self.message = args
-        else:
-            self.message = None
 
+
+
+class SQLCheckNotPassed(Exception):
+    def __init__(self):
+        self.message = 'SQL check not passed!'
     def __str__(self):
-        if self.message:
-            res = 'Requirements not met:\n'
-            res += '\n'.join(i for i in self.message)
-            return res
-        else:
-            return 'Requirements not met'
+        return self.message
+
+
+
+class InstallationCheckNotPassed(Exception):
+    def __init__(self):
+        self.message = 'Installation check not passed! Make sure you\'ve setup the databases'
+    def __str__(self):
+        return self.message
 
 

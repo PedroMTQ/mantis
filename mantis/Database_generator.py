@@ -1267,7 +1267,7 @@ class Database_generator(UniFunc_wrapper):
             eggnog_proteins_path = f'{folder_path}eggnog_seqs.faa'
             extract_seqs_command = f'diamond getseq -d {diamond_db} > {eggnog_proteins_path}'
             if not file_exists(eggnog_proteins_path):
-                print('Extracting sequences from Diamond database',flush=True,file=self.redirect_verbose)
+                print('Extracting sequences from NOG Diamond database',flush=True,file=self.redirect_verbose)
                 run_command(extract_seqs_command,join_command=True,shell=True)
             return self.create_fastas_NOG_DMND()
 

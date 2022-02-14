@@ -48,7 +48,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             self.hmm_chunk_size = hmm_chunk_size
         self.read_config_file()
 
-        #self.requirements_met()
         # I use manager instead of queue since I need to be able to add records to the end and start of the 'queue' (actually a list) which is not possible with the multiprocessing.Queue
         # we need manager.list because a normal list cant communicate during multiprocessing
         self.manager = Manager()
@@ -91,29 +90,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
 
         return res
 
-    def requirements_met(self):
-        for f in [self.is_conda_available(), self.is_hmmer_available()]:
-            if not f:
-                kill_switch(RequirementsNotMet)
-
-    def is_conda_available(self):
-        process = run_command('conda -V', get_output=True)
-        check = re.search('conda', str(process.stdout))
-        if not check:
-            print_cyan('Conda dependency not met!')
-            print_cyan('Install Conda on your system by following the instructions at: https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html')
-        return check
-
-    def is_hmmer_available(self):
-        check_command = ' conda list hmmer '
-        process = run_command(check_command, get_output=True)
-        check = re.search('hmmer', str(process.stdout))
-        if not check:
-            print_cyan('HMMER dependency not met!')
-            print_cyan('Install HMMER on your conda environment by doing the following:')
-            print_cyan('conda activate <conda_environment>')
-            print_cyan('conda install -c bioconda hmmer')
-        return check
 
 
     def check_internet_connection(self):
@@ -222,10 +198,11 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             self.config_file = self.mantis_config
         else:
             if not os.path.isdir(MANTIS_FOLDER):
-                print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',
-                    flush=True, file=self.redirect_verbose)
+                print('Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',flush=True, file=self.redirect_verbose)
                 raise FileNotFoundError
             self.config_file =f'{MANTIS_FOLDER}config{SPLITTER}MANTIS.cfg'
+            print(f'Using default MANTIS.cfg: {self.mantis_config}', flush=True, file=self.redirect_verbose)
+
         try:
             open(self.config_file, 'r')
         except:
@@ -319,7 +296,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                 return True
         elif database == 'taxonomy':
             taxonomy_db=self.mantis_paths['resources'] + 'Taxonomy.db'
-            gtdb_resources = add_slash(self.mantis_paths['resources'] + 'GTDB')
             if file_exists(taxonomy_db):
                 return True
         elif database == 'NOGSQL':
@@ -511,6 +487,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             red('------------------------------------------', flush=True, file=self.redirect_verbose)
             red('-------------SQL CHECK FAILED-------------', flush=True, file=self.redirect_verbose)
             red('------------------------------------------', flush=True, file=self.redirect_verbose)
+            raise SQLCheckNotPassed
 
 
     def check_installation(self, verbose=True,check_sql=False):
@@ -589,6 +566,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                 yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
             else:
                 print_cyan('Installation check failed', flush=True, file=self.redirect_verbose)
+            raise InstallationCheckNotPassed
         if check_sql: self.check_sql_databases(ref_dbs)
 
 
