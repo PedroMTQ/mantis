@@ -241,7 +241,7 @@ class MANTIS(Multiprocessing):
             'Skip consensus:\t\t' + str(self.skip_consensus) + '\n' if self.skip_consensus else '',
             'Skip memory management:\t\t' + str(self.skip_managed_memory) + '\n' if self.skip_managed_memory else '',
             'Skip consensus expansion:\t' + str(self.no_consensus_expansion) + '\n' if self.no_consensus_expansion else '',
-            'Do not use taxonomy:\t' + str(self.use_taxonomy) + '\n' if not self.use_taxonomy else '',
+            'Use taxonomy:\t' + str(self.use_taxonomy) + '\n' if not self.use_taxonomy else '',
             'Skip text similarity analysis:\t' + str(self.no_unifunc) + '\n' if self.no_unifunc else '',
             kegg_matrix_str,
             '------------------------------------------']

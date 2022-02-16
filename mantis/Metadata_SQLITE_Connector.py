@@ -152,7 +152,8 @@ class Metadata_SQLITE_Connector():
         if metadata_yielder:
             generator_insert = self.generate_inserts(metadata_yielder)
             for table_chunk in generator_insert:
-                self.cursor.executemany(insert_command, table_chunk)
+                if table_chunk:
+                    self.cursor.executemany(insert_command, table_chunk)
             self.sqlite_connection.commit()
 
     def convert_sql_to_dict(self,sql_result):
