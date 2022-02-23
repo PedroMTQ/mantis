@@ -473,8 +473,7 @@ class Consensus(UniFunc_wrapper):
             while temp_best_hit_info != best_hit_info or not first_check:
                 for ref_file in query_dict:
                     for hit_to_test in query_dict[ref_file]:
-                        if self.is_hit_match(query_dict[ref_file][hit_to_test], hit_to_test, ref_file, best_hit_info,
-                                             best_hit_name, best_hit_file):
+                        if self.is_hit_match(query_dict[ref_file][hit_to_test], hit_to_test, ref_file, best_hit_info, best_hit_name, best_hit_file):
                             self.add_to_hit(query_dict[ref_file][hit_to_test], best_hit_info)
                             hits_merged.add(hit_to_test)
                             ref_files_consensus.add(ref_file)
@@ -492,7 +491,7 @@ class Consensus(UniFunc_wrapper):
         if self.no_unifunc: return False
         for hit1_d in hit1_info_description:
             for hit2_d in hit2_info_description:
-                score = self.get_similarity_score(hit1_d, hit2_d,only_return=True)
+                score = self.get_similarity_score(hit1_d, hit2_d,only_return=True,verbose=False)
                 if score > self.nlp_threshold:
                     return True
         return False
@@ -526,6 +525,8 @@ class Consensus(UniFunc_wrapper):
 
     # this makes mantis more efficient since it saves matches in memory, however it also makes it more ram intensive
     def is_hit_match(self, hit1_info, hit1_name, hit1_source, hit2_info, hit2_name, hit2_source):
+        if hit1_source == hit2_source and hit1_name == hit2_name:
+            return False
         if self.no_consensus_expansion: return False
         # cleaning up memory
         if float(psutil.virtual_memory().percent) > 95: self.query_match_hits = {}
@@ -549,9 +550,6 @@ class Consensus(UniFunc_wrapper):
                 return self.query_match_hits[dict_key]
             else:
                 return False
-        if hit1_source == hit2_source and hit1_name == hit2_name:
-            self.query_match_hits[dict_key] = False
-            return False
         # now to actually check
         hit1_info_description = hit1_info['temp_description']
         hit1_info_identifiers = hit1_info['temp_identifiers']
@@ -707,9 +705,6 @@ class Consensus(UniFunc_wrapper):
 
 
 
-
-
-
-
 if __name__ == '__main__':
     m = Consensus()
+
