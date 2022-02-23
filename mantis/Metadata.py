@@ -154,7 +154,7 @@ class Metadata():
         if 'accession' in temp_link: hit_accession = temp_link.pop('accession')
         row_start = [query, ref_file, hit, hit_accession, evalue, bitscore,direction, query_len, query_start, query_end,
                      ref_start, ref_end, ref_len, '|']
-        res = list(row_start)
+        res = []
         sorted_keys = sorted(temp_link.keys())
         if 'enzyme_ec' in sorted_keys:
             sorted_keys.remove('enzyme_ec')
@@ -172,6 +172,8 @@ class Metadata():
             if isinstance(temp_link[link_key], str): temp_link[link_key] = [temp_link[link_key]]
             for inner_l in temp_link[link_key]:
                 res.append(link_key + ':' + inner_l)
+        res=sorted(res)
+        res=row_start+res
         return res
 
     def read_and_interpret_output_annotation(self, output_annotation_tsv):

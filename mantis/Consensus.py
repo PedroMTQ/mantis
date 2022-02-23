@@ -640,7 +640,7 @@ class Consensus(UniFunc_wrapper):
                     identifiers = query_dict[ref_file][ref_hit_name]['identifiers']
                     all_identifiers.update(identifiers)
                     all_descriptions.update(description)
-        res = list(row_start)
+        res = []
         sorted_identifiers = sorted(all_identifiers)
         for link in sorted_identifiers:
             if 'enzyme_ec' in link:
@@ -662,6 +662,8 @@ class Consensus(UniFunc_wrapper):
         for link in clean_descriptions:
             if 'description:' + link not in res:
                 res.append('description:' + link)
+        res=sorted(res)
+        res=row_start+res
         return res
 
     def generate_consensus_output(self, interpreted_annotation_tsv, consensus_annotation_tsv, stdout_file_path=None):
@@ -705,6 +707,77 @@ class Consensus(UniFunc_wrapper):
 
 
 
+###################
+    def get_best_hits_approximation(self, query_hits, sorting_class,sorting_type):
+        '''
+        this is just a lazy implementation when the amount of hits is too big and/or the hits are too small
+        even with multiprocessing and cython we may run into computationally unfeasable calculations
+        when this happens, we do generate a straightforward "best hit"
+        Best hit will take the lowest evalue hit and add the next lowest evalue hit (without overlapping) until we reach a point where this cycle cant be repeated.
+        This doesnt effectively calculate the "best hit", just a biased (since we start with lowest evalue as root) approximation
+        Still, it is a pretty good approximation anyhow
+        '''
+        if sorting_class=='consensus': query_hits = self.sort_scaled_hits(query_hits,sorting_type=sorting_type)
+        else: query_hits = self.sort_hits(query_hits, sorting_class,sorting_type=sorting_type)
+        combo = []
+        while query_hits:
+            next_hit = query_hits.pop(0)
+            if sorting_class == 'consensus':
+                if not self.is_overlap_Consensus(combo, next_hit):
+                    combo.append(next_hit)
+            elif sorting_class == 'processor':
+                if not self.is_overlap(combo, next_hit):
+                    combo.append(next_hit)
+        return combo
+
+
+    def get_min_max_dfs(self, cython_possible_combos, conversion_dict, sorting_class):
+        min_val = None
+        max_val = None
+        for len_combo in cython_possible_combos:
+            for cython_combo in cython_possible_combos[len_combo]:
+                combo = self.cython_to_query_hits(cython_combo, conversion_dict)
+                for hit in combo:
+                    if sorting_class == 'processor':
+                        hit_info = hit
+                    elif sorting_class == 'consensus':
+                        hmm_file, hmm_hit, hit_info = hit
+                    # we dont consider 0 for the scaling, 0 will always be scaled to max/1
+                    if hit_info[self.sorting_type]:
+                        current_val = log10(hit_info[self.sorting_type])
+                        if min_val is None: min_val = current_val
+                        if max_val is None: max_val = current_val
+                        if current_val > max_val: max_val = current_val
+                        if current_val < min_val: min_val = current_val
+        # lower is best
+        if self.sorting_type == 'evalue':
+            return max_val, min_val
+        # higher is best
+        elif self.sorting_type == 'bitscore':
+            return min_val, max_val
+
+    def cython_to_query_hits(self, cython_hits, conversion_dict):
+        res = []
+        for hit in cython_hits:
+            res.append(conversion_dict[hit[0]])
+        return res
+
+
 if __name__ == '__main__':
     m = Consensus()
-
+    m.output_gff=False
+    m.domain_algorithm='heuristic'
+    m.sorting_type='bitscore'
+    m.time_limit=60
+    m.mantis_ref_weights={'else':0.7}
+    m.overlap_value=0.1
+    m.best_combo_formula=1
+    m.no_consensus_expansion=False
+    m.minimum_consensus_overlap=0.7
+    m.no_unifunc=False
+    f1 = '/home/pedroq/Desktop/test_valentina/mantis_da_01/Bebs_MG_PBGL_ESB_S44/run01/'
+    f2 = '/home/pedroq/Desktop/test_valentina/mantis_da_02/Bebs_MG_PBGL_ESB_S44/run01/'
+    #m.generate_consensus_output(f'/home/pedroq/Desktop/test_valentina/test1/integrated_annotation.tsv',f'/home/pedroq/Desktop/test_valentina/test1/consensus_annotation.tsv')
+    #print('######################')
+    m.generate_consensus_output(f'{f1}integrated_annotation.tsv',f'/home/pedroq/Desktop/test_valentina/test1/consensus_annotation.tsv')
+    m.generate_consensus_output(f'{f2}integrated_annotation.tsv',f'/home/pedroq/Desktop/test_valentina/test2/consensus_annotation.tsv')
