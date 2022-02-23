@@ -158,7 +158,7 @@ class MANTIS(Multiprocessing):
         else:                           self.minimum_consensus_overlap = 0.7
 
         if domain_algorithm:            self.domain_algorithm = domain_algorithm
-        else:                           self.domain_algorithm = 'dfs'
+        else:                           self.domain_algorithm = 'heuristic'
 
         if  best_combo_formula:         self.best_combo_formula = best_combo_formula
         else:                           self.best_combo_formula = 1

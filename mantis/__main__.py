@@ -46,7 +46,7 @@ def main():
     parser.add_argument('-mco', '--minimum_consensus_overlap',
                         help='[optional]\tcustom value for the minimum overlap between hits when generating the consensus annotation. Default is 0.7, 0 to accept any consistent hit, regardless of coordinate overlap.')
     parser.add_argument('-da', '--domain_algorithm', choices=['dfs', 'heuristic', 'bpo'],
-                        help='[optional]\tChoose how multiple domains should be processed. Default is dfs.')
+                        help='[optional]\tChoose how multiple domains should be processed. Default is heuristic.')
     parser.add_argument('-tl', '--time_limit',
                         help='[optional]\ttime limit in seconds when running Mantis\' DFS algorithm. Default is 60 seconds')
     parser.add_argument('-od', '--organism_details',
