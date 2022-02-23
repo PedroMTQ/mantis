@@ -333,7 +333,7 @@ class Homology_processor():
                     best_combo = combo
         return best_combo
 
-    def get_best_hits(self, query_hits, query_length):
+    def get_best_hits(self, query_hits, query_length,sorting_class):
         '''
         we take into consideration the coverage of our hits and their evalue
         steps:
@@ -341,7 +341,7 @@ class Homology_processor():
         2- check which possible combinations don't overlap
         3- get best combination (best evalue and coverage)
         '''
-        ordered_query_hits = self.sort_hits(query_hits, sorting_class='processor',sorting_type=self.sorting_type)
+        ordered_query_hits = self.sort_hits(query_hits, sorting_class=sorting_class,sorting_type=self.sorting_type)
         cython_hits, conversion_dict = self.query_hits_to_cython(ordered_query_hits)
         cython_possible_combos = get_non_overlapping_hits(cython_hits, time_limit=self.time_limit)
         # sometimes this calculation is not feasible (when we have too many small hits and the query sequence is too long, the calculation of conbinations would take forever - limit of 5mins)
@@ -370,17 +370,23 @@ class Homology_processor():
         return best_combo
 
     def query_hits_to_cython(self, query_hits):
+        '''
+        keep in mind this is not reproducible since sets are used in cython
+        one could keep the original order but this would be extra overhead, which is probably not needed since it would only happen with outliers
+        plus, the dfs is no longer default
+        '''
         conversion_dict = {}
         res = set()
         for hit_i in range(len(query_hits)):
             hit_start,hit_end=recalculate_coordinates(query_hits[hit_i]['hit_start'],
                                                       query_hits[hit_i]['hit_end'],
                                                       self.overlap_value)
+            hit_name=query_hits[hit_i]['hit_name']
             res.add(tuple([
                 hit_i,
                 hit_start,
                 hit_end,
-                query_hits[hit_i]['hit_name']
+                hit_name
             ]))
             conversion_dict[hit_i] = query_hits[hit_i]
         return res, conversion_dict
@@ -611,7 +617,7 @@ class Homology_processor():
         # processing the hits and getting the best hit/non-overlapping hits
         print(f'Found {hit_counter} hits in:\n{output_path}\nWill now get best hits!', flush=True,file=stdout_file)
         approximated_hits = []
-        hmm = get_path_level(output_path, remove_extension=True)
+        ref_db = get_path_level(output_path, remove_extension=True)
         res_annotation = {}
         for query in queries_searchout:
             if query not in res_annotation: res_annotation[query] = {}
@@ -622,13 +628,13 @@ class Homology_processor():
                 best_hit = self.get_lowest_hit(list(list_hits), sorting_class='processor',sorting_type=self.sorting_type)
             else:
                 try:
-                    best_hit = self.get_best_hits(list(list_hits), queries_searchout[query]['query_len'])
+                    best_hit = self.get_best_hits(list(list_hits), queries_searchout[query]['query_len'],sorting_class='processor')
                 except (TimeoutError, RecursionError) as e:
                     #heuristic with bitscore produces bad results, so we force evalue sorting
                     best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',sorting_type='evalue')
                     approximated_hits.append(query)
             queries_searchout[query]['best_hit'] = best_hit
-            res_annotation[query][hmm] = queries_searchout[query]
+            res_annotation[query][ref_db] = queries_searchout[query]
         if approximated_hits:
             approximated_hits = ' ; '.join(approximated_hits)
             print(f'Some hits in the output file:\n{output_path} were approximated. They were:\n{approximated_hits}',flush=True, file=stdout_file)
