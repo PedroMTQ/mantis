@@ -67,6 +67,7 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
         if hasattr(self, 'output_folder'):
             res.append(f'Output folder:\nself.output_folder')
         res.append(f'Default references folder:\n{self.mantis_paths["default"]}')
+        res.append(f'Resources folder:\n{self.mantis_paths["resources"]}')
         res.append(f'Custom references folder:\n{self.mantis_paths["custom"]}')
         if self.mantis_paths['NOG'][0:2] != 'NA':
             res.append(f'TAX NOG references folder:\n{self.mantis_paths["NOG"]}')
@@ -100,20 +101,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
             print("Could not connect to internet!\nIf you would like to run offline make sure you introduce organism NCBI IDs instead of synonyms!")
             return False
 
-    def get_default_ref_path(self):
-        file = open(self.config_file, 'r')
-        line = file.readline()
-        while line:
-            line = line.strip('\n')
-            if '#' not in line:
-                # data sources configuration
-                if 'default_ref_folder=' in line:
-                    line_path = add_slash(line.replace('default_ref_folder=', ''))
-                    if line_path:
-                        default_ref_path = line_path
-                        return default_ref_path
-            line = file.readline()
-        file.close()
 
     def set_nogt_line(self, line_path):
         if line_path:
@@ -134,55 +121,100 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                 self.mantis_nogt_tax.add(str(i))
 
     def setup_paths_config_file(self):
+        self.mantis_paths = {'default': None,
+                             'resources': None,
+                             'custom': None,
+                             'NOG': None,
+                             'pfam': None,
+                             'kofam': None,
+                             'NCBI': None,
+                             'tcdb': None,
+                             }
+
+
         self.nog_db = 'dmnd'
-        file = open(self.config_file, 'r')
-        line = file.readline()
         nogt_line=None
-        while line:
-            line = line.strip('\n')
-            if not line.startswith('#') and line:
-                # data sources configuration
-                if line.startswith('custom_ref_folder='):
-                    line_path = add_slash(line.replace('custom_ref_folder=', ''))
-                    if line_path: self.mantis_paths['custom'] = line_path
+        with open(self.config_file) as file:
+            for line in file:
+                line = line.strip('\n')
+                if not line.startswith('#') and line:
+                    # data sources configuration
+                    if line.startswith('default_ref_folder='):
+                        line_path = add_slash(line.replace('default_ref_folder=', ''))
+                        if line_path: self.mantis_paths['default'] = line_path
 
-                elif line.startswith('nog_ref_folder='):
-                    line_path = add_slash(line.replace('nog_ref_folder=', ''))
-                    if line_path: self.mantis_paths['NOG'] = line_path
+                    elif line.startswith('resources_folder='):
+                        line_path = add_slash(line.replace('resources_folder=', ''))
+                        if line_path: self.mantis_paths['resources'] = line_path
 
-                # taxa ids list for only downloading nogt specific to lineage
-                elif line.startswith('nog_tax='):
-                    nogt_line = line.replace('nog_tax=', '')
+                    elif line.startswith('custom_ref_folder='):
+                        line_path = add_slash(line.replace('custom_ref_folder=', ''))
+                        if line_path: self.mantis_paths['custom'] = line_path
 
-                elif line.startswith('pfam_ref_folder='):
-                    line_path = add_slash(line.replace('pfam_ref_folder=', ''))
-                    if line_path: self.mantis_paths['pfam'] = line_path
+                    elif line.startswith('nog_ref_folder='):
+                        line_path = add_slash(line.replace('nog_ref_folder=', ''))
+                        if line_path: self.mantis_paths['NOG'] = line_path
 
-                elif line.startswith('kofam_ref_folder='):
-                    line_path = add_slash(line.replace('kofam_ref_folder=', ''))
-                    if line_path: self.mantis_paths['kofam'] = line_path
+                    # taxa ids list for only downloading nogt specific to lineage
+                    elif line.startswith('nog_tax='):
+                        nogt_line = line.replace('nog_tax=', '')
 
-                elif line.startswith('ncbi_ref_folder='):
-                    line_path = add_slash(line.replace('ncbi_ref_folder=', ''))
-                    if line_path: self.mantis_paths['NCBI'] = line_path
+                    elif line.startswith('pfam_ref_folder='):
+                        line_path = add_slash(line.replace('pfam_ref_folder=', ''))
+                        if line_path: self.mantis_paths['pfam'] = line_path
 
-                elif line.startswith('tcdb_ref_folder='):
-                    line_path = add_slash(line.replace('tcdb_ref_folder=', ''))
-                    if line_path: self.mantis_paths['tcdb'] = line_path
+                    elif line.startswith('kofam_ref_folder='):
+                        line_path = add_slash(line.replace('kofam_ref_folder=', ''))
+                        if line_path: self.mantis_paths['kofam'] = line_path
+
+                    elif line.startswith('ncbi_ref_folder='):
+                        line_path = add_slash(line.replace('ncbi_ref_folder=', ''))
+                        if line_path: self.mantis_paths['NCBI'] = line_path
+
+                    elif line.startswith('tcdb_ref_folder='):
+                        line_path = add_slash(line.replace('tcdb_ref_folder=', ''))
+                        if line_path: self.mantis_paths['tcdb'] = line_path
+
+                    elif '_weight=' in line:
+                        ref_source, weight = line.split('_weight=')
+                        self.mantis_ref_weights[ref_source] = float(weight)
+
+                    elif line.startswith('nog_ref='):
+                        nog_db = line.replace('nog_ref=', '').split()[0]
+                        if nog_db.lower() not in ['dmnd','hmm']:
+                            kill_switch(InvalidNOGType)
+                        else:
+                            self.nog_db=nog_db
+        if not self.mantis_paths['default']:
+            self.mantis_paths['default']=add_slash(MANTIS_FOLDER + 'References')
+        default_ref_path=self.mantis_paths['default']
+
+        if not self.mantis_paths['resources']:
+            self.mantis_paths['resources']=add_slash(MANTIS_FOLDER + 'Resources')
+
+        if not self.mantis_paths['custom']:
+            self.mantis_paths['custom']= add_slash(default_ref_path + 'Custom_references')
+
+        if not self.mantis_paths['NOG']:
+            self.mantis_paths['NOG']= add_slash(default_ref_path + 'NOG')
+
+        if not self.mantis_paths['pfam']:
+            self.mantis_paths['pfam']= add_slash(default_ref_path + 'pfam')
+
+        if not self.mantis_paths['kofam']:
+            self.mantis_paths['kofam']= add_slash(default_ref_path + 'kofam')
+
+        if not self.mantis_paths['NCBI']:
+            self.mantis_paths['NCBI']= add_slash(default_ref_path + 'NCBI')
+
+        if not self.mantis_paths['tcdb']:
+            self.mantis_paths['tcdb']= add_slash(default_ref_path + 'tcdb')
 
 
-                elif '_weight=' in line:
-                    ref_source, weight = line.split('_weight=')
-                    self.mantis_ref_weights[ref_source] = float(weight)
 
-                elif line.startswith('nog_ref='):
-                    nog_db = line.replace('nog_ref=', '').split()[0]
-                    if nog_db.lower() not in ['dmnd','hmm']:
-                        kill_switch(InvalidNOGType)
-                    else:
-                        self.nog_db=nog_db
-            line = file.readline()
-        file.close()
+
+        #setting up which taxa we need to have references for
+        Taxonomy_SQLITE_Connector.__init__(self,resources_folder=self.mantis_paths['resources'])
         if self.use_taxonomy:
             if nogt_line:
                 if self.launch_taxonomy_connector():
@@ -210,22 +242,6 @@ class Assembler(Database_generator,Taxonomy_SQLITE_Connector):
                   flush=True, file=self.redirect_verbose)
             raise FileNotFoundError
 
-        default_ref_path = self.get_default_ref_path()
-
-        # if there's no path, we just assume its in the default folder
-        if not default_ref_path:  default_ref_path = add_slash(MANTIS_FOLDER + 'References')
-        resources_path = add_slash(MANTIS_FOLDER + 'Resources')
-
-        self.mantis_paths = {'default': default_ref_path,
-                             'resources': resources_path,
-                             'custom': add_slash(default_ref_path + 'Custom_references'),
-                             'NOG': add_slash(default_ref_path + 'NOG'),
-                             'pfam': add_slash(default_ref_path + 'pfam'),
-                             'kofam': add_slash(default_ref_path + 'kofam'),
-                             'NCBI': add_slash(default_ref_path + 'NCBI'),
-                             'tcdb': add_slash(default_ref_path + 'tcdb'),
-                             }
-        Taxonomy_SQLITE_Connector.__init__(self,resources_folder=self.mantis_paths['resources'])
 
         self.setup_paths_config_file()
         if not self.use_taxonomy:
