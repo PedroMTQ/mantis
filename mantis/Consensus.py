@@ -107,6 +107,7 @@ class Consensus(UniFunc_wrapper):
             self.add_from_go_obo(dict_annotations[query]['ref_files'])
         return dict_annotations
 
+
     def generate_gff_line_consensus(self,query, dict_annotations, is_essential,consensus_hits, total_hits, ref_files_consensus,ref_names_consensus):
         #https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md
         #verified with http://genometools.org/cgi-bin/gff3validator.cgi
@@ -459,14 +460,14 @@ class Consensus(UniFunc_wrapper):
     # @timeit_function
     def expand_best_combination(self, best_hits, query_dict):
         hits_merged = set()
-        ref_files_consensus = set()
-        ref_names_consensus = set()
+        ref_files_consensus = []
+        ref_names_consensus = []
         for best_hit in best_hits:
 
             best_hit_file, best_hit_name, best_hit_info = best_hit
             hits_merged.add(best_hit_name)
-            ref_files_consensus.add(best_hit_file)
-            ref_names_consensus.add(best_hit_name)
+            ref_files_consensus.append(best_hit_file)
+            ref_names_consensus.append(best_hit_name)
             temp_best_hit_info = dict(best_hit_info)
             first_check = False
             # iterations might change already iterated over best_hit_info, this way we check if there is any info added, if so, we repeat the cycle one more otherwise we return
@@ -476,8 +477,8 @@ class Consensus(UniFunc_wrapper):
                         if self.is_hit_match(query_dict[ref_file][hit_to_test], hit_to_test, ref_file, best_hit_info, best_hit_name, best_hit_file):
                             self.add_to_hit(query_dict[ref_file][hit_to_test], best_hit_info)
                             hits_merged.add(hit_to_test)
-                            ref_files_consensus.add(ref_file)
-                            ref_names_consensus.add(hit_to_test)
+                            ref_files_consensus.append(ref_file)
+                            ref_names_consensus.append(hit_to_test)
                 first_check = True
                 temp_best_hit_info = dict(best_hit_info)
         # checking how many hits we managed to merge out of all the hits - coverage_consensus
@@ -609,6 +610,7 @@ class Consensus(UniFunc_wrapper):
         res = set()
         already_added = set()
         unspecific_tokens=['enzyme','protein','domain']
+        all_descriptions=sorted(all_descriptions)
         for d in all_descriptions:
             test = d.lower()
             for p in set(punctuation):
@@ -623,11 +625,31 @@ class Consensus(UniFunc_wrapper):
             if test not in already_added:
                 res.add(d)
                 already_added.add(test)
+        res=sorted(res)
         return res
 
+
+    def sort_ref_files_and_hits(self,ref_files_consensus,ref_names_consensus):
+        res={}
+        for i in range(len(ref_files_consensus)):
+            r_file=ref_files_consensus[i]
+            if r_file not in res: res[r_file]=set()
+            res[r_file].add(ref_names_consensus[i])
+        ref_files=[]
+        ref_hits=[]
+
+        for r_file in sorted(res):
+            for r_hit in sorted(res[r_file]):
+                ref_files.append(r_file)
+                ref_hits.append(r_hit)
+
+
+        ref_files = ';'.join(ref_files)
+        ref_hits = ';'.join(ref_hits)
+        return ref_files,ref_hits
+
     def generate_consensus_line(self, query, query_dict, is_essential, consensus_hits, total_hits, ref_files_consensus,ref_names_consensus):
-        ref_hits = ';'.join(ref_names_consensus)
-        ref_files = ';'.join(ref_files_consensus)
+        ref_files,ref_hits=self.sort_ref_files_and_hits(ref_files_consensus,ref_names_consensus)
         # consensus_coverage is a str with consensus sources/all sources, better as a str instead of float as its easier to understand
         row_start = [query, ref_files, ref_hits, consensus_hits, total_hits, '|']
         row_start = [str(i) for i in row_start]
@@ -707,7 +729,5 @@ class Consensus(UniFunc_wrapper):
 
 
 
-
 if __name__ == '__main__':
     m = Consensus()
-
