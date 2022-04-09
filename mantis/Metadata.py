@@ -434,16 +434,38 @@ class Metadata():
                 line = file.readline()
         return {'sample': sample_name, 'kegg_ko': res}
 
+    def get_ids_consensus(self,input_file, wanted_db):
+        res = {}
+        with open(input_file) as file:
+            file.readline()
+            for line in file:
+                line = line.strip('\n')
+                line = line.split('\t')
+                seq_id = line[0]
+                if seq_id not in res: res[seq_id] = set()
+                separator = line.index('|')
+                annotations = line[separator + 1:]
+                for db_annot in annotations:
+                    db = db_annot.split(':')[0]
+                    if wanted_db==db:
+                        # to avoid bad splitting when dealing with descriptions
+                        annot = db_annot[len(db) + 1:]
+                        res[seq_id].add(annot)
+        return res
+
     def export_sample_kos(self,samples_info):
         out_file = self.output_folder + 'sample_kos.tsv'
         with open(out_file,'w+') as file:
             firstline='Sample\tKOs\n'
             file.write(firstline)
-            for sample_dict in samples_info:
-                sample_name=sample_dict['sample']
-                kos=','.join(sample_dict['kegg_ko'])
-                line=f'{sample_name}\t{kos}\n'
-                file.write(line)
+            for sample_path in samples_info:
+                sample_name=sample_path.split(SPLITTER)[-2]
+                seq_kos=self.get_ids_consensus(sample_path,wanted_db='kegg_ko')
+                for seq in seq_kos:
+                    seq_name=f'{sample_name}@{seq}'
+                    for ko in seq_kos[seq]:
+                        line=f'{seq_name}\t{ko}\n'
+                        file.write(line)
 
 
     def generate_matrix(self):
@@ -456,7 +478,7 @@ class Metadata():
 
         samples_info = [self.get_sample_kos(i) for i in sample_paths]
         tree = load_metrics(add_slash(self.mantis_paths['resources'] + 'KEGG') + 'modules.pickle')
-        self.export_sample_kos(samples_info)
+        self.export_sample_kos(sample_paths)
         if tree:
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
