@@ -138,12 +138,10 @@ class Metadata_SQLITE_Connector():
         step=self.insert_step
         temp=[]
         for i in metadata_yielder:
-            if len(temp)<step:
-                temp.append(i)
-            else:
+            temp.append(i)
+            if len(temp)>=step:
                 yield temp
                 temp=[]
-                temp.append(i)
         yield temp
 
     def store_metadata(self):

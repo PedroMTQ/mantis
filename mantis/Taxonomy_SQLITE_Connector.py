@@ -151,9 +151,8 @@ class Taxonomy_SQLITE_Connector():
         step=self.insert_step
         temp=[]
         for i in input_generator:
-            if len(temp)<step:
-                temp.append(i)
-            elif len(temp)==step:
+            temp.append(i)
+            if len(temp)>=step:
                 yield temp
                 temp=[]
         yield temp
