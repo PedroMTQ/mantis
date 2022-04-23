@@ -274,7 +274,7 @@ class Database_generator(UniFunc_wrapper):
         tc = find_tcdb(string)
         if tc:
             if 'tcdb' not in res: res['tcdb'] = set()
-            res['tcdb'].update(tc)1
+            res['tcdb'].update(tc)
         tigr = find_tigrfam(string)
         if tigr:
             if 'tigrfam' not in res: res['tigrfam'] = set()
