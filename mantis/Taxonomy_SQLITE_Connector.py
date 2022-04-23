@@ -56,58 +56,97 @@ class Taxonomy_SQLITE_Connector():
         #to avoid duplicate entries in sql
         already_added=set()
         with open(gtdb_tsv) as file:
-            file.readline()
+            line=file.readline()
+            line = line.strip('\n')
+            line = line.split('\t')
+            ncbi_id_index = line.index('ncbi_taxid')
+            gtdb_taxonomy_index = line.index('gtdb_taxonomy')
             for line in file:
                 line = line.strip('\n')
                 line = line.split('\t')
-                gtdb_taxonomy = line[16]
+                gtdb_taxonomy = line[gtdb_taxonomy_index]
+                ncbi_id = line[ncbi_id_index]
+
                 most_resolved,lineage_str = self.process_gtdb_taxonomy(gtdb_taxonomy)
-                ncbi_id = line[77]
                 yield_str=self.info_splitter.join([most_resolved,ncbi_id])
                 if yield_str not in already_added:
                     yield most_resolved,lineage_str,ncbi_id
                 already_added.add(yield_str)
 
-    def download_data(self):
+    def get_metadata_files_gtdb(self):
         url = 'https://data.gtdb.ecogenomic.org/releases/latest/'
-        ar_url = f'{url}ar122_metadata.tar.gz'
-        bac_url = f'{url}bac120_metadata.tar.gz'
-        ar_file = f'{self.temp_folder}ar122_metadata.tar.gz'
-        bac_file = f'{self.temp_folder}bac120_metadata.tar.gz'
-        taxonomy_file = f'{self.temp_folder}new_taxdump.tar.gz'
+        req = requests.get(url)
+        webpage = req.text
+        bac_file = re.compile('bac\d+_metadata.tar.gz')
+        bac_metadata_string = bac_file.search(webpage)
+        if bac_metadata_string:
+            bac_metadata_string = bac_metadata_string.group()
+        else:
+            bac_metadata_string = None
+        ar_file = re.compile('ar\d+_metadata.tar.gz')
+        ar_metadata_string = ar_file.search(webpage)
+        if ar_metadata_string:
+            ar_metadata_string = ar_metadata_string.group()
+        else:
+            ar_metadata_string = None
+        if not ar_metadata_string:
+            ar_url = 'https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_metadata_r207.tar.gz'
+        else:
+            ar_url = f'{url}{ar_metadata_string}'
+        if not bac_metadata_string:
+            bac_url = 'https://data.gtdb.ecogenomic.org/releases/release207/207.0/bac120_metadata_r207.tar.gz'
+        else:
+            bac_url = f'{url}{bac_metadata_string}'
 
+        return bac_metadata_string, bac_url, ar_metadata_string, ar_url
+
+
+
+    def download_data(self):
+        bac_metadata_string, bac_url, ar_metadata_string, ar_url = self.get_metadata_files_gtdb()
+
+        if bac_metadata_string:
+            bac_file = f'{self.temp_folder}{bac_metadata_string}'
+            try:
+                bac_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('bac') and i.endswith('.tsv')][0]
+                bac_file_unc = f'{self.temp_folder}{bac_file_unc}'
+            except:
+                bac_file_unc = None
+            if file_exists(bac_file) or file_exists(bac_file_unc):
+                pass
+            else:
+                download_file(bac_url, output_folder=self.temp_folder)
+
+            if file_exists(bac_file):        uncompress_archive(bac_file, remove_source=True)
+            self.bac_file = [i for i in os.listdir(self.temp_folder) if i.startswith('bac') and i.endswith('.tsv')][0]
+            self.bac_file=f'{self.temp_folder}{self.bac_file}'
+        else:
+            self.bac_file=None
+
+
+        if ar_metadata_string:
+            ar_file = f'{self.temp_folder}{ar_metadata_string}'
+            try:
+                ar_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('ar') and i.endswith('.tsv')][0]
+                ar_file_unc = f'{self.temp_folder}{ar_file_unc}'
+            except:
+                ar_file_unc = None
+            if file_exists(ar_file) or file_exists(ar_file_unc):
+                pass
+            else:
+                download_file(ar_url, output_folder=self.temp_folder)
+            if file_exists(ar_file):         uncompress_archive(ar_file, remove_source=True)
+            self.ar_file = [i for i in os.listdir(self.temp_folder) if i.startswith('ar') and i.endswith('.tsv')][0]
+            self.ar_file = f'{self.temp_folder}{self.ar_file}'
+        else:
+            self.ar_file = None
+
+        taxonomy_file = f'{self.temp_folder}new_taxdump.tar.gz'
         taxonomy_url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
         download_file(taxonomy_url, output_folder=self.temp_folder)
-
-        try:
-            ar_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('ar122') and i.endswith('.tsv')][0]
-            ar_file_unc = f'{self.temp_folder}{ar_file_unc}'
-        except:
-            ar_file_unc = None
-        try:
-            bac_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('bac120') and i.endswith('.tsv')][0]
-            bac_file_unc = f'{self.temp_folder}{bac_file_unc}'
-        except:
-            bac_file_unc = None
-
-        if file_exists(ar_file) or file_exists(ar_file_unc):
-            pass
-        else:
-            download_file(ar_url, output_folder=self.temp_folder)
-
-        if file_exists(bac_file) or file_exists(bac_file_unc):
-            pass
-        else:
-            download_file(bac_url, output_folder=self.temp_folder)
-
-        if file_exists(ar_file):         uncompress_archive(ar_file, remove_source=True)
-        if file_exists(bac_file):        uncompress_archive(bac_file, remove_source=True)
         if file_exists(taxonomy_file):        uncompress_archive(taxonomy_file, remove_source=True)
 
-        self.bac_file = [i for i in os.listdir(self.temp_folder) if i.startswith('bac120') and i.endswith('.tsv')][0]
-        self.ar_file = [i for i in os.listdir(self.temp_folder) if i.startswith('ar122') and i.endswith('.tsv')][0]
-        self.bac_file=f'{self.temp_folder}{self.bac_file}'
-        self.ar_file=f'{self.temp_folder}{self.ar_file}'
+
 
 
 
@@ -158,10 +197,12 @@ class Taxonomy_SQLITE_Connector():
         yield temp
 
     def chain_generators(self):
-        for i in self.read_gtdb_tsv(self.bac_file):
-            yield i
-        for i in self.read_gtdb_tsv(self.ar_file):
-            yield i
+        if self.bac_file:
+            for i in self.read_gtdb_tsv(self.bac_file):
+                yield i
+        if self.ar_file:
+            for i in self.read_gtdb_tsv(self.ar_file):
+                yield i
 
     def store_gtdb2ncbi(self):
         gtdb2ncbi=self.chain_generators()
@@ -305,7 +346,6 @@ if __name__ == '__main__':
     gtdb_connector=Taxonomy_SQLITE_Connector(resources_folder='/home/pedroq/Desktop/test_cr/')
     gtdb_connector.launch_taxonomy_connector()
     #gtdb_connector.create_taxonomy_db()
-    #gtdb_connector.process_gtdb_taxonomy('d__Archaea;p__Thermoproteota;c__Nitrososphaeria;o__Nitrososphaerales;f__Nitrosopumilaceae_C;g__JACEMX01;s__JACEMX01 sp011773785')
     a=gtdb_connector.fetch_ncbi_id('d__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
     print(a)
     a=gtdb_connector.fetch_ncbi_id('Clostridium_P perfringens')
