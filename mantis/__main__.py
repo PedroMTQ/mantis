@@ -4,12 +4,9 @@ try:
     from datetime import datetime
     import sys
     import uuid
-    from mantis.MANTIS import run_mantis, run_mantis_test,print_citation_mantis,print_version
-    from mantis.UniFunc_wrapper import test_nlp
-    from mantis.Assembler import add_slash, \
-        get_path_level, \
-        check_installation, \
-        setup_databases
+    from mantis.mantis import run_mantis, run_mantis_test, print_citation_mantis, print_version
+    from mantis.unifunc_wrapper import test_nlp
+    from mantis.assembler import add_slash, get_path_level, check_installation, setup_databases
     from mantis.utils import MANTIS_FOLDER,SPLITTER
 
 except ImportError as e:

@@ -13,6 +13,7 @@ try:
     from math import ceil, log10
     from pickle import load as pickle_load
     from pickle import dump as pickle_dump
+
     SPLITTER = '/'
     from pathlib import Path
     import shutil
@@ -27,6 +28,7 @@ try:
     from string import punctuation
 except:
     import signal
+
     master_pid = os.getpid()
     print(
         '\t\t######################################################################################################################################\n'
@@ -38,27 +40,33 @@ except:
     os.kill(master_pid, signal.SIGKILL)
 
 
-def kill_switch(error_type,message='',flush=False, file=None):
+def kill_switch(error_type, message='', flush=False, file=None):
     import signal
     master_pid = os.getpid()
-    if file and message:  print(message,flush=flush,file=file)
-    elif message:  print(error_type+message)
-    else: print(error_type)
+    if file and message:
+        print(message, flush=flush, file=file)
+    elif message:
+        print(error_type + message)
+    else:
+        print(error_type)
     sleep(5)
     os.kill(master_pid, signal.SIGKILL)
 
 
 PSUTIL_EXCEPTIONS = (psutil.NoSuchProcess, AttributeError, FileNotFoundError)
 
+
 def check_environment_cores():
     res = cpu_count()
     return int(res)
+
 
 def check_process_overhead():
     process = psutil.Process()
     ram_consumption_gb = process.memory_info().rss / (1024 * 1024 * 1024)
     del process
     return ram_consumption_gb
+
 
 def check_available_ram():
     res = psutil.virtual_memory().available / (1024 * 1024 * 1024)
@@ -77,7 +85,6 @@ WORKER_PER_CORE = 1
 MANTIS_FOLDER = os.path.abspath(os.path.dirname(__file__)).split(SPLITTER)[0:-1]
 MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER) + SPLITTER
 CYTHON_FOLDER = f'{MANTIS_FOLDER}mantis{SPLITTER}cython_src{SPLITTER}'
-
 
 
 def estimate_number_workers_annotation(n_chunks=0,
@@ -114,12 +121,18 @@ def estimate_chunk_size(total_n_seqs,
     if chunk_size: return chunk_size
     # maximize chunk size taken into account the amount of workers and number of seqs
     potential_chunk_size = round_to_digit(total_n_seqs / annotation_workers)
-    if AVAILABLE_RAM <= 4:maximum_chunk_size = 500
-    elif AVAILABLE_RAM > 4 and AVAILABLE_RAM <= 10:maximum_chunk_size = 1000
-    elif AVAILABLE_RAM > 10 and AVAILABLE_RAM <= 30:maximum_chunk_size = 2000
-    elif AVAILABLE_RAM > 30 and AVAILABLE_RAM <= 50:maximum_chunk_size = 5000
-    elif AVAILABLE_RAM > 50 and AVAILABLE_RAM <= 70:maximum_chunk_size = 10000
-    else:maximum_chunk_size = 20000
+    if AVAILABLE_RAM <= 4:
+        maximum_chunk_size = 500
+    elif AVAILABLE_RAM > 4 and AVAILABLE_RAM <= 10:
+        maximum_chunk_size = 1000
+    elif AVAILABLE_RAM > 10 and AVAILABLE_RAM <= 30:
+        maximum_chunk_size = 2000
+    elif AVAILABLE_RAM > 30 and AVAILABLE_RAM <= 50:
+        maximum_chunk_size = 5000
+    elif AVAILABLE_RAM > 50 and AVAILABLE_RAM <= 70:
+        maximum_chunk_size = 10000
+    else:
+        maximum_chunk_size = 20000
     if potential_chunk_size < minimum_chunk_size:
         return minimum_chunk_size
     elif potential_chunk_size > maximum_chunk_size:
@@ -137,7 +150,7 @@ def estimate_number_workers_split_sample(minimum_worker_load,
     # we only reserve a certain percentage for the overhead associated with spawning processes
     maximum_overhead_workers = int((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
     environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
-    return min([maximum_overhead_workers, estimate_chunk_workers,environment_workers])
+    return min([maximum_overhead_workers, estimate_chunk_workers, environment_workers])
 
 
 def estimate_number_workers_setup_database(n_hmms_to_setup,
@@ -150,10 +163,10 @@ def estimate_number_workers_setup_database(n_hmms_to_setup,
     maximum_overhead_workers = ceil((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
     maximum_workers = ceil(AVAILABLE_RAM / (ram_per_setup + PROCESS_OVERHEAD))
     environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
-    return ceil(min([environment_workers,n_hmms_to_setup, maximum_workers, maximum_overhead_workers]))
+    return ceil(min([environment_workers, n_hmms_to_setup, maximum_workers, maximum_overhead_workers]))
 
 
-def estimate_number_workers_process_output(n_chunks, searchout_per_chunks=1,user_cores=None):
+def estimate_number_workers_process_output(n_chunks, searchout_per_chunks=1, user_cores=None):
     if user_cores: return user_cores
     environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
     return min([environment_workers, n_chunks * searchout_per_chunks])
@@ -193,6 +206,7 @@ def get_common_links_metadata(string, res):
     if go:
         if 'go' not in res: res['go'] = set()
         res['go'].update(go)
+
 
 def is_ec(enz_id, required_level=3):
     if enz_id:
@@ -280,6 +294,7 @@ def find_arcog(string_to_search):
         res.add(i.group())
     return res
 
+
 def find_tigrfam(string_to_search):
     res = set()
     pattern = re.compile('(?<![A-Za-z])(TIGR)\d{3,}')
@@ -346,7 +361,8 @@ def get_hmm_profile_count(hmm_path, stdout=None):
                     res += 1
                     if stdout:
                         if not res % 10000:
-                            print('Counted ' + str(res) + ' profiles on ' + hmm_path + ' so far.', flush=True, file=stdout)
+                            print('Counted ' + str(res) + ' profiles on ' + hmm_path + ' so far.', flush=True,
+                                  file=stdout)
                 line = hmm_file.readline()
     return res
 
@@ -411,6 +427,7 @@ def chunk_generator_load_balanced(list_ordered, chunk_size, time_limit=60):
             chunk_index += 1
     return res
 
+
 ########Processing protein fasta
 def remove_temp_fasta(temp_fasta_path, db):
     if f'missing_annotations.{db}.tmp' in temp_fasta_path:
@@ -424,8 +441,9 @@ def is_fasta(fasta_file):
             return True
     return False
 
+
 def get_seq_names(protein_fasta_path):
-    res=set()
+    res = set()
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
         while line:
@@ -433,7 +451,7 @@ def get_seq_names(protein_fasta_path):
                 query = line.replace('>', '').strip()
                 print(query)
                 res.add(query)
-            line=file.readline()
+            line = file.readline()
     return res
 
 
@@ -463,38 +481,40 @@ def process_protein_fasta_line(res, query, fasta_line, start_recording):
         res[query] += fasta_line.strip().upper()
         return res, query, start_recording
 
-#this is only used for internal temporary files
+
+# this is only used for internal temporary files
 def read_protein_fasta(protein_fasta_path):
     res = {}
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
-        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
+        if line[0] != '>': kill_switch(InvalidFastaFormat, 'Please make sure there are no blank lines')
         start_recording = False
         query = None
         while line:
             line = line.strip('\n')
             if line:
                 res, query, start_recording = process_protein_fasta_line(res=res,
-                                                                              query=query,
-                                                                              fasta_line=line,
-                                                                              start_recording=start_recording)
+                                                                         query=query,
+                                                                         fasta_line=line,
+                                                                         start_recording=start_recording)
             line = file.readline()
     return res
 
-def yield_target_seqs(protein_fasta_path,target_seqs):
-    query=None
-    seq=[]
+
+def yield_target_seqs(protein_fasta_path, target_seqs):
+    query = None
+    seq = []
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
-        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
+        if line[0] != '>': kill_switch(InvalidFastaFormat, 'Please make sure there are no blank lines')
         while line:
             if line.startswith('>'):
                 if query:
                     if query in target_seqs:
-                        seq=''.join(seq).upper()
+                        seq = ''.join(seq).upper()
                         yield f'>{query}\n{seq}\n'
-                    seq=[]
-                query=line.replace('>','').strip()
+                    seq = []
+                query = line.replace('>', '').strip()
             else:
                 seq.append(line.strip())
             line = file.readline()
@@ -503,27 +523,29 @@ def yield_target_seqs(protein_fasta_path,target_seqs):
                 seq = ''.join(seq).upper()
                 yield f'>{query}\n{seq}\n'
 
-def yield_target_metadata(metadata_file,target_seqs):
+
+def yield_target_metadata(metadata_file, target_seqs):
     with open(metadata_file, 'r') as file:
         for line in file:
-            seq=line.split('\t')[0]
+            seq = line.split('\t')[0]
             if seq in target_seqs:
                 yield line
 
-#low memory footprint_version
+
+# low memory footprint_version
 def read_protein_fasta_generator(protein_fasta_path):
-    query=None
-    seq=[]
+    query = None
+    seq = []
     with open(protein_fasta_path, 'r') as file:
         line = file.readline()
-        if line[0] != '>': kill_switch(InvalidFastaFormat,'Please make sure there are no blank lines')
+        if line[0] != '>': kill_switch(InvalidFastaFormat, 'Please make sure there are no blank lines')
         while line:
             if line.startswith('>'):
                 if query:
                     if seq:
-                        yield query,''.join(seq).upper()
-                    seq=[]
-                query=line.replace('>','').strip()
+                        yield query, ''.join(seq).upper()
+                    seq = []
+                query = line.replace('>', '').strip()
             else:
                 seq.append(line.strip())
             line = file.readline()
@@ -531,14 +553,14 @@ def read_protein_fasta_generator(protein_fasta_path):
             if seq:
                 yield query, ''.join(seq).upper()
 
-#low memory footprint_version
+
+# low memory footprint_version
 def write_fasta_generator(seqs_generator, fasta_file):
     with open(fasta_file, 'w+') as file:
-        for query,seq in seqs_generator:
+        for query, seq in seqs_generator:
             chunks = [seq[x:x + 60] for x in range(0, len(seq), 60)]
             chunk_str = '\n'.join(i for i in chunks)
             file.write('>' + query + '\n' + chunk_str + '\n')
-
 
 
 def add_slash(path_folder):
@@ -597,16 +619,24 @@ def timeit_class(f):
 def uncompress_archive(source_filepath, extract_path=None, block_size=65536, remove_source=False, stdout_file=None):
     file_name = source_filepath.split(SPLITTER)[-1]
     dir_path = SPLITTER.join(source_filepath.split(SPLITTER)[0:-1])
-    if not extract_path: extract_path = dir_path
+    if not extract_path:
+        extract_path = dir_path
     if '.tar' in file_name:
-        unpack_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=remove_source,
+        unpack_archive(source_file=source_filepath,
+                       extract_dir=extract_path,
+                       remove_source=remove_source,
                        stdout_file=None)
     # only for files
     elif '.gz' in file_name:
-        gunzip(source_filepath=source_filepath, dest_filepath=extract_path, block_size=block_size,
-               remove_source=remove_source, stdout_file=stdout_file)
+        gunzip(source_filepath=source_filepath,
+               dest_filepath=extract_path,
+               block_size=block_size,
+               remove_source=remove_source,
+               stdout_file=stdout_file)
     elif '.zip' in file_name:
-        unzip_archive(source_file=source_filepath, extract_dir=extract_path, remove_source=remove_source,
+        unzip_archive(source_file=source_filepath,
+                      extract_dir=extract_path,
+                      remove_source=remove_source,
                       stdout_file=None)
     else:
         print('Incorrect format! ', source_filepath, flush=True, file=stdout_file)
@@ -635,7 +665,8 @@ def gunzip(source_filepath, dest_filepath=None, block_size=65536, remove_source=
 def unpack_archive(source_file, extract_dir, remove_source=False, stdout_file=None):
     print('Unpacking', source_file, 'to', extract_dir, flush=True, file=stdout_file)
     shutil.unpack_archive(source_file, extract_dir=extract_dir)
-    if remove_source: os.remove(source_file)
+    if remove_source:
+        os.remove(source_file)
 
 
 def unzip_archive(source_file, extract_dir, remove_source=False, stdout_file=None):
@@ -644,12 +675,13 @@ def unzip_archive(source_file, extract_dir, remove_source=False, stdout_file=Non
         zip_ref.extractall(extract_dir)
     if remove_source: os.remove(source_file)
 
-def download_file_http(url, file_path, c,ctx):
+
+def download_file_http(url, file_path, c, ctx):
     if c > 5:
-        download_file_http_failsafe(url, file_path,ctx)
+        download_file_http_failsafe(url, file_path, ctx)
     else:
         if ctx:
-            with requests.get(url, stream=True,verify=False) as r:
+            with requests.get(url, stream=True, verify=False) as r:
                 with open(file_path, 'wb') as f:
                     shutil.copyfileobj(r.raw, f)
         else:
@@ -659,7 +691,7 @@ def download_file_http(url, file_path, c,ctx):
 
 
 # slower but safer
-def download_file_http_failsafe(url, file_path,ctx):
+def download_file_http_failsafe(url, file_path, ctx):
     with requests.Session() as session:
         if ctx: session.verify = False
         get = session.get(url, stream=True)
@@ -669,15 +701,15 @@ def download_file_http_failsafe(url, file_path,ctx):
                     f.write(chunk)
 
 
-def download_file_ftp(url, file_path,ctx):
-    with closing(request.urlopen(url,context=ctx)) as r:
+def download_file_ftp(url, file_path, ctx):
+    with closing(request.urlopen(url, context=ctx)) as r:
         with open(file_path, 'wb') as f:
             shutil.copyfileobj(r, f)
 
 
 def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     file_path = output_folder + url.split('/')[-1]
-    ctx=None
+    ctx = None
     try:
         target_file = request.urlopen(url)
     except:
@@ -686,7 +718,7 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            target_file = request.urlopen(url,context=ctx)
+            target_file = request.urlopen(url, context=ctx)
         except:
             print('Cannot download target url', url)
             return
@@ -707,14 +739,15 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
     while c <= retry_limit:
         if 'ftp' in url:
             try:
-                download_file_ftp(url, file_path,ctx)
+                download_file_ftp(url, file_path, ctx)
             except:
                 try:
-                    download_file_http(url, file_path, c,ctx)
-                except: pass
+                    download_file_http(url, file_path, c, ctx)
+                except:
+                    pass
         else:
             try:
-                download_file_http(url, file_path, c,ctx)
+                download_file_http(url, file_path, c, ctx)
             except:
                 pass
         if transfer_encoding == 'chunked': return
@@ -723,6 +756,7 @@ def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
         c += 1
     print('Did not manage to download the following url correctly:\n' + url)
     raise Exception
+
 
 def concat_files(output_file, list_file_paths, stdout_file=None):
     print('Concatenating files into ', output_file, flush=True, file=stdout_file)
@@ -802,9 +836,6 @@ def copy_file(source_file, dest_file):
 
 def remove_file(source_file):
     if file_exists(source_file): os.remove(source_file)
-
-
-
 
 
 def get_available_ram_percentage(worker_status, user_memory=None):
@@ -925,42 +956,43 @@ def suspend_workers(child_status, n_workers):
 
 
 # in order to not run out of memory when running HMMER we control how the processes are running, suspending them if needed
-def run_command_managed(command, master_pid, get_output=False, stdout_file=None, wanted_child=None, user_memory=None,shell=False,join_command=False):
-    if join_command:        command=' '.join(command)
+def run_command_managed(command, master_pid, get_output=False, stdout_file=None, wanted_child=None, user_memory=None,
+                        shell=False, join_command=False):
+    if join_command:        command = ' '.join(command)
     if get_output:
-        #popen launches and doesnt wait for finish
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=shell)
+        # popen launches and doesnt wait for finish
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=shell)
     elif stdout_file:
-        process = subprocess.Popen(command, stdout=stdout_file, stderr=stdout_file,shell=shell)
+        process = subprocess.Popen(command, stdout=stdout_file, stderr=stdout_file, shell=shell)
     else:
-        process = subprocess.Popen(command,shell=shell)
+        process = subprocess.Popen(command, shell=shell)
     process_pid = process.pid
     psProcess = psutil.Process(pid=process_pid)
-    #hmmsearch uses a lot of ram when starting up. we need to avoid suspending them when that happens, otherwise we spike memory due to a lot of suspended workers
-    #RAM usage usually starts very low, then a huge spike (e.g. 2-5GB for NOGG) and then down again, we can apply a moving average
-    moving_average=0
-    c=0
-    spike=False
-    spiked=False
+    # hmmsearch uses a lot of ram when starting up. we need to avoid suspending them when that happens, otherwise we spike memory due to a lot of suspended workers
+    # RAM usage usually starts very low, then a huge spike (e.g. 2-5GB for NOGG) and then down again, we can apply a moving average
+    moving_average = 0
+    c = 0
+    spike = False
+    spiked = False
     while psutil.pid_exists(process_pid):
-        #MB
-        process_memory=psProcess.memory_info().rss/2**20
-        if wanted_child=='hmmsearch':
-            #here is when the first spike occurs
+        # MB
+        process_memory = psProcess.memory_info().rss / 2 ** 20
+        if wanted_child == 'hmmsearch':
+            # here is when the first spike occurs
             if moving_average:
-                #minimum of 100mb for spike detection
-                #we only care about the initial spike
-                if moving_average>100 and not spiked:
-                    if (process_memory-moving_average)/moving_average>10:
-                        spike=True
-                        spiked=True
-                #here when the spike has passed/is about to pass
+                # minimum of 100mb for spike detection
+                # we only care about the initial spike
+                if moving_average > 100 and not spiked:
+                    if (process_memory - moving_average) / moving_average > 10:
+                        spike = True
+                        spiked = True
+                # here when the spike has passed/is about to pass
                 if process_memory - moving_average < 0:
-                    spike=False
-            moving_average= moving_average*c
-            c+=1
-            moving_average=(moving_average+process_memory)/c
-            #print(process_memory,moving_average,spike,spiked,command,flush=True)
+                    spike = False
+            moving_average = moving_average * c
+            c += 1
+            moving_average = (moving_average + process_memory) / c
+            # print(process_memory,moving_average,spike,spiked,command,flush=True)
         if not psutil.pid_exists(master_pid):
             kill_workers(master_pid, process, process_pid)
         if psProcess.status() == 'zombie':
@@ -1000,25 +1032,29 @@ def run_command_managed(command, master_pid, get_output=False, stdout_file=None,
         sleep(1)
     return process
 
-def run_command_simple(command, get_output=False, stdout_file=None,shell=False,join_command=False):
-    if join_command:        command=' '.join(command)
+
+def run_command_simple(command, get_output=False, stdout_file=None, shell=False, join_command=False):
+    if join_command:        command = ' '.join(command)
     if get_output:
-        #run launches popen and waits for finish
-        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=shell)
+        # run launches popen and waits for finish
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=shell)
     elif stdout_file:
-        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file,shell=shell)
+        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file, shell=shell)
     else:
-        process = subprocess.run(command,shell=shell)
+        process = subprocess.run(command, shell=shell)
     return process
 
-def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None,shell=False,join_command=False):
+
+def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None,
+                shell=False, join_command=False):
     command_list = command.split()
     if master_pid:
         return run_command_managed(command=command_list, get_output=get_output, stdout_file=stdout_file,
-                                   master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory,shell=shell,join_command=join_command)
+                                   master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory,
+                                   shell=shell, join_command=join_command)
     else:
-        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file,shell=shell,join_command=join_command)
-
+        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file, shell=shell,
+                                  join_command=join_command)
 
 
 def yield_file(list_of_files):
@@ -1029,19 +1065,18 @@ def yield_file(list_of_files):
         yield list_of_files[c]
         c += 1
 
+
 def download_unifunc():
-    unifunc_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'UniFunc/'
-    unifunc_url='https://github.com/PedroMTQ/UniFunc.git'
+    unifunc_folder = MANTIS_FOLDER + 'Resources' + SPLITTER + 'UniFunc/'
+    unifunc_url = 'https://github.com/PedroMTQ/UniFunc.git'
     Path(unifunc_folder).mkdir(parents=True, exist_ok=True)
-    run_command('git clone '+unifunc_url+' '+unifunc_folder)
+    run_command('git clone ' + unifunc_url + ' ' + unifunc_folder)
 
 
 def unifunc_downloaded():
-    unifunc_folder= MANTIS_FOLDER + 'Resources' + SPLITTER +'UniFunc/'
+    unifunc_folder = MANTIS_FOLDER + 'Resources' + SPLITTER + 'UniFunc/'
     if not file_exists(unifunc_folder): return False
     return True
-
-
 
 
 def compile_cython():
@@ -1049,6 +1084,7 @@ def compile_cython():
         if 'get_non_overlapping_hits.c' in f:
             remove_file(CYTHON_FOLDER + f)
     run_command(f'python {CYTHON_FOLDER}setup_get_non_overlapping_hits.py build_ext --build-lib {CYTHON_FOLDER}')
+
 
 def cython_compiled():
     if not file_exists(CYTHON_FOLDER + 'get_non_overlapping_hits.c'): return False
@@ -1092,7 +1128,8 @@ def load_metrics(pickle_path):
             pickled_results = pickle_load(handle)
             return pickled_results
 
-def recalculate_coordinates(env_from,env_to,overlap_value):
+
+def recalculate_coordinates(env_from, env_to, overlap_value):
     if env_from < env_to + 1:
         start = env_from
         end = env_to + 1
@@ -1104,96 +1141,104 @@ def recalculate_coordinates(env_from,env_to,overlap_value):
     hit_overlap = ceil(overlap_value * hit_range / 2)
     start = start + hit_overlap
     end = end - hit_overlap
-    return start,end
+    return start, end
 
-def create_translation_table(protein_str,base1,base2,base3):
-    res={}
+
+def create_translation_table(protein_str, base1, base2, base3):
+    res = {}
     for i in range(len(protein_str)):
-        codon=base1[i]+base2[i]+base3[i]
-        res[codon]=protein_str[i]
+        codon = base1[i] + base2[i] + base3[i]
+        res[codon] = protein_str[i]
     return res
+
 
 def parse_translation_tables(ncbi_tables):
     # https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
     # ftp://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt
-    res={}
-    start_recording=False
-    base3=None
+    res = {}
+    start_recording = False
+    base3 = None
     with open(ncbi_tables) as file:
-        line=file.readline()
+        line = file.readline()
         while line:
-            line=line.strip('\n')
-            line=line.strip()
+            line = line.strip('\n')
+            line = line.strip()
             if start_recording:
-                if line.startswith('name "') and not re.search('name "SGC',line):table_name=line.split('"')[1]
-                if line.startswith('id '):         table_id=line.split()[1].strip(',').strip('"').strip()
-                if line.startswith('ncbieaa '):    protein_str=line.split()[1].strip(',').strip('"').strip()
-                if line.startswith('-- Base1 '):   base1=line.split()[2].strip(',').strip('"').strip()
-                if line.startswith('-- Base2 '):   base2=line.split()[2].strip(',').strip('"').strip()
-                if line.startswith('-- Base3 '):   base3=line.split()[2].strip(',').strip('"').strip()
+                if line.startswith('name "') and not re.search('name "SGC', line): table_name = line.split('"')[1]
+                if line.startswith('id '):         table_id = line.split()[1].strip(',').strip('"').strip()
+                if line.startswith('ncbieaa '):    protein_str = line.split()[1].strip(',').strip('"').strip()
+                if line.startswith('-- Base1 '):   base1 = line.split()[2].strip(',').strip('"').strip()
+                if line.startswith('-- Base2 '):   base2 = line.split()[2].strip(',').strip('"').strip()
+                if line.startswith('-- Base3 '):   base3 = line.split()[2].strip(',').strip('"').strip()
                 if base3:
-                    translation_table=create_translation_table(protein_str,base1,base2,base3)
-                    res[int(table_id)]={'name':table_name,'table':translation_table}
-                    base3=None
-            if 'Genetic-code-table' in line: start_recording=True
-            line=file.readline()
+                    translation_table = create_translation_table(protein_str, base1, base2, base3)
+                    res[int(table_id)] = {'name': table_name, 'table': translation_table}
+                    base3 = None
+            if 'Genetic-code-table' in line: start_recording = True
+            line = file.readline()
     return res
 
 
-def translate_protein_seq(sequence,translation_table):
-    step=3
-    res=[]
-    for i in range(0,len(sequence),step):
-        codon=sequence[i:i+step]
+def translate_protein_seq(sequence, translation_table):
+    step = 3
+    res = []
+    for i in range(0, len(sequence), step):
+        codon = sequence[i:i + step]
         try:
-            if len(codon)==step:
-                aminoacid=translation_table['table'][codon]
+            if len(codon) == step:
+                aminoacid = translation_table['table'][codon]
                 res.append(aminoacid)
         except:
             raise Exception
     return ''.join(res)
 
 
-def write_translated_fasta(original_fasta_path, translated_fasta_path, translation_table,sample_type):
+def write_translated_fasta(original_fasta_path, translated_fasta_path, translation_table, sample_type):
     with open(translated_fasta_path, 'w+') as file:
-        for query,seq in read_protein_fasta_generator(original_fasta_path):
-            if sample_type=='rna': seq=seq.replace('U','T')
-            elif sample_type=='protein':    raise Exception
+        for query, seq in read_protein_fasta_generator(original_fasta_path):
+            if sample_type == 'rna':
+                seq = seq.replace('U', 'T')
+            elif sample_type == 'protein':
+                raise Exception
             protein_seq = translate_protein_seq(seq, translation_table)
             chunks = [protein_seq[x:x + 60] for x in range(0, len(protein_seq), 60)]
             chunk_str = '\n'.join(i for i in chunks)
             file.write('>' + query + '\n' + chunk_str + '\n')
 
+
 def check_sample_type(sample_path):
-    res={}
-    c=0
+    res = {}
+    c = 0
     with open(sample_path) as file:
-        line=file.readline()
-        while line and c<=1000:
+        line = file.readline()
+        while line and c <= 1000:
             if not line.startswith('>'):
-                line=line.strip('\n')
-                line=line.strip()
+                line = line.strip('\n')
+                line = line.strip()
                 for residue in line:
-                    residue=residue.upper()
-                    if residue not in res: res[residue]=0
-                    res[residue]+=1
-                c+=1
-            line=file.readline()
-    sorted_keys=sorted(res.keys())
-    if sorted_keys==['A', 'C', 'G', 'T']: return 'dna'
-    if sorted_keys==['A', 'C', 'G', 'U']: return 'rna'
-    else: return 'protein'
+                    residue = residue.upper()
+                    if residue not in res: res[residue] = 0
+                    res[residue] += 1
+                c += 1
+            line = file.readline()
+    sorted_keys = sorted(res.keys())
+    if sorted_keys == ['A', 'C', 'G', 'T']: return 'dna'
+    if sorted_keys == ['A', 'C', 'G', 'U']:
+        return 'rna'
+    else:
+        return 'protein'
+
 
 def count_residues(sample_path):
-    res=0
+    res = 0
     with open(sample_path) as file:
-        line=file.readline()
+        line = file.readline()
         while line:
             if not line.startswith('>'):
-                line=line.strip('\n')
-                line=line.strip()
-                res+=len(line)
-            line=file.readline()
+                line = line.strip('\n')
+                line = line.strip()
+                res += len(line)
+            line = file.readline()
     return res
 
 

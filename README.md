@@ -12,6 +12,9 @@ The main goals of this tool are to:
 
 If you have only loose reads, you need to assemble them first; when you have assembled reads/genomes you need to predict the protein coding regions (gene prediction - e.g. prodigal) to convert your data into a protein fasta that Mantis can then use.
 
+
+**MANTIS IS NO LONGER IN ACTIVE DEVELOPMENT**, but I'm still maintaining it. I will try to answer any issues and fix any problems as soon as possible (usually over the weekend).
+
 **Mantis is compatible with genomes and metagenomes.**
 
 - [Installation](#installation)
