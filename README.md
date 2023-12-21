@@ -44,7 +44,7 @@ Still can't find the answer? Just post an issue and I'll answer as soon as possi
 
 # Installation
 
-1. `conda install -c bioconda mantis_pfa`
+1. `conda install -c conda-forge -c bioconda mantis_pfa`
 2. `mantis setup`
 
 Mantis is now ready to run with: `mantis run -i target_faa`
