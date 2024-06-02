@@ -1,17 +1,113 @@
-try:
-    from mantis.assembler import *
-    from mantis.homology_processor import Homology_processor
-    from mantis.metadata import Metadata
-    from mantis.consensus import Consensus
 
-except:
-    from assembler import *
-    from homology_processor import Homology_processor
-    from metadata import Metadata
-    from consensus import Consensus
+from consensus import Consensus
+from homology_processor import Homology_processor
+from metadata import Metadata
+
+import os
+from math import ceil
+
+from mantis.src.settings import (
+    AVAILABLE_RAM,
+    ENVIRONMENT_CORES,
+    MINIMUM_JOBS_PER_WORKER,
+    PERCENTAGE_ALLOWED_OVERHEARD,
+    PROCESS_OVERHEAD,
+    WORKER_PER_CORE,
+)
+from mantis.src.utils import get_chunks_path, round_to_digit
 
 
-class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
+class MultiProcessingConfig():
+    def __init__(self) -> None:
+        self.__total_refs_annotation = None
+
+    def calculate_total_refs_annotation(self):
+        # some lineage taxons (since we might fully annotate a fasta before the top taxon level) might be unnecessary but this should provide a good estimate
+        n_refs = 0
+        ref_list = self.compile_refs_list()
+        # this will take into account hmms that are split into chunks
+        for ref in ref_list:
+            n_refs += len(get_chunks_path(ref))
+        if self.mantis_paths['NCBI'][0:2] != 'NA':
+            n_refs += len(get_chunks_path(os.path.join(self.mantis_paths['NCBI'], 'NCBIG')))
+        if self.mantis_paths['NOG'][0:2] != 'NA':
+            n_refs += len(get_chunks_path(os.path.join(self.mantis_paths['NOG'], 'NOGG')))
+        n_refs += self.add_number_hmms_taxa('NOG')
+        n_refs += self.add_number_hmms_taxa('NCBI')
+        self.total_refs_annotation = n_refs
+        return n_refs
+
+    @property
+    def total_refs_annotation(self):
+        if not self.__total_refs_annotation:
+            self.__total_refs_annotation = self.calculate_total_refs_annotation()
+        return self.__total_refs_annotation
+
+    def estimate_number_workers_annotation(self, split_sample=False):
+        n_refs = self.total_refs_annotation
+        n_chunks = len(self.chunks_to_annotate)
+        if self.default_workers:
+            return self.default_workers
+        if self.user_cores:
+            environment_workers = self.user_cores * WORKER_PER_CORE
+        else:
+            environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
+        # allowed number of workers in order to preserve the maximum allowed overhead reserved for process spawning
+        maximum_overhead_workers = ceil((AVAILABLE_RAM * PERCENTAGE_ALLOWED_OVERHEARD) / PROCESS_OVERHEAD)
+        # maximum amount of workers that could be spawning considering the ram required for the annotation and the overhead associated with spawning a process
+        # total times we need to run hmmer
+        total_hmmer_runs = n_chunks * n_refs
+        if split_sample:
+            total_hmmer_runs = environment_workers
+        return ceil(min([total_hmmer_runs, maximum_overhead_workers, environment_workers]) / MINIMUM_JOBS_PER_WORKER)
+
+
+
+    def estimate_chunk_size(self,
+                            total_n_seqs: int,
+                            annotation_workers: int,
+                            chunk_size: int=0,
+                            minimum_chunk_size: int=200,
+                            ):
+        '''
+        this is a double edged sword, splitting into too many small chunks generates too much overhead
+        not splitting into enough chunks leads to idle processes
+        '''
+        if chunk_size:
+            return chunk_size
+        # maximize chunk size taken into account the amount of workers and number of seqs
+        potential_chunk_size = round_to_digit(total_n_seqs / annotation_workers)
+        if AVAILABLE_RAM <= 4:
+            maximum_chunk_size = 500
+        elif AVAILABLE_RAM > 4 and AVAILABLE_RAM <= 10:
+            maximum_chunk_size = 1000
+        elif AVAILABLE_RAM > 10 and AVAILABLE_RAM <= 30:
+            maximum_chunk_size = 2000
+        elif AVAILABLE_RAM > 30 and AVAILABLE_RAM <= 50:
+            maximum_chunk_size = 5000
+        elif AVAILABLE_RAM > 50 and AVAILABLE_RAM <= 70:
+            maximum_chunk_size = 10000
+        else:
+            maximum_chunk_size = 20000
+        if potential_chunk_size < minimum_chunk_size:
+            return minimum_chunk_size
+        elif potential_chunk_size > maximum_chunk_size:
+            return maximum_chunk_size
+        else:
+            return potential_chunk_size
+
+
+    def estimate_number_workers_split_sample(self,
+                                             minimum_worker_load: int,
+                                             len_protein_seqs: int):
+        estimate_chunk_workers = ceil(len_protein_seqs / minimum_worker_load)
+        # we only reserve a certain percentage for the overhead associated with spawning processes
+        maximum_overhead_workers = int((AVAILABLE_RAM * PERCENTAGE_ALLOWED_OVERHEARD) / PROCESS_OVERHEAD)
+        environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
+        return min([maximum_overhead_workers, estimate_chunk_workers, environment_workers])
+
+
+class MultiProcessing(Assembler, Homology_processor, Metadata, Consensus):
 
     def prepare_queue_split_sample(self, protein_seqs, seq_chunks, chunk_dir):
         c = 0
@@ -94,11 +190,11 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
             chunk_dir = add_slash(f'{output_path}fasta_chunks')
             if not file_exists(chunk_dir):
                 Path(chunk_dir).mkdir(parents=True, exist_ok=True)
-            current_worker_count = estimate_number_workers_split_sample(minimum_worker_load, len(protein_seqs))
+            current_worker_count = estimate_number_workers_split_sample(minimum_worker_load=minimum_worker_load,
+                                                                        len_protein_seqs=len(protein_seqs))
             # here we use the total amount of sequences to avoid generating too many small files for long runs
             chunk_size = estimate_chunk_size(total_n_seqs=total_n_seqs,
-                                             annotation_workers=self.estimate_number_workers_annotation(
-                                                 split_sample=True),
+                                             annotation_workers=self.estimate_number_workers_annotation(split_sample=True),
                                              chunk_size=self.chunk_size
                                              )
             if current_worker_count > worker_count: worker_count = current_worker_count
@@ -212,33 +308,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
             res = int(tax_hmms / len(self.fastas_to_annotate))
         return res
 
-    def calculate_total_refs_annotation(self):
-        # some lineage taxons (since we might fully annotate a fasta before the top taxon level) might be unnecessary but this should provide a good estimate
-        n_refs = 0
-        ref_list = self.compile_refs_list()
-        # this will take into account hmms that are split into chunks
-        for ref in ref_list:
-            n_refs += len(get_chunks_path(ref))
-        if self.mantis_paths['NCBI'][0:2] != 'NA':
-            n_refs += len(get_chunks_path(add_slash(self.mantis_paths['NCBI'] + 'NCBIG')))
-        if self.mantis_paths['NOG'][0:2] != 'NA':
-            n_refs += len(get_chunks_path(add_slash(self.mantis_paths['NOG'] + 'NOGG')))
-        n_refs += self.add_number_hmms_taxa('NOG')
-        n_refs += self.add_number_hmms_taxa('NCBI')
-        self.total_refs_annotation = n_refs
-        return n_refs
 
-    def estimate_number_workers_annotation(self, split_sample=False):
-        if not hasattr(self, 'total_refs_annotation'):
-            n_refs = self.calculate_total_refs_annotation()
-        else:
-            n_refs = self.total_refs_annotation
-        return estimate_number_workers_annotation(n_chunks=len(self.chunks_to_annotate),
-                                                  n_refs=n_refs,
-                                                  default_workers=self.default_workers,
-                                                  user_cores=self.user_cores,
-                                                  split_sample=split_sample,
-                                                  )
 
     def run_homology_search(self):
         worker_count = self.estimate_number_workers_annotation()
@@ -504,7 +574,7 @@ class Multiprocessing(Assembler, Homology_processor, Metadata, Consensus):
             all_searchout = os.listdir(raw_searchout_path)
             same_db_chunks = {}
             for searchout in all_searchout:
-                chunk_n = re.search('_chunk_\d+', searchout)
+                chunk_n = re.search(r'_chunk_\d+', searchout)
                 if chunk_n:
                     temp = searchout.replace(chunk_n.group(), '')
                 else:

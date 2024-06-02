@@ -1,10 +1,11 @@
 
-import pickle
-import requests
-import json
-import re
-import os
 import copy
+import json
+import os
+import pickle
+import re
+
+import requests
 
 
 #this class is based on https://github.com/merenlab/anvio
@@ -183,7 +184,7 @@ def load_metrics(pickle_path):
 
 def remove_non_essential_kos(ko_str):
     res=[]
-    re_pattern=re.compile('-K\d{5}')
+    re_pattern=re.compile(r'-K\d{5}')
     for step in ko_str:
         temp=step
         search=re.findall(re_pattern,step)

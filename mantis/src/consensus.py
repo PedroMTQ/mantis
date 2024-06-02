@@ -1,23 +1,10 @@
-try:
-    from mantis.assembler import *
-except:
-    from assembler import *
+from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+from unifunc.source import UniFunc
 
-try:
-    from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-except:
-    if not cython_compiled():
-        compile_cython()
-        try:
-            from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-        except:
-            kill_switch(CythonNotCompiled, f'{MANTIS_FOLDER}mantis{SPLITTER}utils.py')
-
-
-class Consensus(UniFunc_wrapper):
+class Consensus():
 
     def __init__(self):
-        UniFunc_wrapper.__init__(self)
+        self.unifunc = UniFunc()
 
     def get_ref_weight(self, ref):
         '''
@@ -142,7 +129,7 @@ class Consensus(UniFunc_wrapper):
                 if descriptions:
                     notes += ',' + ','.join(descriptions)
                 if is_essential:
-                    notes += f',is_essential_gene:True'
+                    notes += ',is_essential_gene:True'
 
                 dbxref = []
                 ontology_terms = []
@@ -502,7 +489,7 @@ class Consensus(UniFunc_wrapper):
             return False
         for hit1_d in hit1_info_description:
             for hit2_d in hit2_info_description:
-                score = self.get_similarity_score(hit1_d, hit2_d, only_return=True, verbose=False)
+                score = self.unifunc.get_similarity_score(hit1_d, hit2_d, only_return=True, verbose=False)
                 if score > self.nlp_threshold:
                     return True
         return False
@@ -607,7 +594,7 @@ class Consensus(UniFunc_wrapper):
                 'uncharacterized conserved protein',
                 'hypothetical protein',
             ]:
-                if re.search('(protein|domain|domian|family|repeat|short repeats|region) (of|with) (unknown|unknwon) function(\s\(?[dp]uf\d{2,}\)?)?', current_d):
+                if re.search(r'(protein|domain|domian|family|repeat|short repeats|region) (of|with) (unknown|unknwon) function(\s\(?[dp]uf\d{2,}\)?)?', current_d):
                     pass
                 else:
                     res.add(d)

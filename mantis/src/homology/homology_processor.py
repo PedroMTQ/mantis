@@ -1,29 +1,16 @@
-try:
-    from mantis.assembler import *
-except:
-    from assembler import *
 
-try:
-    from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-except:
-    if not cython_compiled():
-        compile_cython()
-        try:
-            from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
-        except:
-            kill_switch(CythonNotCompiled, f'{MANTIS_FOLDER}mantis{SPLITTER}utils.py')
-
+from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
 
 # This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
 
-class Homology_processor():
+class HomologyProcessor():
 
     def create_chunk_output_dirs(self, chunk_dir):
         to_create = ['searchout']
         if self.keep_files:
             to_create.append('output_hmmer')
         for hmmer_dir in to_create:
-            if not file_exists(chunk_dir + hmmer_dir):
+            if not os.path.exists(chunk_dir + hmmer_dir):
                 Path(chunk_dir + hmmer_dir).mkdir(parents=True, exist_ok=True)
 
     ######SPLITTING TARGET FASTA INTO CHUNKS######
@@ -138,7 +125,7 @@ class Homology_processor():
                 line = file.readline()
 
     def remove_temp_fasta_length(self, chunk_dir, db):
-        if file_exists(f'{chunk_dir}missing_annotation.{db}.length'):
+        if os.path.exists(f'{chunk_dir}missing_annotation.{db}.length'):
             os.remove(f'{chunk_dir}missing_annotation.{db}.length')
 
     def remove_annotated_queries(self, missing_queries, annotated_queries):
@@ -148,7 +135,7 @@ class Homology_processor():
 
     def generate_temp_fasta(self, missing_queries, output_folder, db):
         temp_path = f'{output_folder}missing_annotations.{db}.tmp'
-        if file_exists(temp_path):
+        if os.path.exists(temp_path):
             remove_temp_fasta(temp_path, db)
         with open(temp_path, 'w+') as file:
             for mq in missing_queries:
@@ -639,7 +626,7 @@ class Homology_processor():
                 try:
                     best_hit = self.get_best_hits(list(list_hits), queries_searchout[query]['query_len'],
                                                   sorting_class='processor')
-                except (TimeoutError, RecursionError) as e:
+                except (TimeoutError, RecursionError):
                     # heuristic with bitscore produces bad results, so we force evalue sorting
                     best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',
                                                                 sorting_type='evalue')

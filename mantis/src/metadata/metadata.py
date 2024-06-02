@@ -1,7 +1,4 @@
-try:
-    from mantis.assembler import *
-except:
-    from assembler import *
+
 
 
 class Metadata():
@@ -77,7 +74,7 @@ class Metadata():
 
     def get_essential_genes(self):
         essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
-        if file_exists(essential_genes):
+        if os.path.exists(essential_genes):
             with open(essential_genes) as file: lines = file.readlines()
             lines = [l.strip('\n') for l in lines]
             return set(lines)
@@ -103,14 +100,14 @@ class Metadata():
             if 'NOGG' in ref_file:
                 taxon_id = 'NOGG'
             else:
-                taxon_id = re.search('NOGT\d+', ref_file).group().replace('NOGT', '')
+                taxon_id = re.search(r'NOGT\d+', ref_file).group().replace('NOGT', '')
             metadata_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + 'metadata.tsv'
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
         elif re.search('NCBI[GT]', ref_file):
             if 'NCBIG' in ref_file:
                 taxon_id = 'NCBIG'
             else:
-                taxon_id = re.search('NCBIT\d+', ref_file).group().replace('NCBIT', '')
+                taxon_id = re.search(r'NCBIT\d+', ref_file).group().replace('NCBIT', '')
             metadata_file = add_slash(self.mantis_paths['NCBI'] + taxon_id) + 'metadata.tsv'
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
             self.is_essential(dict_hits)
@@ -129,7 +126,7 @@ class Metadata():
             custom_ref_path = self.get_target_custom_ref_paths(ref_file, folder=True)
             if custom_ref_path:
                 file_path = add_slash(custom_ref_path) + 'metadata.tsv'
-                if file_exists(file_path):
+                if os.path.exists(file_path):
                     self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
         for hit in dict_hits:
             self.get_common_links(hit, dict_hits[hit])

@@ -1,20 +1,21 @@
-try:
-    from mantis.utils import *
-except:
-    from utils import *
+import os
+import sqlite3
+
+from mantis.src.metadata.utils import get_common_links_metadata
+from mantis.src.settings import SQLITE_INFO_SPLITTER
+from mantis.src.utils.logger import logger
 
 
-class Metadata_SQLITE_Connector():
+class MetadataSqliteConnector():
     def __init__(self, metadata_file):
         self.metadata_file_tsv = metadata_file
         self.db_file = metadata_file.replace('.tsv', '') + '.db'
-        if not file_exists(self.metadata_file_tsv):
-            print(f'Metadata file missing: {metadata_file}')
+        if not os.path.exists(self.metadata_file_tsv):
+            logger.info(f'Metadata file missing: {metadata_file}')
             return
         self.insert_step = 5000
-        self.info_splitter = '##'
-        if not file_exists(self.db_file):
-            print('Creating SQL database', self.db_file)
+        if not os.path.exists(self.db_file):
+            logger.info(f'Creating SQL database {self.db_file}')
             self.create_sql_table()
         self.start_sqlite_cursor()
 
@@ -30,7 +31,7 @@ class Metadata_SQLITE_Connector():
     def close_sql_connection(self):
         try:
             self.sqlite_connection.close()
-        except:
+        except Exception:
             return
 
     def check_all_tables(self):
@@ -42,7 +43,7 @@ class Metadata_SQLITE_Connector():
         res = [ref]
         for db in self.db_headers:
             if db in row_info:
-                res.append(self.info_splitter.join(row_info[db]))
+                res.append(SQLITE_INFO_SPLITTER.join(row_info[db]))
             else:
                 res.append(None)
         return res
@@ -67,45 +68,48 @@ class Metadata_SQLITE_Connector():
             for line in file:
                 row_info = {}
                 line = line.strip('\n')
-                if line:
-                    line = line.split('\t')
-                    current_ref = line[0]
-                    if '|' in line:  line.remove('|')
-                    annotations = line[1:]
-                    for link in annotations:
-                        if link:
-                            temp_link = link.split(':')
-                            link_type = temp_link[0]
-                            link_text = ':'.join(temp_link[1:])
-                            link_text = link_text.strip()
-                            if link_type not in row_info: row_info[link_type] = set()
-                            row_info[link_type].add(link_text)
-                            if link_type == 'description' and link_text == 'NA':
-                                link_text = None
-                            if link_text and link_type == 'description':
-                                get_common_links_metadata(link_text, res=row_info)
-                    yield self.convert_row_to_sql(current_ref, row_info)
+                if not line:
+                    continue
+                line = line.split('\t')
+                current_ref = line[0]
+                if '|' in line:  line.remove('|')
+                annotations = line[1:]
+                for link in annotations:
+                    if link:
+                        temp_link = link.split(':')
+                        link_type = temp_link[0]
+                        link_text = ':'.join(temp_link[1:])
+                        link_text = link_text.strip()
+                        if link_type not in row_info: row_info[link_type] = set()
+                        row_info[link_type].add(link_text)
+                        if link_type == 'description' and link_text == 'NA':
+                            link_text = None
+                        if link_text and link_type == 'description':
+                            get_common_links_metadata(input_string=link_text,
+                                                      metadata_dict=row_info)
+                yield self.convert_row_to_sql(current_ref, row_info)
 
     def get_db_headers(self):
         res = set()
         try:
-            schema_command = f'PRAGMA table_info(METADATA);'
+            schema_command = 'PRAGMA table_info(METADATA);'
             res_fetch = self.cursor.execute(schema_command).fetchall()
             res_fetch.pop(0)
             for line in res_fetch:
                 link_type = line[1]
                 res.add(link_type)
-        except:
+        except Exception:
             with open(self.metadata_file_tsv, 'r') as file:
                 for line in file:
                     line = line.strip('\n')
                     line = line.split('\t')
                     annotations = line[2:]
                     for link in annotations:
-                        if link:
-                            temp_link = link.split(':')
-                            link_type = temp_link[0]
-                            res.add(link_type)
+                        if not link:
+                            continue
+                        temp_link = link.split(':')
+                        link_type = temp_link[0]
+                        res.add(link_type)
         self.db_headers = sorted(list(res))
 
     def create_sql_table(self):
@@ -114,14 +118,14 @@ class Metadata_SQLITE_Connector():
             os.remove(self.db_file)
         self.start_sqlite_cursor()
 
-        create_table_command = f'CREATE TABLE METADATA (REF TEXT, '
+        create_table_command = 'CREATE TABLE METADATA (REF TEXT, '
         for header in self.db_headers:
             create_table_command += f'{header.upper()} TEXT, '
         create_table_command = create_table_command.rstrip(', ')
         create_table_command += ')'
         self.cursor.execute(create_table_command)
         self.sqlite_connection.commit()
-        create_index_command = f'CREATE INDEX REF_IDX ON METADATA (REF)'
+        create_index_command = 'CREATE INDEX REF_IDX ON METADATA (REF)'
         self.cursor.execute(create_index_command)
 
         self.store_metadata()
@@ -155,43 +159,33 @@ class Metadata_SQLITE_Connector():
             db = self.db_headers[i].lower()
             db_res = sql_result[i]
             if db_res:
-                db_res = db_res.split(self.info_splitter)
+                db_res = db_res.split(SQLITE_INFO_SPLITTER)
                 if db not in res: res[db] = set()
                 res[db].update(db_res)
         return res
 
     def fetch_metadata(self, ref_id):
-        if not file_exists(self.db_file):
+        if not os.path.exists(self.db_file):
             return {}
         fetch_command = self.generate_fetch_command(ref_id)
         try:
             res_fetch = self.cursor.execute(fetch_command).fetchone()
             res = self.convert_sql_to_dict(res_fetch)
             return res
-        except:
-            print(f'Failed retrieving {ref_id} in {self.db_file}')
+        except Exception:
+            logger.error(f'Failed retrieving {ref_id} in {self.db_file}')
             return {}
 
     def test_database(self):
         res = set()
-        if not file_exists(self.metadata_file_tsv): return res
+        if not os.path.exists(self.metadata_file_tsv): return res
         with open(self.metadata_file_tsv) as file:
             for line in file:
                 ref = line.split('\t')[0]
                 try:
-                    ref_info = self.fetch_metadata(ref)
-                except:
-                    print(f'Failed retrieving {ref} in {self.db_file}')
+                    self.fetch_metadata(ref)
+                except Exception:
+                    logger.error(f'Failed retrieving {ref} in {self.db_file}')
                     res.add(ref)
         return res
 
-
-if __name__ == '__main__':
-    import time
-
-    metadata_connector = Metadata_SQLITE_Connector('/media/HDD/data/mantis_references/tcdb/metadata.tsv')
-    metadata_connector.test_database()
-    start = time.time()
-    for i in range(10000):
-        res = metadata_connector.fetch_metadata('P0A2U6')
-    print(time.time() - start)

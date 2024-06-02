@@ -1,34 +1,18 @@
-import re
-
-try:
-    from mantis.exceptions import *
-    from mantis.utils import *
-    from mantis.unifunc_wrapper import UniFunc_wrapper
-    from mantis.uniprot_api import (submit_id_mapping,
-                                    check_id_mapping_results_ready,
-                                    get_id_mapping_results_link,
-                                    get_id_mapping_results_search)
-except:
-    from exceptions import *
-    from utils import *
-    from unifunc_wrapper import UniFunc_wrapper
-
-if not unifunc_downloaded():
-    download_unifunc()
 
 
-class Database_generator(UniFunc_wrapper):
+
+
+from mantis.src.metadata.utils import get_common_links_metadata
+
+
+class DatabaseGenerator():
 
     #####################   Main function
     @timeit_class
     def setup_databases(self):
-        if not cython_compiled():
-            compile_cython()
-        if not unifunc_downloaded():
-            download_unifunc()
         self.output_folder = f'{MANTIS_FOLDER}setup_databases/'
         self.mantis_out = f'{self.output_folder}Mantis.out'
-        if file_exists(self.mantis_out):
+        if os.path.exists(self.mantis_out):
             os.remove(self.mantis_out)
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
         Path(self.output_folder).mkdir(parents=True, exist_ok=True)
@@ -91,7 +75,7 @@ class Database_generator(UniFunc_wrapper):
                     file_path = self.mantis_paths['NOG'] + file
                     remove_file(file_path)
             # we also remove the 1 folder since it doesn't actually exist in NCBI, this taxa is just a general taxon which we already added to NOGG anyway
-            if file_exists(self.mantis_paths['NOG'] + '1/'):
+            if os.path.exists(self.mantis_paths['NOG'] + '1/'):
                 shutil.rmtree(self.mantis_paths['NOG'] + '1/')
 
         # SPLITTING
@@ -124,7 +108,7 @@ class Database_generator(UniFunc_wrapper):
         if self.mantis_paths['NOG'][0:2] != 'NA':
             Path(self.mantis_paths['NOG']).mkdir(parents=True, exist_ok=True)
             list_taxon_ids = self.get_taxon_for_queue_NOGT()
-            if not file_exists(self.mantis_paths['NOG']): passed_tax_check = False
+            if not os.path.exists(self.mantis_paths['NOG']): passed_tax_check = False
             for taxon_id in list_taxon_ids:
                 if taxon_id != '1':
                     if not self.check_reference_exists('NOGT', taxon_id=taxon_id):
@@ -139,7 +123,7 @@ class Database_generator(UniFunc_wrapper):
                     self.queue.append(['NOG_DMND', self.mantis_out])
 
         if not passed_tax_check:
-            if file_exists(self.mantis_paths['NOG']):
+            if os.path.exists(self.mantis_paths['NOG']):
                 shutil.rmtree(self.mantis_paths['NOG'])
             Path(self.mantis_paths['NOG']).mkdir(parents=True, exist_ok=True)
             with open(self.mantis_paths['NOG'] + 'readme.md', 'w+') as file:
@@ -186,7 +170,7 @@ class Database_generator(UniFunc_wrapper):
                     target_annotation_file = add_slash(
                         self.mantis_paths['NOG'] + taxon_id) + f'{taxon_id}_annotations.tsv'
                     target_sql_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + 'metadata.tsv'
-                    if file_exists(target_sql_file):
+                    if os.path.exists(target_sql_file):
                         if len(self.get_hmms_annotation_file(target_sql_file, hmm_col=0)) != len(
                                 self.get_hmms_annotation_file(target_annotation_file, hmm_col=1)):
                             self.queue.append([target_sql_file, target_annotation_file, taxon_id, self.mantis_out])
@@ -269,7 +253,7 @@ class Database_generator(UniFunc_wrapper):
     def download_ncbi_resources(self, stdout_file=None):
         ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
         Path(ncbi_resources).mkdir(parents=True, exist_ok=True)
-        if file_exists(ncbi_resources + 'gc.prt'):
+        if os.path.exists(ncbi_resources + 'gc.prt'):
             print('Translation tables already exist! Skipping...', flush=True, file=stdout_file)
             return
         try:
@@ -286,44 +270,10 @@ class Database_generator(UniFunc_wrapper):
             download_file(url, output_folder=ncbi_resources, stdout_file=stdout_file)
 
     def download_taxonomy_resources(self, stdout_file=None):
-        if not file_exists(self.mantis_paths['resources'] + 'Taxonomy.db'):
+        if not os.path.exists(self.mantis_paths['resources'] + 'Taxonomy.db'):
             self.launch_taxonomy_connector()
             self.create_taxonomy_db()
             self.close_taxonomy_connection()
-
-    def get_common_links_metadata(self, string, res):
-        ec = find_ecs(string)
-        if ec:
-            if 'enzyme_ec' not in res: res['enzyme_ec'] = set()
-            res['enzyme_ec'].update(ec)
-        tc = find_tcdb(string)
-        if tc:
-            if 'tcdb' not in res: res['tcdb'] = set()
-            res['tcdb'].update(tc)
-        tigr = find_tigrfam(string)
-        if tigr:
-            if 'tigrfam' not in res: res['tigrfam'] = set()
-            res['tigrfam'].update(tigr)
-        ko = find_ko(string)
-        if ko:
-            if 'kegg_ko' not in res: res['kegg_ko'] = set()
-            res['kegg_ko'].update(ko)
-        pfam = find_pfam(string)
-        if pfam:
-            if 'pfam' not in res: res['pfam'] = set()
-            res['pfam'].update(pfam)
-        cog = find_cog(string)
-        if cog:
-            if 'cog' not in res: res['cog'] = set()
-            res['cog'].update(cog)
-        arcog = find_arcog(string)
-        if arcog:
-            if 'arcog' not in res: res['arcog'] = set()
-            res['arcog'].update(cog)
-        go = find_go(string)
-        if go:
-            if 'go' not in res: res['go'] = set()
-            res['go'].update(go)
 
     def write_metadata(self, metadata, metadata_file):
         with open(metadata_file, 'w+') as file:
@@ -349,8 +299,8 @@ class Database_generator(UniFunc_wrapper):
                     line = [i.strip() for i in line]
                     pfam_id = line[0].split()[0].replace('Pfam:', '')
                     go_annots = line[1].split(';')
-                    go_description = [i.replace('GO:', '').strip() for i in go_annots if not re.search('GO:\d{3,}', i)]
-                    go_ids = [i.replace('GO:', '').strip() for i in go_annots if re.search('GO:\d{3,}', i)]
+                    go_description = [i.replace('GO:', '').strip() for i in go_annots if not re.search(r'GO:\d{3,}', i)]
+                    go_ids = [i.replace('GO:', '').strip() for i in go_annots if re.search(r'GO:\d{3,}', i)]
                     if pfam_id not in res:
                         res[pfam_id] = {'go': set(go_ids), 'description': set(go_description)}
                     else:
@@ -398,7 +348,8 @@ class Database_generator(UniFunc_wrapper):
             current_metadata['pfam'].add(hmm)
             if self.is_good_description(hmm, hmm_description):
                 current_metadata['description'].add(hmm_description)
-            get_common_links_metadata(hmm_description, current_metadata)
+            get_common_links_metadata(input_string=hmm_description,
+                                      metadata_dict=current_metadata)
             metadata_line = self.build_pfam_line(hmm, current_metadata)
             return metadata_line
 
@@ -417,7 +368,7 @@ class Database_generator(UniFunc_wrapper):
     def download_pfam(self, stdout_file=None):
         Path(self.mantis_paths['pfam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('pfam') and \
-                file_exists(self.mantis_paths['pfam'] + 'metadata.tsv'):
+                os.path.exists(self.mantis_paths['pfam'] + 'metadata.tsv'):
             print('Pfam hmm already exists! Skipping...', flush=True, file=stdout_file)
             return
         pfam_hmm = 'http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz'
@@ -430,10 +381,10 @@ class Database_generator(UniFunc_wrapper):
         print_cyan('Downloading and unzipping Pfam hmms ', flush=True, file=stdout_file)
         to_download = []
         to_unzip = []
-        if not file_exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm'):
+        if not os.path.exists(self.mantis_paths['pfam'] + 'Pfam-A.hmm'):
             to_download.append(pfam_hmm)
             to_unzip.append('Pfam-A.hmm.gz')
-        if not file_exists(self.mantis_paths['pfam'] + 'metadata.tsv'):
+        if not os.path.exists(self.mantis_paths['pfam'] + 'metadata.tsv'):
             to_unzip.append('Pfam-A.hmm.dat.gz')
             to_download.append(pfam_metadata)
             to_download.append(pfam2go)
@@ -474,7 +425,8 @@ class Database_generator(UniFunc_wrapper):
                     description, temp_links = description.split('[EC:')
                 else:
                     temp_links = description
-                get_common_links_metadata(temp_links, res[ko])
+                get_common_links_metadata(input_string=temp_links,
+                                          metadata_dict=res[ko])
                 if 'kegg_ko' not in res[ko]: res[ko]['kegg_ko'] = set()
                 res[ko]['kegg_ko'].add(ko)
                 if 'description' not in res[ko]:
@@ -503,7 +455,7 @@ class Database_generator(UniFunc_wrapper):
     def download_kofam(self, stdout_file=None):
         Path(self.mantis_paths['kofam']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('kofam') and \
-                file_exists(self.mantis_paths['kofam'] + 'metadata.tsv'):
+                os.path.exists(self.mantis_paths['kofam'] + 'metadata.tsv'):
             print('KOfam HMM already exists! Skipping...', flush=True, file=stdout_file)
             return
         kofam_hmm = 'https://www.genome.jp/ftp/db/kofam/profiles.tar.gz'
@@ -538,7 +490,7 @@ class Database_generator(UniFunc_wrapper):
         # we cant verify a priori which foulders we should have, so you need to delete the folder to restart
 
         if self.check_reference_exists('NCBI') and \
-                file_exists(self.mantis_paths['NCBI'] + 'readme.md'):
+                os.path.exists(self.mantis_paths['NCBI'] + 'readme.md'):
             print('NCBI hmm folder already exists! Skipping...', flush=True, file=stdout_file)
             return
 
@@ -555,7 +507,7 @@ class Database_generator(UniFunc_wrapper):
                            extract_path=self.mantis_paths['NCBI'], stdout_file=stdout_file, remove_source=True)
         self.compile_hmms_NCBI(stdout_file=stdout_file)
         remove_file(self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv')
-        if file_exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
+        if os.path.exists(self.mantis_paths['NCBI'] + 'hmm_PGAP'):
             shutil.rmtree(self.mantis_paths['NCBI'] + 'hmm_PGAP')
 
     # sorting profiles by the taxonomic id from ncbi metadata file
@@ -632,7 +584,8 @@ class Database_generator(UniFunc_wrapper):
                 hmm, hmm_label, description, enzyme_ec, go_terms, taxa_id = line[0], line[2], line[10], line[12], line[
                     13], line[15]
                 common_links = {}
-                get_common_links_metadata(description, common_links)
+                get_common_links_metadata(input_string=description,
+                                          metadata_dict=common_links)
                 for db in common_links:
                     for db_id in common_links[db]:
                         description = description.replace(db_id, '').strip()
@@ -699,11 +652,12 @@ class Database_generator(UniFunc_wrapper):
         # some proteins are not in uniprot, but are in some other dbs.... Im not sure if they should be removed, but we will consider uniprot as the central repo, so we will remove them
         chunks_post = chunk_generator(all_seqs, 500)
         all_found = set()
+        uniprot_api = UnitProtAPI()
         for seqs_chunk in chunks_post:
-            job_id = submit_id_mapping(from_db="UniProtKB_AC-ID", to_db="UniProtKB", ids=seqs_chunk)
-            if check_id_mapping_results_ready(job_id):
-                link = get_id_mapping_results_link(job_id)
-                results = get_id_mapping_results_search(link)
+            job_id = uniprot_api.submit_id_mapping(from_db="UniProtKB_AC-ID", to_db="UniProtKB", ids=seqs_chunk)
+            if uniprot_api.check_id_mapping_results_ready(job_id):
+                link = uniprot_api.get_id_mapping_results_link(job_id)
+                results = uniprot_api.get_id_mapping_results_search(link)
                 if 'failedIds' in results:
                     failed_ids = results['failedIds']
                 else:
@@ -749,7 +703,7 @@ class Database_generator(UniFunc_wrapper):
     def download_tcdb(self, stdout_file=None):
         Path(self.mantis_paths['tcdb']).mkdir(parents=True, exist_ok=True)
         if self.check_reference_exists('tcdb') and \
-                file_exists(self.mantis_paths['tcdb'] + 'metadata.tsv'):
+                os.path.exists(self.mantis_paths['tcdb'] + 'metadata.tsv'):
             print('TCDB sequences already exists! Skipping...', flush=True, file=stdout_file)
             return
         tcdb_seqs = 'http://www.tcdb.org/public/tcdb'
@@ -768,14 +722,14 @@ class Database_generator(UniFunc_wrapper):
             download_file(link, output_folder=self.mantis_paths['tcdb'], stdout_file=stdout_file)
         self.compile_tcdb_metadata()
 
-        if not file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd'):
-            run_command(f'diamond makedb --in ' + self.mantis_paths['tcdb'] + 'tcdb.faa -d ' + self.mantis_paths[
+        if not os.path.exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd'):
+            run_command('diamond makedb --in ' + self.mantis_paths['tcdb'] + 'tcdb.faa -d ' + self.mantis_paths[
                 'tcdb'] + 'tcdb', stdout_file=stdout_file)
 
     #####################   NOG
 
     def check_completeness_NOGG(self, nogg_file, list_file_paths):
-        if not file_exists(nogg_file):
+        if not os.path.exists(nogg_file):
             return False
         nogg_hmms = set()
         nogt_hmms = set()
@@ -816,7 +770,7 @@ class Database_generator(UniFunc_wrapper):
 
             if not self.check_completeness_NOGG(target_annotation_file, all_sql) or \
                     not self.check_reference_exists('NOGG'):
-                if file_exists(self.mantis_paths['NOG'] + 'NOGG'): shutil.rmtree(self.mantis_paths['NOG'] + 'NOGG')
+                if os.path.exists(self.mantis_paths['NOG'] + 'NOGG'): shutil.rmtree(self.mantis_paths['NOG'] + 'NOGG')
                 Path(self.mantis_paths['NOG'] + 'NOGG').mkdir(parents=True, exist_ok=True)
             else:
                 print('NOGG already compiled, skipping...', flush=True, file=stdout_file)
@@ -841,7 +795,7 @@ class Database_generator(UniFunc_wrapper):
         for file in ['_annotations.tsv.gz', '_hmms.tar.gz']:
             url = f'{eggnog_downloads_page}{taxon_id}{file}'
             download_file(url, output_folder=folder_path, stdout_file=stdout_file)
-        if file_exists(f'{folder_path}profiles'): shutil.rmtree(f'{folder_path}profiles')
+        if os.path.exists(f'{folder_path}profiles'): shutil.rmtree(f'{folder_path}profiles')
         uncompress_archive(source_filepath=f'{folder_path}{taxon_id}_hmms.tar.gz',
                            extract_path=f'{folder_path}profiles', stdout_file=stdout_file, remove_source=True)
         uncompress_archive(source_filepath=f'{folder_path}{taxon_id}_annotations.tsv.gz',
@@ -853,16 +807,16 @@ class Database_generator(UniFunc_wrapper):
             if '.hmm' in hmm_profile: move_file(hmm_profile, hmm_profile.strip('.gz'))
         merge_profiles(f'{folder_path}profiles/{taxon_id}', f'{folder_path}{taxon_id}_merged.hmm',
                        stdout_file=stdout_file)
-        if file_exists(f'{folder_path}profiles'):      shutil.rmtree(f'{folder_path}profiles')
+        if os.path.exists(f'{folder_path}profiles'):      shutil.rmtree(f'{folder_path}profiles')
         run_command(f'hmmpress {target_merged_hmm}', stdout_file=stdout_file)
 
     def download_and_unzip_eggnogdb(self, stdout_file=None):
         Path(self.mantis_paths['default']).mkdir(parents=True, exist_ok=True)
-        if file_exists(self.mantis_paths['NOG'] + 'eggnog.db'):
+        if os.path.exists(self.mantis_paths['NOG'] + 'eggnog.db'):
             print('eggnog.db already exists! Skipping...', flush=True, file=stdout_file)
             return
         else:
-            if file_exists(self.mantis_paths['default'] + 'eggnog.NOG'):
+            if os.path.exists(self.mantis_paths['default'] + 'eggnog.NOG'):
                 remove_file(self.mantis_paths['NOG'] + 'eggnog.db')
         url = 'http://eggnogdb.embl.de/download/emapperdb-' + self.get_latest_version_eggnog() + '/eggnog.db.gz'
         download_file(url, output_folder=self.mantis_paths['NOG'], stdout_file=stdout_file)
@@ -909,8 +863,8 @@ class Database_generator(UniFunc_wrapper):
             except:
                 c += 1
         if isinstance(webpage, str):
-            taxons_search = re.findall('href="\d+/"', webpage)
-            taxons = [re.search('\d+', i).group() for i in taxons_search]
+            taxons_search = re.findall(r'href="\d+/"', webpage)
+            taxons = [re.search(r'\d+', i).group() for i in taxons_search]
         else:
             taxons = []
         # if no connection is established, we just return the local taxon ids (will be empty if no connection is available during setup)
@@ -923,7 +877,7 @@ class Database_generator(UniFunc_wrapper):
         res = []
         for taxon_id in taxon_ids:
             target_annotation_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + taxon_id + '_annotations.tsv'
-            if self.check_reference_exists('NOG', taxon_id) and file_exists(target_annotation_file):
+            if self.check_reference_exists('NOG', taxon_id) and os.path.exists(target_annotation_file):
                 hmm_path = get_ref_in_folder(self.mantis_paths['NOG'] + taxon_id)
                 profile_count = get_hmm_profile_count(hmm_path)
                 annotations_count = len(self.get_hmms_annotation_file(target_annotation_file, 1))
@@ -1005,7 +959,7 @@ class Database_generator(UniFunc_wrapper):
         print(f'{hmm_path} has {profile_count} profiles', flush=True, file=stdout_file)
         hmm_folder = get_folder(hmm_path)
         hmm_chunks_folder = f'{hmm_folder}chunks/'
-        if file_exists(hmm_chunks_folder):
+        if os.path.exists(hmm_chunks_folder):
             shutil.rmtree(hmm_chunks_folder)
         Path(hmm_chunks_folder).mkdir(parents=True, exist_ok=True)
         print('Load balancing chunks', flush=True, file=stdout_file)
@@ -1042,7 +996,7 @@ class Database_generator(UniFunc_wrapper):
 
     def get_hmms_annotation_file(self, annotations_file, hmm_col):
         res = set()
-        if not file_exists(annotations_file): return res
+        if not os.path.exists(annotations_file): return res
         with open(annotations_file, 'r') as file:
             line = file.readline()
             while line:
@@ -1052,7 +1006,7 @@ class Database_generator(UniFunc_wrapper):
         return res
 
     def download_pfam_id_to_acc(self):
-        if not file_exists(self.mantis_paths['NOG'] + 'Pfam-A.hmm.dat'):
+        if not os.path.exists(self.mantis_paths['NOG'] + 'Pfam-A.hmm.dat'):
             pfam_metadata = 'http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz'
             download_file(pfam_metadata, output_folder=self.mantis_paths['NOG'])
             uncompress_archive(source_filepath=self.mantis_paths['NOG'] + 'Pfam-A.hmm.dat.gz', remove_source=True)
@@ -1080,7 +1034,8 @@ class Database_generator(UniFunc_wrapper):
         if description:
             if og not in ids_res: ids_res[og] = {'description': set(), 'cog': set(), 'arcog': set()}
             ids_res[og]['description'].add(description)
-            get_common_links_metadata(description, res=ids_res[og])
+            get_common_links_metadata(input_string=description,
+                                      metadata_dict=ids_res[og])
 
     def clean_up_sql_results_ids_hmm(self, sql_row, taxon_id, pfam_id_to_acc):
         codes_to_exclude = ['IEA', 'ND']
@@ -1176,7 +1131,7 @@ class Database_generator(UniFunc_wrapper):
         cursor = connection.cursor()
         pfam_id_to_acc = self.pfam_id_to_acc()
         ids_command = f'SELECT ogs, gos, pfam, kegg_ko,kegg_cog,kegg_ec,kegg_brite,kegg_rclass,kegg_tc,kegg_cazy,kegg_pathway,kegg_module,kegg_reaction,kegg_go FROM prots WHERE ogs LIKE "%@{taxon_id}%";'
-        description_command = f'SELECT og,level,description FROM og WHERE level="{taxon_id}"';
+        description_command = f'SELECT og,level,description FROM og WHERE level="{taxon_id}"'
         taxon_metadata = self.fetch_eggnog_metadata_hmm(cursor, taxon_id, ids_command, description_command,
                                                         pfam_id_to_acc)
 
@@ -1196,7 +1151,7 @@ class Database_generator(UniFunc_wrapper):
 
     def download_NOG_DMND(self, stdout_file=None):
         folder_path = add_slash(self.mantis_paths['NOG'])
-        if file_exists(folder_path + 'eggnog_proteins.dmnd'):
+        if os.path.exists(folder_path + 'eggnog_proteins.dmnd'):
             print('eggnog_proteins.dmnd already exists! Skipping...', flush=True, file=stdout_file)
             return
         url = 'http://eggnogdb.embl.de/download/emapperdb-' + self.get_latest_version_eggnog() + '/eggnog_proteins.dmnd.gz'
@@ -1231,7 +1186,7 @@ class Database_generator(UniFunc_wrapper):
                 taxon_folder = self.mantis_paths['NOG'] + taxon + SPLITTER
                 taxon_fasta = f'{taxon_folder}{taxon}_merged.faa'
                 taxon_dmnd = f'{taxon_folder}{taxon}'
-                if not file_exists(f'{taxon_dmnd}.dmnd') and file_exists(taxon_fasta):
+                if not os.path.exists(f'{taxon_dmnd}.dmnd') and os.path.exists(taxon_fasta):
                     run_command(f'diamond makedb --in {taxon_fasta} -d {taxon_dmnd}')
 
     def compile_NOGG_DMND(self):
@@ -1251,7 +1206,7 @@ class Database_generator(UniFunc_wrapper):
                         all_metadata.add(taxon_metadata_file)
 
             if not self.check_reference_exists('NOGG'):
-                if file_exists(nogg_folder_path): shutil.rmtree(nogg_folder_path)
+                if os.path.exists(nogg_folder_path): shutil.rmtree(nogg_folder_path)
                 Path(nogg_folder_path).mkdir(parents=True, exist_ok=True)
             else:
                 print('NOGG already compiled, skipping...', flush=True, file=stdout_file)
@@ -1261,7 +1216,7 @@ class Database_generator(UniFunc_wrapper):
             concat_files(target_metadata_file, all_metadata)
 
             nogg_dmnd = f'{nogg_folder_path}NOGG_merged'
-            if not file_exists(f'{nogg_dmnd}.dmnd'):
+            if not os.path.exists(f'{nogg_dmnd}.dmnd'):
                 run_command(f'diamond makedb --in {target_merged_faa} -d {nogg_dmnd}', stdout_file=stdout_file)
 
             stdout_file.close()
@@ -1272,7 +1227,7 @@ class Database_generator(UniFunc_wrapper):
             diamond_db = f'{folder_path}eggnog_proteins'
             eggnog_proteins_path = f'{folder_path}eggnog_seqs.faa'
             extract_seqs_command = f'diamond getseq -d {diamond_db} > {eggnog_proteins_path}'
-            if not file_exists(eggnog_proteins_path):
+            if not os.path.exists(eggnog_proteins_path):
                 print('Extracting sequences from NOG Diamond database', flush=True, file=self.redirect_verbose)
                 run_command(extract_seqs_command, join_command=True, shell=True)
             return self.create_fastas_NOG_DMND()
@@ -1363,7 +1318,7 @@ class Database_generator(UniFunc_wrapper):
         # this will convert protein names to pfam ids (which is typically what is used with mantis)
         pfam_id_to_acc = self.pfam_id_to_acc()
         connection = sqlite3.connect(eggnog_db)
-        sql_command = f'SELECT name,ogs, gos, pfam, kegg_ko,kegg_cog,kegg_ec,kegg_brite,kegg_rclass,kegg_tc,kegg_cazy,kegg_pathway,kegg_module,kegg_reaction,kegg_go FROM prots;'
+        sql_command = 'SELECT name,ogs, gos, pfam, kegg_ko,kegg_cog,kegg_ec,kegg_brite,kegg_rclass,kegg_tc,kegg_cazy,kegg_pathway,kegg_module,kegg_reaction,kegg_go FROM prots;'
         print(f'Querying SQL:\n{sql_command}', flush=True, file=stdout_file)
         cursor = connection.cursor()
         cursor.execute(sql_command)
@@ -1397,9 +1352,9 @@ class Database_generator(UniFunc_wrapper):
                     taxon_fasta = f'{taxon_folder}{taxon}_merged.faa'
                     taxon_dmnd = f'{taxon_folder}{taxon}_merged.dmnd'
                     taxon_metadata = f'{taxon_folder}metadata.tsv'
-                    if not file_exists(taxon_fasta) or \
-                            not file_exists(taxon_metadata) or \
-                            not file_exists(taxon_dmnd):
+                    if not os.path.exists(taxon_fasta) or \
+                            not os.path.exists(taxon_metadata) or \
+                            not os.path.exists(taxon_dmnd):
                         self.queue.append([taxon, current_seqs, self.mantis_out])
 
     def worker_extract_fastas_DMND(self, queue, master_pid):
