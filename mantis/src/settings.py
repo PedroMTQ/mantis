@@ -6,7 +6,7 @@ import psutil
 SERVICE_NAME = 'mantis_pfa'
 DEBUG = int(os.environ.get('DEBUG', '0'))
 PSUTIL_EXCEPTIONS = (psutil.NoSuchProcess, AttributeError, FileNotFoundError)
-
+ROOT = os.path.dirname(os.path.abspath(os.path.abspath(__file__)))
 
 def check_environment_cores():
     res = cpu_count()

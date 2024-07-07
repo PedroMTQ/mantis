@@ -1,11 +1,18 @@
+import os
+import re
 
+from mantis.src.metadata.metadata_sqlite_connector import MetadataSqliteConnector
+from mantis.src.metadata.utils import find_arcog, find_cog, find_ecs, find_go, find_ko, find_pfam, find_tcdb, find_tigrfam
+from mantis.src.settings import ROOT
+from mantis.src.utils import load_metrics
 
 
 class Metadata():
 
     def get_target_custom_ref_paths(self, target, folder):
         for custom_ref in self.get_custom_refs_paths(folder=folder):
-            if target in custom_ref: return custom_ref
+            if target in custom_ref:
+                return custom_ref
 
     def is_good_annotation(self, to_add):
         if 'unknown' in to_add:
@@ -36,7 +43,7 @@ class Metadata():
                         dict_hits['link'][dict_key].add(i)
 
     def get_link_compiled_metadata(self, dict_hits, ref_file_path):
-        cursor = Metadata_SQLITE_Connector(ref_file_path)
+        cursor = MetadataSqliteConnector(ref_file_path)
         for hit in dict_hits:
             hit_dict = dict_hits[hit]
             hit_info = cursor.fetch_metadata(hit)
@@ -73,10 +80,11 @@ class Metadata():
         return res
 
     def get_essential_genes(self):
-        essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
+        essential_genes = os.path.join(ROOT, 'Resources', 'essential_genes', 'essential_genes.txt')
         if os.path.exists(essential_genes):
-            with open(essential_genes) as file: lines = file.readlines()
-            lines = [l.strip('\n') for l in lines]
+            with open(essential_genes) as file:
+                lines = file.readlines()
+            lines = [line.strip('\n') for line in lines]
             return set(lines)
 
     def is_essential(self, dict_hits):
@@ -101,14 +109,14 @@ class Metadata():
                 taxon_id = 'NOGG'
             else:
                 taxon_id = re.search(r'NOGT\d+', ref_file).group().replace('NOGT', '')
-            metadata_file = add_slash(self.mantis_paths['NOG'] + taxon_id) + 'metadata.tsv'
+            metadata_file = os.path.join(self.mantis_paths['NOG'] + taxon_id, 'metadata.tsv')
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
         elif re.search('NCBI[GT]', ref_file):
             if 'NCBIG' in ref_file:
                 taxon_id = 'NCBIG'
             else:
                 taxon_id = re.search(r'NCBIT\d+', ref_file).group().replace('NCBIT', '')
-            metadata_file = add_slash(self.mantis_paths['NCBI'] + taxon_id) + 'metadata.tsv'
+            metadata_file = os.path.join(self.mantis_paths['NCBI'] + taxon_id, 'metadata.tsv')
             self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
             self.is_essential(dict_hits)
 
@@ -125,12 +133,13 @@ class Metadata():
         else:
             custom_ref_path = self.get_target_custom_ref_paths(ref_file, folder=True)
             if custom_ref_path:
-                file_path = add_slash(custom_ref_path) + 'metadata.tsv'
+                file_path = os.path.join(custom_ref_path, 'metadata.tsv')
                 if os.path.exists(file_path):
                     self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
         for hit in dict_hits:
             self.get_common_links(hit, dict_hits[hit])
-            if 'accession' in dict_hits[hit]['link']:   self.get_common_links(dict_hits[hit]['link']['accession'],
+            if 'accession' in dict_hits[hit]['link']:
+                self.get_common_links(dict_hits[hit]['link']['accession'],
                                                                               dict_hits[hit])
         return dict_hits
 
@@ -140,14 +149,11 @@ class Metadata():
             for inner_l in temp_link[link_key]:
                 if target_removal == 'description':
                     for i in range(len(temp_link['description'])):
-                        temp_link['description'][i] = temp_link['description'][i].replace(inner_l, '').replace('()',
-                                                                                                               '').strip()
+                        temp_link['description'][i] = temp_link['description'][i].replace(inner_l, '').replace('()', '').strip()
                 elif target_removal == 'kegg_map_lineage':
                     if 'kegg_map' == link_key and 'kegg_map_lineage' in temp_link:
                         for i in range(len(temp_link['kegg_map_lineage'])):
-                            temp_link['kegg_map_lineage'][i] = temp_link['kegg_map_lineage'][i].replace(inner_l,
-                                                                                                        '').replace(
-                                '()', '').strip()
+                            temp_link['kegg_map_lineage'][i] = temp_link['kegg_map_lineage'][i].replace(inner_l, '').replace('()', '').strip()
 
     def generate_interpreted_line(self, query, ref_file, link, evalue, bitscore, direction, query_len, query_start,
                                   query_end,
@@ -155,10 +161,22 @@ class Metadata():
         temp_link = dict(link)
         hit = temp_link.pop('hit')
         hit_accession = '-'
-        if 'accession' in temp_link: hit_accession = temp_link.pop('accession')
-        row_start = [query, ref_file, hit, hit_accession, evalue, bitscore, direction, query_len, query_start,
+        if 'accession' in temp_link:
+            hit_accession = temp_link.pop('accession')
+        row_start = [query,
+                     ref_file,
+                     hit,
+                     hit_accession,
+                     evalue,
+                     bitscore,
+                     direction,
+                     query_len,
+                     query_start,
                      query_end,
-                     ref_start, ref_end, ref_len, '|']
+                     ref_start,
+                     ref_end,
+                     ref_len,
+                     '|']
         res = []
         sorted_keys = sorted(temp_link.keys())
         if 'enzyme_ec' in sorted_keys:
@@ -167,14 +185,15 @@ class Metadata():
         # so that description always comes in the end
         if 'kegg_map_lineage' in sorted_keys:
             sorted_keys.remove('kegg_map_lineage')
-            self.remove_ids_text(sorted_keys, temp_link, target_removal='kegg_map_lineage')
+            self.remove_ids_text(sorted_keys=sorted_keys, temp_link=temp_link, target_removal='kegg_map_lineage')
             sorted_keys.append('kegg_map_lineage')
         if 'description' in sorted_keys:
             sorted_keys.remove('description')
             # self.remove_ids_text(sorted_keys, temp_link, target_removal='description')
             sorted_keys.append('description')
         for link_key in sorted_keys:
-            if isinstance(temp_link[link_key], str): temp_link[link_key] = [temp_link[link_key]]
+            if isinstance(temp_link[link_key], str):
+                temp_link[link_key] = [temp_link[link_key]]
             for inner_l in temp_link[link_key]:
                 res.append(link_key + ':' + inner_l)
         res = sorted(res)
@@ -193,15 +212,23 @@ class Metadata():
                 query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore, direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line
                 if self.nog_db == 'hmm' and 'NOG' in ref_file:
                     ref_hit = ref_hit.split('.')[0]
-                if ref_file not in links_to_get: links_to_get[ref_file] = {}
-                if ref_hit not in links_to_get[ref_file]: links_to_get[ref_file][ref_hit] = {'link': {'hit': ref_hit},
-                                                                                             'lines': []}
-                if ref_hit_accession != '-': links_to_get[ref_file][ref_hit]['link']['accession'] = ref_hit_accession
+                if ref_file not in links_to_get:
+                    links_to_get[ref_file] = {}
+                if ref_hit not in links_to_get[ref_file]:
+                    links_to_get[ref_file][ref_hit] = {'link': {'hit': ref_hit}, 'lines': []}
+                if ref_hit_accession != '-':
+                    links_to_get[ref_file][ref_hit]['link']['accession'] = ref_hit_accession
                 links_to_get[ref_file][ref_hit]['lines'].append(c)
-                lines_info[c] = {'query': query, 'evalue': evalue, 'bitscore': bitscore, 'direction': direction,
+                lines_info[c] = {'query': query,
+                                 'evalue': evalue,
+                                 'bitscore': bitscore,
+                                 'direction': direction,
                                  'query_len': query_len,
-                                 'query_start': query_start, 'query_end': query_end, 'ref_start': ref_start,
-                                 'ref_end': ref_end, 'ref_len': ref_len}
+                                 'query_start': query_start,
+                                 'query_end': query_end,
+                                 'ref_start': ref_start,
+                                 'ref_end': ref_end,
+                                 'ref_len': ref_len}
                 c += 1
                 line = file.readline()
         res = {}
@@ -406,8 +433,8 @@ class Metadata():
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
                 for sm in sorted_modules:
-                    module_name, module_paths = tree_modules[sk][ssp][sm]
-                    module_perc, available, missing = self.get_best_sample_module_path(sample_kos, module_paths)
+                    _, module_paths = tree_modules[sk][ssp][sm]
+                    module_perc, _, _ = self.get_best_sample_module_path(sample_kos, module_paths)
                     module_perc = str(round(module_perc, 3))
                     res[sm] = [module_perc]
 
@@ -421,7 +448,7 @@ class Metadata():
 
     def get_sample_kos(self, annotation_file):
         res = set()
-        sample_name = annotation_file.split(SPLITTER)[-2]
+        sample_name = os.path.split(annotation_file)[-2]
         with open(annotation_file) as file:
             line = file.readline()
             while line:
@@ -440,7 +467,8 @@ class Metadata():
                 line = line.strip('\n')
                 line = line.split('\t')
                 seq_id = line[0]
-                if seq_id not in res: res[seq_id] = set()
+                if seq_id not in res:
+                    res[seq_id] = set()
                 separator = line.index('|')
                 annotations = line[separator + 1:]
                 for db_annot in annotations:
@@ -457,7 +485,7 @@ class Metadata():
             firstline = 'Sample\tKOs\n'
             file.write(firstline)
             for sample_path in samples_info:
-                sample_name = sample_path.split(SPLITTER)[-2]
+                sample_name = os.path.split(sample_path)[-2]
                 seq_kos = self.get_ids_consensus(sample_path, wanted_db='kegg_ko')
                 for seq in seq_kos:
                     seq_name = f'{sample_name}@{seq}'
@@ -470,18 +498,17 @@ class Metadata():
         figure_info = {}
         out_file = self.output_folder + 'kegg_modules.tsv'
         for i in self.fastas_to_annotate:
-            file_path, sample_output_path, organism_details, genetic_code, count_seqs_original_file, count_residues_original_file = i
-            sample_paths.append(sample_output_path + 'consensus_annotation.tsv')
+            _, sample_output_path, _, _, _, _ = i
+            sample_paths.append(os.path.join(sample_output_path, 'consensus_annotation.tsv'))
 
         samples_info = [self.get_sample_kos(i) for i in sample_paths]
-        tree = load_metrics(add_slash(self.mantis_paths['resources'] + 'KEGG') + 'modules.pickle')
+        tree = load_metrics(os.path.join(self.mantis_paths['resources'] + 'KEGG'), 'modules.pickle')
         self.export_sample_kos(sample_paths)
         if tree:
             module_col = self.generate_module_col(tree)
             with open(out_file, 'w+') as file:
                 if self.verbose_kegg_matrix:
-                    top_line = [f'Completeness_score_{s["sample"]}\tKOs_{s["sample"]}\tMissing_KOs_{s["sample"]}' for s
-                                in samples_info]
+                    top_line = [f'Completeness_score_{s["sample"]}\tKOs_{s["sample"]}\tMissing_KOs_{s["sample"]}' for s in samples_info]
                     top_line.insert(0, 'Module_ID\tModule_name')
 
                 else:

@@ -1,11 +1,10 @@
-import os
-import shutil
 import gzip
-from zipfile import ZipFile
+import os
 import pathlib
+import shutil
+from zipfile import ZipFile
 
 from mantis.src.utils.logger import logger
-
 
 
 def concat_files(output_file, list_file_paths):

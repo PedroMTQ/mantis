@@ -2,7 +2,6 @@ import os
 
 from mantis.src.metadata.metadata_sqlite_connector import MetadataSqliteConnector
 from mantis.src.taxonomy.taxonomy_sqlite_connector import TaxonomySqliteConnector
-from mantis.src.setup.database_generator import DatabaseGenerator
 from mantis.src.utils.logger import logger
 
 
@@ -108,45 +107,13 @@ class MantisInstaller(MetadataSqliteConnector, TaxonomySqliteConnector):
             target_file = get_ref_in_folder(self.mantis_paths['NCBI'] + taxon_id)
         return target_file
 
-    def check_reference_exists(self, database, taxon_id=None):
-        ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
-
-        if database == 'ncbi_res':
-            if os.path.exists(ncbi_resources + 'gc.prt') and \
-                    os.path.exists(ncbi_resources + 'gc.prt'):
-                return True
-        elif database == 'taxonomy':
-            taxonomy_db = self.mantis_paths['resources'] + 'Taxonomy.db'
-            if os.path.exists(taxonomy_db):
-                return True
-        elif database == 'NOGSQL':
-            if os.path.exists(self.mantis_paths['NOG'] + 'eggnog.db'):
-                return True
-        elif database == 'tcdb':
-            if os.path.exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd'):
-                return True
-        elif database == 'NOG_DMND':
-            if os.path.exists(self.mantis_paths['NOG'] + 'eggnog_proteins.dmnd'):
-                return True
-        target_file = self.get_path_default_ref(database, taxon_id)
-        if target_file:
-            if target_file.endswith('.dmnd'):
-                if not os.path.exists(target_file):
-                    return False
-            else:
-                for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
-                    if not os.path.exists(target_file + extension):
-                        return False
-        else:
-            return False
-        return True
 
     #####LISTING HMMS DATABASE#####
 
     def check_installation_extras(self, res, verbose=True):
         ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
         essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
-        taxonomy_db = self.mantis_paths['resources'] + 'Taxonomy.db'
+        taxonomy_db = self.mantis_paths['resources'] + 'taxonomy.db'
 
         if verbose:
             yellow('Checking extra files', flush=True, file=self.redirect_verbose)
@@ -310,7 +277,7 @@ class MantisInstaller(MetadataSqliteConnector, TaxonomySqliteConnector):
         for metadata_file in all_files:
 
             if not os.path.exists(metadata_file.replace('.tsv', '.db')):
-                cursor = Metadata_SQLITE_Connector(metadata_file)
+                cursor = MetadataSqliteConnector(metadata_file)
                 cursor.close_sql_connection()
 
     def check_sql_databases(self, ref_dbs):
@@ -318,7 +285,7 @@ class MantisInstaller(MetadataSqliteConnector, TaxonomySqliteConnector):
         broken_ids = {}
         for db in ref_dbs:
             yellow(f'Checking {db}metadata.db', flush=True, file=self.redirect_verbose)
-            cursor = Metadata_SQLITE_Connector(f'{db}metadata.tsv')
+            cursor = MetadataSqliteConnector(f'{db}metadata.tsv')
             db_res = cursor.test_database()
             if db_res: broken_refs.add(db)
             if db_res: broken_ids[db] = db_res

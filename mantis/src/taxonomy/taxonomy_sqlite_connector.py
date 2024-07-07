@@ -1,8 +1,9 @@
 import os
 import re
+import shutil
 import sqlite3
 from pathlib import Path
-import shutil
+
 import requests
 
 from mantis.src.settings import SQLITE_INFO_SPLITTER
@@ -16,7 +17,7 @@ class TaxonomySqliteConnector():
     def __init__(self, resources_folder):
         self.insert_step = 50000
         self.resources_folder = resources_folder
-        self.taxonomy_db_file = f'{self.resources_folder}Taxonomy.db'
+        self.taxonomy_db_file = f'{self.resources_folder}taxonomy.db'
         Path(self.resources_folder).mkdir(parents=True, exist_ok=True)
 
     '''

@@ -1,10 +1,20 @@
 import re
 
+TC_PATTERN = re.compile(r'(?<![A-Za-z])\(TC\s\d\.[A-Z\-](\.(\d+|\-)){1,2}\)')
+KO_PATTERN = re.compile(r'(?<![A-Za-z])K\d{4,}')
+DUF_PATTERN = re.compile(r'(?<![A-Za-z])(DUF|duf)\d{2,}')
+PFAM_PATTERN = re.compile(r'(?<![A-Za-z])((U|u)?PF|pf)\d{3,}')
+COG_PATTERN = re.compile(r'(?<![A-Za-z])(COG|cog)\d{3,}')
+ARCOG_PATTERN = re.compile(r'(AR|ar)(COG|cog)\d{3,}')
+TIGRFAM_PATTERN = re.compile(r'(?<![A-Za-z])(TIGR)\d{3,}')
+GO_PATTERN = re.compile(r'(?<![A-Za-z])GO\d{3,}')
+EC_PATTERN = re.compile(r'\d(\.(-|\d{1,3}|([a-zA-Z]\d{1,3}))){2,3}')
+
+
 
 def find_tcdb(string_to_search):
     res = set()
-    tc_pattern = re.compile(r'(?<![A-Za-z])\(TC\s\d\.[A-Z\-](\.(\d+|\-)){1,2}\)')
-    search = re.finditer(tc_pattern, string_to_search)
+    search = re.finditer(TC_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -13,8 +23,7 @@ def find_tcdb(string_to_search):
 def find_ko(string_to_search):
     res = set()
     # I could do upper and lower case but since it's only one letter, it's not very safe...
-    pattern = re.compile(r'(?<![A-Za-z])K\d{4,}')
-    search = re.finditer(pattern, string_to_search)
+    search = re.finditer(KO_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -22,9 +31,8 @@ def find_ko(string_to_search):
 
 def find_pfam(string_to_search):
     res = set()
-    duf = re.compile(r'(?<![A-Za-z])(DUF|duf)\d{2,}')
-    pfam = re.compile(r'(?<![A-Za-z])((U|u)?PF|pf)\d{3,}')
-    for pattern in [duf, pfam]:
+
+    for pattern in [DUF_PATTERN, PFAM_PATTERN]:
         search = re.finditer(pattern, string_to_search)
         for i in search:
             res.add(i.group())
@@ -33,8 +41,7 @@ def find_pfam(string_to_search):
 
 def find_cog(string_to_search):
     res = set()
-    pattern = re.compile(r'(?<![A-Za-z])(COG|cog)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
+    search = re.finditer(COG_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -42,8 +49,7 @@ def find_cog(string_to_search):
 
 def find_arcog(string_to_search):
     res = set()
-    pattern = re.compile(r'(AR|ar)(COG|cog)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
+    search = re.finditer(ARCOG_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -51,8 +57,7 @@ def find_arcog(string_to_search):
 
 def find_tigrfam(string_to_search):
     res = set()
-    pattern = re.compile(r'(?<![A-Za-z])(TIGR)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
+    search = re.finditer(TIGRFAM_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -60,8 +65,7 @@ def find_tigrfam(string_to_search):
 
 def find_go(string_to_search):
     res = set()
-    pattern = re.compile(r'(?<![A-Za-z])GO\d{3,}')
-    search = re.finditer(pattern, string_to_search)
+    search = re.finditer(GO_PATTERN, string_to_search)
     for i in search:
         res.add(i.group())
     return res
@@ -71,8 +75,7 @@ def find_go(string_to_search):
 def find_ecs(string_to_search, required_level=3):
     res = set()
     # greedy match of confounders
-    ec_pattern = re.compile(r'\d(\.(-|\d{1,3}|([a-zA-Z]\d{1,3}))){2,3}')
-    search = re.finditer(ec_pattern, string_to_search)
+    search = re.finditer(EC_PATTERN, string_to_search)
     for i in search:
         ec = i.group()
         passed = False

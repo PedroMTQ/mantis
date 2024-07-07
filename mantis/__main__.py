@@ -4,15 +4,17 @@ import sys
 import uuid
 from datetime import datetime
 
-from mantis.src.entry import (setup_databases,
-                           check_installation,
-                           print_citation_mantis,
-                           print_version,
-                           run_mantis,
-                           run_mantis_test,
-                           )
-from mantis.src.utils.utils import compile_cython, cython_compiled, get_path_level
+from mantis.src.entry import (
+    check_installation,
+    print_citation_mantis,
+    print_version,
+    run_mantis,
+    run_mantis_test,
+    setup_databases,
+)
 from mantis.src.settings import DEFAULT_CONFIG
+from mantis.src.utils.utils import compile_cython, cython_compiled, get_path_level
+
 
 def main():
     print('Executing command:\n', ' '.join(sys.argv))

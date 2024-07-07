@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from mantis.src.settings import ROOT, DEFAULT_CONFIG
+from mantis.src.settings import DEFAULT_CONFIG, ROOT
 from mantis.src.taxonomy.taxonomy_sqlite_connector import Taxonomy_SQLITE_Connector
 from mantis.src.utils.exceptions import InvalidNOGType
 from mantis.src.utils.logger import logger

@@ -1,5 +1,9 @@
-from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+import re
+
 from unifunc.source import UniFunc
+
+from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+
 
 class Consensus():
 
@@ -243,36 +247,6 @@ class Consensus():
             conversion_dict[hit_i] = [ref_file, ref_hit, hit_info]
         return res, conversion_dict
 
-    # this is for heuristic and bpo
-    def sort_scaled_hits(self, query_hits, sorting_type):
-        if not query_hits:
-            return query_hits
-        self.add_scaled_values(query_hits)
-        # this sorting is similar to self.sort_hits but is a bit more specific
-        sorted_hits = sorted(query_hits, key=lambda k: k[2][f'scaled_{sorting_type}'], reverse=True)
-        res = []
-        # then we separate by sorting value
-        sorted_hits_groups = []
-        c = 0
-        for i in sorted_hits:
-            hit_value = i[2][f'scaled_{sorting_type}']
-            if not sorted_hits_groups:
-                sorted_hits_groups.append([])
-                current = hit_value
-            if hit_value == current:
-                sorted_hits_groups[c].append(i)
-            else:
-                sorted_hits_groups.append([i])
-                c += 1
-                current = hit_value
-        sec_sorting_type = 'bitscore' if sorting_type == 'evalue' else 'evalue'
-        for sg in sorted_hits_groups:
-            temp = sorted(sg, key=lambda k: k[2][f'scaled_{sec_sorting_type}'], reverse=True)
-            res.extend(temp)
-        for i in res:
-            i[2].pop('scaled_evalue')
-            i[2].pop('scaled_bitscore')
-        return res
 
     def get_min_max_alt_alg(self, query_hits):
         all_bitscore, all_evalue = [], []
@@ -432,26 +406,6 @@ class Consensus():
                         best_combo_score = combo_score
                         best_combo = combo
         return best_combo
-
-    def is_overlap_Consensus(self, temp_queries, current_query):
-        # the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
-        if not temp_queries or not current_query:
-            return False
-        y_start, y_end = recalculate_coordinates(current_query[2]['query_start'],
-                                                 current_query[2]['query_end'],
-                                                 self.overlap_value)
-        y = set(range(y_start, y_end))
-        for t in temp_queries:
-            if t[1] == current_query[1]:
-                return True
-            x_start, x_end = recalculate_coordinates(t[2]['query_start'],
-                                                     t[2]['query_end'],
-                                                     self.overlap_value)
-            x = set(range(x_start, x_end))
-            res = x.intersection(y)
-            if res:
-                return True
-        return False
 
     # @timeit_function
     def expand_best_combination(self, best_hits, query_dict):

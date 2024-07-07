@@ -5,7 +5,6 @@ InvalidFastaFormat = 'Fasta format is not valid!\n'
 CythonNotCompiled = 'Cython has not been correctly compiled! Please run:\n'
 BadNumberWorkers = 'You should not be seeing this, please contact the developer. Invalid number of workers in '
 InvalidTranslation = 'Invalid residues for translation. Please make sure you provided a CDS of DNA or RNA in the target file:\n'
-InvalidGFFVersion = 'No valid GFF version found!'
 
 
 class SqlCheckNotPassed(Exception):

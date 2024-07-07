@@ -1,7 +1,25 @@
 
+import os
+from math import ceil, log10
+from pathlib import Path
+from time import sleep
+
 from mantis.cython_src.get_non_overlapping_hits import get_non_overlapping_hits
+from mantis.src.utils.file_processer import concat_files, move_file
+from mantis.src.utils.utils import (
+    get_combination_ranges,
+    get_path_level,
+    kill_switch,
+    min_max_scale,
+    recalculate_coordinates,
+    remove_temp_fasta,
+    yield_file,
+)
 
 # This class will process the domtblout output and get the best hit for our queries, it is inherited by the MANTIS
+
+InvalidGFFVersion = 'No valid GFF version found!'
+
 
 class HomologyProcessor():
 
@@ -32,16 +50,17 @@ class HomologyProcessor():
 
     def taxon_annotation_finished(self, target_ref, output_folder, chunks_n):
         c = 0
-        domtblout_folder = add_slash(add_slash(output_folder) + 'searchout')
+        domtblout_folder = os.path.join(output_folder + 'searchout')
         domtblout_files = os.listdir(domtblout_folder)
         for domtblout in domtblout_files:
             if target_ref in domtblout:
-                if '_finished' in domtblout: c += 1
+                if '_finished' in domtblout:
+                    c += 1
         if c == chunks_n:
             for domtblout in domtblout_files:
                 if target_ref in domtblout:
                     if '_finished' in domtblout:
-                        move_file(domtblout_folder + domtblout, domtblout_folder + domtblout.strip('_finished'))
+                        move_file(domtblout_folder + domtblout, domtblout_folder + domtblout.replace('_finished', ''))
             return True
         else:
             sleep(5)
@@ -60,14 +79,18 @@ class HomologyProcessor():
             if 'chunk' in searchout:
                 ref_name = searchout.split('_chunk_')[0]
                 ref_searchout = ref_name + chunk_suffix
-                if ref_searchout not in res: res[ref_searchout] = []
+                if ref_searchout not in res:
+                    res[ref_searchout] = []
                 res[ref_searchout].append(searchout_path + searchout)
         return res
 
     def merge_output_chunks(self, searchout_path, all_searchout_with_chunks, chunk_suffix, stdout_file=None):
-        grouped_searchout = self.group_output_chunks(searchout_path, all_searchout_with_chunks, chunk_suffix)
+        grouped_searchout = self.group_output_chunks(searchout_path=searchout_path,
+                                                     all_searchout_with_chunks=all_searchout_with_chunks,
+                                                      chunk_suffix=chunk_suffix)
         for searchout in grouped_searchout:
-            concat_files(output_file=searchout_path + searchout, list_file_paths=grouped_searchout[searchout],
+            concat_files(output_file=searchout_path + searchout,
+                         list_file_paths=grouped_searchout[searchout],
                          stdout_file=stdout_file)
             for to_delete in grouped_searchout[searchout]:
                 os.remove(to_delete)
@@ -148,21 +171,55 @@ class HomologyProcessor():
 
     def is_overlap(self, temp_queries, current_query):
         # the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
-        if not temp_queries or not current_query: return False
-        y_start, y_end = recalculate_coordinates(current_query['hit_start'],
-                                                 current_query['hit_end'],
-                                                 self.overlap_value)
+        if not temp_queries or not current_query:
+            return False
+        y_start, y_end = recalculate_coordinates(env_from=current_query['hit_start'],
+                                                 env_to=current_query['hit_end'],
+                                                 overlap_value=self.overlap_value)
         y = set(range(y_start, y_end))
 
         for t in temp_queries:
-            if t['hit_name'] == current_query['hit_name']:  return True
-            x_start, x_end = recalculate_coordinates(t['hit_start'],
-                                                     t['hit_end'],
-                                                     self.overlap_value)
+            if t['hit_name'] == current_query['hit_name']:
+                return True
+            x_start, x_end = recalculate_coordinates(env_from=t['hit_start'],
+                                                     env_to=t['hit_end'],
+                                                     overlap_value=self.overlap_value)
             x = set(range(x_start, x_end))
             res = x.intersection(y)
-            if res: return True
+            if res:
+                return True
         return False
+
+    # this is for heuristic and bpo
+    def sort_scaled_hits(self, query_hits, sorting_type):
+        if not query_hits:
+            return query_hits
+        self.add_scaled_values(query_hits)
+        # this sorting is similar to self.sort_hits but is a bit more specific
+        sorted_hits = sorted(query_hits, key=lambda k: k[2][f'scaled_{sorting_type}'], reverse=True)
+        res = []
+        # then we separate by sorting value
+        sorted_hits_groups = []
+        c = 0
+        for i in sorted_hits:
+            hit_value = i[2][f'scaled_{sorting_type}']
+            if not sorted_hits_groups:
+                sorted_hits_groups.append([])
+                current = hit_value
+            if hit_value == current:
+                sorted_hits_groups[c].append(i)
+            else:
+                sorted_hits_groups.append([i])
+                c += 1
+                current = hit_value
+        sec_sorting_type = 'bitscore' if sorting_type == 'evalue' else 'evalue'
+        for sg in sorted_hits_groups:
+            temp = sorted(sg, key=lambda k: k[2][f'scaled_{sec_sorting_type}'], reverse=True)
+            res.extend(temp)
+        for i in res:
+            i[2].pop('scaled_evalue')
+            i[2].pop('scaled_bitscore')
+        return res
 
     def get_best_hits_approximation(self, query_hits, sorting_class, sorting_type):
         '''
@@ -181,22 +238,44 @@ class HomologyProcessor():
         while query_hits:
             next_hit = query_hits.pop(0)
             if sorting_class == 'consensus':
-                if not self.is_overlap_Consensus(combo, next_hit):
+                if not self.is_overlap_consensus(combo, next_hit):
                     combo.append(next_hit)
             elif sorting_class == 'processor':
                 if not self.is_overlap(combo, next_hit):
                     combo.append(next_hit)
         return combo
 
+    def is_overlap_consensus(self, temp_queries, current_query):
+        # the coordinates here already take into account the overlap value, so even if the y set is small or empty, it doesnt matter
+        if not temp_queries or not current_query:
+            return False
+        y_start, y_end = recalculate_coordinates(env_from=current_query[2]['query_start'],
+                                                 env_to=current_query[2]['query_end'],
+                                                 overlap_value=self.overlap_value)
+        y = set(range(y_start, y_end))
+        for t in temp_queries:
+            if t[1] == current_query[1]:
+                return True
+            x_start, x_end = recalculate_coordinates(env_from=t[2]['query_start'],
+                                                     env_to=t[2]['query_end'],
+                                                     overlap_value=self.overlap_value)
+            x = set(range(x_start, x_end))
+            res = x.intersection(y)
+            if res:
+                return True
+        return False
+
+
     def get_lowest_hit(self, query_hits, sorting_class, sorting_type):
         '''
         this will take the hit with the lowest evalue, regardless if there are multiple domains
         '''
-        if not query_hits: return []
+        if not query_hits:
+            return []
         if sorting_class == 'consensus':
-            query_hits = self.sort_scaled_hits(query_hits, sorting_type=sorting_type)
+            query_hits = self.sort_scaled_hits(query_hits=query_hits, sorting_type=sorting_type)
         else:
-            query_hits = self.sort_hits(query_hits, sorting_class, sorting_type=sorting_type)
+            query_hits = self.sort_hits(query_hits=query_hits, sorting_class=sorting_class, sorting_type=sorting_type)
         lowest_hit = query_hits.pop(0)
         combo = [lowest_hit]
         return combo
@@ -221,10 +300,14 @@ class HomologyProcessor():
                     # we dont consider 0 for the scaling, 0 will always be scaled to max/1
                     if hit_info[self.sorting_type]:
                         current_val = log10(hit_info[self.sorting_type])
-                        if min_val is None: min_val = current_val
-                        if max_val is None: max_val = current_val
-                        if current_val > max_val: max_val = current_val
-                        if current_val < min_val: min_val = current_val
+                        if min_val is None:
+                            min_val = current_val
+                        if max_val is None:
+                            max_val = current_val
+                        if current_val > max_val:
+                            max_val = current_val
+                        if current_val < min_val:
+                            min_val = current_val
         # lower is best
         if self.sorting_type == 'evalue':
             return max_val, min_val
@@ -331,7 +414,8 @@ class HomologyProcessor():
         cython_hits, conversion_dict = self.query_hits_to_cython(ordered_query_hits)
         cython_possible_combos = get_non_overlapping_hits(cython_hits, time_limit=self.time_limit)
         # sometimes this calculation is not feasible (when we have too many small hits and the query sequence is too long, the calculation of conbinations would take forever - limit of 5mins)
-        if not cython_possible_combos: return None
+        if not cython_possible_combos:
+            return None
         best_hit_score = 0
         best_combo = None
         min_val, max_val = self.get_min_max_dfs(cython_possible_combos, conversion_dict, sorting_class='processor')
@@ -341,7 +425,8 @@ class HomologyProcessor():
                 for cython_combo in cython_possible_combos[len_combo]:
                     combo = self.cython_to_query_hits(cython_combo, conversion_dict)
                     combo_score = self.get_combo_score(combo, query_length, min_val, max_val)
-                    if combo_score > 1.5: good_combos.append(combo)
+                    if combo_score > 1.5:
+                        good_combos.append(combo)
                     if not best_combo:
                         best_combo = combo
                         best_hit_score = combo_score
@@ -364,9 +449,9 @@ class HomologyProcessor():
         conversion_dict = {}
         res = set()
         for hit_i in range(len(query_hits)):
-            hit_start, hit_end = recalculate_coordinates(query_hits[hit_i]['hit_start'],
-                                                         query_hits[hit_i]['hit_end'],
-                                                         self.overlap_value)
+            hit_start, hit_end = recalculate_coordinates(env_from=query_hits[hit_i]['hit_start'],
+                                                         env_to=query_hits[hit_i]['hit_end'],
+                                                         overlap_value=self.overlap_value)
             hit_name = query_hits[hit_i]['hit_name']
             res.add(tuple([
                 hit_i,
@@ -431,7 +516,8 @@ class HomologyProcessor():
             # this somewhat translates to the findings in the paper
             res = float('1e-' + str(ceil(query_len / 10)))
             # for very small sequences, we set a hard threshold
-            if res > self.default_evalue_threshold: res = self.default_evalue_threshold
+            if res > self.default_evalue_threshold:
+                res = self.default_evalue_threshold
             return res
         # if the user doesnt set the evalue threshold and we are analysing hmmer's output
         else:
@@ -617,18 +703,22 @@ class HomologyProcessor():
             if query not in res_annotation: res_annotation[query] = {}
             list_hits = queries_searchout[query].pop('hits')
             if self.domain_algorithm == 'heuristic':
-                best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',
+                best_hit = self.get_best_hits_approximation(query_hits=list(list_hits),
+                                                            sorting_class='processor',
                                                             sorting_type=self.sorting_type)
             elif self.domain_algorithm == 'bpo':
-                best_hit = self.get_lowest_hit(list(list_hits), sorting_class='processor',
+                best_hit = self.get_lowest_hit(query_hits=list(list_hits),
+                                               sorting_class='processor',
                                                sorting_type=self.sorting_type)
             else:
                 try:
-                    best_hit = self.get_best_hits(list(list_hits), queries_searchout[query]['query_len'],
+                    best_hit = self.get_best_hits(query_hits=list(list_hits),
+                                                  query_length=queries_searchout[query]['query_len'],
                                                   sorting_class='processor')
                 except (TimeoutError, RecursionError):
                     # heuristic with bitscore produces bad results, so we force evalue sorting
-                    best_hit = self.get_best_hits_approximation(list(list_hits), sorting_class='processor',
+                    best_hit = self.get_best_hits_approximation(query_hits=list(list_hits),
+                                                                sorting_class='processor',
                                                                 sorting_type='evalue')
                     approximated_hits.append(query)
             queries_searchout[query]['best_hit'] = best_hit
@@ -646,7 +736,7 @@ class HomologyProcessor():
         annotation_output_file = output_dir + domtblout.replace('domtblout', 'pro')
         try:
             os.remove(annotation_output_file)
-        except:
+        except Exception:
             pass
         with open(annotation_output_file, 'w') as output_file:
             first_line = ['Query',
@@ -746,4 +836,4 @@ class HomologyProcessor():
 
 
 if __name__ == '__main__':
-    hmm_pro = Homology_processor()
+    hmm_pro = HomologyProcessor()

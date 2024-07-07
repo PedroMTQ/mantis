@@ -2,7 +2,6 @@ import os
 import re
 import shutil
 import subprocess
-
 from datetime import datetime
 from functools import wraps
 from math import ceil
@@ -11,7 +10,6 @@ from pickle import load as pickle_load
 from time import sleep, time
 
 import psutil
-import requests
 
 from mantis.src.settings import (
     AVAILABLE_RAM,
@@ -607,27 +605,27 @@ def run_command_managed(command, master_pid, get_output=False, stdout_file=None,
     return process
 
 
-def run_command_simple(command, get_output=False, stdout_file=None, shell=False, join_command=False):
-    if join_command:        command = ' '.join(command)
+def run_command_simple(command, get_output=False, shell=False, join_command=False):
+    if join_command:
+        command = ' '.join(command)
+    # TODO add console output redirection to output
     if get_output:
         # run launches popen and waits for finish
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=shell)
-    elif stdout_file:
-        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file, shell=shell)
     else:
         process = subprocess.run(command, shell=shell)
     return process
 
 
-def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None,
+def run_command(command, get_output=False, master_pid=None, wanted_child=None, user_memory=None,
                 shell=False, join_command=False):
     command_list = command.split()
     if master_pid:
-        return run_command_managed(command=command_list, get_output=get_output, stdout_file=stdout_file,
+        return run_command_managed(command=command_list, get_output=get_output,
                                    master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory,
                                    shell=shell, join_command=join_command)
     else:
-        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file, shell=shell,
+        return run_command_simple(command=command_list, get_output=get_output, shell=shell,
                                   join_command=join_command)
 
 
@@ -662,7 +660,8 @@ def get_combination_ranges(ranges):
 
 
 def min_max_scale(X, minX, maxX):
-    if minX == maxX: return 1
+    if minX == maxX:
+        return 1
     return (X - minX) / (maxX - minX)
 
 

@@ -1,5 +1,5 @@
-from mantis.src.utils.logger import logger
 from mantis.src.setup.installer import MantisInstaller
+from mantis.src.utils.logger import logger
 
 
 def setup_databases(chunk_size=None, no_taxonomy=False, mantis_config=None, cores=None):

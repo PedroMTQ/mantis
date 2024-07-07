@@ -1,10 +1,10 @@
 
+import os
+from math import ceil
+
 from consensus import Consensus
 from homology_processor import Homology_processor
 from metadata import Metadata
-
-import os
-from math import ceil
 
 from mantis.src.settings import (
     AVAILABLE_RAM,
