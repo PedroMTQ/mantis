@@ -1,43 +1,24 @@
 import os
+import re
+import shutil
+import subprocess
+from datetime import datetime
+from functools import wraps
+from math import ceil
+from pickle import dump as pickle_dump
+from pickle import load as pickle_load
+from time import sleep, time
 
-try:
-    import requests
-    from sys import argv
-    import subprocess
-    import re
-    import psutil
-    from gzip import open as gzip_open
-    import sys
-    from datetime import datetime
-    from time import sleep, time
-    from math import ceil, log10
-    from pickle import load as pickle_load
-    from pickle import dump as pickle_dump
+import psutil
 
-    SPLITTER = '/'
-    from pathlib import Path
-    import shutil
-    import urllib.request as request
-    from contextlib import closing
-    from functools import wraps
-    import csv
-    import sqlite3
-    from multiprocessing import Process, current_process, cpu_count, Manager
-    from multiprocessing.dummy import Pool as IO_Pool
-    from zipfile import ZipFile
-    from string import punctuation
-except:
-    import signal
-
-    master_pid = os.getpid()
-    print(
-        '\t\t######################################################################################################################################\n'
-        '\t\t################# Could not start Mantis! Make sure you have all the required packages within your conda environment #################\n'
-        '\t\t######################################################################################################################################\n'
-        '\t\t################## Read the setup instructions @ https://github.com/PedroMTQ/mantis/wiki/Configuration#installation ##################\n'
-        '\t\t######################################################################################################################################\n',
-        flush=True)
-    os.kill(master_pid, signal.SIGKILL)
+from mantis.src.settings import (
+    AVAILABLE_RAM,
+    CYTHON_FOLDER,
+    ENVIRONMENT_CORES,
+    PROCESS_OVERHEAD,
+    PSUTIL_EXCEPTIONS,
+    WORKER_PER_CORE,
+)
 
 
 def kill_switch(error_type, message='', flush=False, file=None):
@@ -53,104 +34,6 @@ def kill_switch(error_type, message='', flush=False, file=None):
     os.kill(master_pid, signal.SIGKILL)
 
 
-PSUTIL_EXCEPTIONS = (psutil.NoSuchProcess, AttributeError, FileNotFoundError)
-
-
-def check_environment_cores():
-    res = cpu_count()
-    return int(res)
-
-
-def check_process_overhead():
-    process = psutil.Process()
-    ram_consumption_gb = process.memory_info().rss / (1024 * 1024 * 1024)
-    del process
-    return ram_consumption_gb
-
-
-def check_available_ram():
-    res = psutil.virtual_memory().available / (1024 * 1024 * 1024)
-    return res
-
-
-# this is the ovehead generated per each python process. Multiprocessing generates new python processes per Process
-PROCESS_OVERHEAD = check_process_overhead()
-ENVIRONMENT_CORES = check_environment_cores()
-AVAILABLE_RAM = check_available_ram()
-
-# typically should be one worker per physical core, however increasing this further is possible with context switch. Be careful doing so though, as context switching also impacts execution performance.
-# having too many workers per core may also demand too much read/writing which can tax the system (which can impact other users of the same system)
-WORKER_PER_CORE = 1
-
-MANTIS_FOLDER = os.path.abspath(os.path.dirname(__file__)).split(SPLITTER)[0:-1]
-MANTIS_FOLDER = SPLITTER.join(MANTIS_FOLDER) + SPLITTER
-CYTHON_FOLDER = f'{MANTIS_FOLDER}mantis{SPLITTER}cython_src{SPLITTER}'
-
-
-def estimate_number_workers_annotation(n_chunks=0,
-                                       n_refs=0,
-                                       default_workers=None,
-                                       user_cores=None,
-                                       minimum_jobs_per_worker=1,
-                                       percentage_allowed_overhead=0.9,
-                                       split_sample=False
-                                       ):
-    if default_workers: return default_workers
-    if user_cores:
-        environment_workers = user_cores * WORKER_PER_CORE
-    else:
-        environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
-    # allowed number of workers in order to preserve the maximum allowed overhead reserved for process spawning
-    maximum_overhead_workers = ceil((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
-    # maximum amount of workers that could be spawning considering the ram required for the annotation and the overhead associated with spawning a process
-    # total times we need to run hmmer
-    total_hmmer_runs = n_chunks * n_refs
-    if split_sample: total_hmmer_runs = environment_workers
-    return ceil(min([total_hmmer_runs, maximum_overhead_workers, environment_workers]) / minimum_jobs_per_worker)
-
-
-def estimate_chunk_size(total_n_seqs,
-                        annotation_workers,
-                        chunk_size=None,
-                        minimum_chunk_size=200,
-                        ):
-    '''
-    this is a double edged sword, splitting into too many small chunks generates too much overhead
-    not splitting into enough chunks leads to idle processes
-    '''
-    if chunk_size: return chunk_size
-    # maximize chunk size taken into account the amount of workers and number of seqs
-    potential_chunk_size = round_to_digit(total_n_seqs / annotation_workers)
-    if AVAILABLE_RAM <= 4:
-        maximum_chunk_size = 500
-    elif AVAILABLE_RAM > 4 and AVAILABLE_RAM <= 10:
-        maximum_chunk_size = 1000
-    elif AVAILABLE_RAM > 10 and AVAILABLE_RAM <= 30:
-        maximum_chunk_size = 2000
-    elif AVAILABLE_RAM > 30 and AVAILABLE_RAM <= 50:
-        maximum_chunk_size = 5000
-    elif AVAILABLE_RAM > 50 and AVAILABLE_RAM <= 70:
-        maximum_chunk_size = 10000
-    else:
-        maximum_chunk_size = 20000
-    if potential_chunk_size < minimum_chunk_size:
-        return minimum_chunk_size
-    elif potential_chunk_size > maximum_chunk_size:
-        return maximum_chunk_size
-    else:
-        return potential_chunk_size
-
-
-def estimate_number_workers_split_sample(minimum_worker_load,
-                                         len_protein_seqs,
-                                         percentage_allowed_overhead=0.8,
-                                         user_cores=None):
-    if user_cores:        return user_cores * WORKER_PER_CORE
-    estimate_chunk_workers = ceil(len_protein_seqs / minimum_worker_load)
-    # we only reserve a certain percentage for the overhead associated with spawning processes
-    maximum_overhead_workers = int((AVAILABLE_RAM * percentage_allowed_overhead) / PROCESS_OVERHEAD)
-    environment_workers = ENVIRONMENT_CORES * WORKER_PER_CORE
-    return min([maximum_overhead_workers, estimate_chunk_workers, environment_workers])
 
 
 def estimate_number_workers_setup_database(n_hmms_to_setup,
@@ -172,146 +55,6 @@ def estimate_number_workers_process_output(n_chunks, searchout_per_chunks=1, use
     return min([environment_workers, n_chunks * searchout_per_chunks])
 
 
-def get_common_links_metadata(string, res):
-    if not string: return
-    ec = find_ecs(string)
-    if ec:
-        if 'enzyme_ec' not in res: res['enzyme_ec'] = set()
-        res['enzyme_ec'].update(ec)
-    tc = find_tcdb(string)
-    if tc:
-        if 'tcdb' not in res: res['tcdb'] = set()
-        res['tcdb'].update(tc)
-    tigr = find_tigrfam(string)
-    if tigr:
-        if 'tigrfam' not in res: res['tigrfam'] = set()
-        res['tigrfam'].update(tigr)
-    ko = find_ko(string)
-    if ko:
-        if 'kegg_ko' not in res: res['kegg_ko'] = set()
-        res['kegg_ko'].update(ko)
-    pfam = find_pfam(string)
-    if pfam:
-        if 'pfam' not in res: res['pfam'] = set()
-        res['pfam'].update(pfam)
-    cog = find_cog(string)
-    if cog:
-        if 'cog' not in res: res['cog'] = set()
-        res['cog'].update(cog)
-    arcog = find_arcog(string)
-    if arcog:
-        if 'arcog' not in res: res['arcog'] = set()
-        res['arcog'].update(cog)
-    go = find_go(string)
-    if go:
-        if 'go' not in res: res['go'] = set()
-        res['go'].update(go)
-
-
-def is_ec(enz_id, required_level=3):
-    if enz_id:
-        ec_pattern = re.compile('^\d+\.\d+\.\d+(\.(-|\d+|([a-zA-Z]\d+)))?')
-        if re.search(ec_pattern, enz_id):
-            enz_id_copy = str(enz_id).replace('.-', '')
-            if len(enz_id_copy.split('.')) >= required_level:
-                return True
-    return False
-
-
-def find_ecs(string_to_search, required_level=3):
-    res = set()
-    # greedy match of confounders
-    ec_pattern = re.compile('\d(\.(-|\d{1,3}|([a-zA-Z]\d{1,3}))){2,3}')
-    search = re.finditer(ec_pattern, string_to_search)
-    for i in search:
-        ec = i.group()
-        passed = False
-        start = i.span()[0]
-        end = i.span()[1]
-        if len(string_to_search) > end:
-            if string_to_search[start - 1] != '.' and \
-                    string_to_search[end] != '.' \
-                    and not re.match('\.|[a-zA-Z]|\d{1,3}', string_to_search[end]) and not re.match('-',
-                                                                                                    string_to_search[
-                                                                                                        end]):
-                passed = True
-        else:
-            if string_to_search[start - 1] != '.':
-                passed = True
-        if passed:
-            if ec.count('.') >= required_level - 1:
-                if ec.count('.') + 1 - ec.count('-') >= required_level:
-                    res.add(ec)
-    return res
-
-
-# (?<![A-Za-z]) for negative lookbehind
-
-def find_tcdb(string_to_search):
-    res = set()
-    tc_pattern = re.compile('(?<![A-Za-z])\(TC\s\d\.[A-Z\-](\.(\d+|\-)){1,2}\)')
-    search = re.finditer(tc_pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
-
-def find_ko(string_to_search):
-    res = set()
-    # I could do upper and lower case but since it's only one letter, it's not very safe...
-    pattern = re.compile('(?<![A-Za-z])K\d{4,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
-
-def find_pfam(string_to_search):
-    res = set()
-    duf = re.compile('(?<![A-Za-z])(DUF|duf)\d{2,}')
-    pfam = re.compile('(?<![A-Za-z])((U|u)?PF|pf)\d{3,}')
-    for pattern in [duf, pfam]:
-        search = re.finditer(pattern, string_to_search)
-        for i in search:
-            res.add(i.group())
-    return res
-
-
-def find_cog(string_to_search):
-    res = set()
-    pattern = re.compile('(?<![A-Za-z])(COG|cog)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
-
-def find_arcog(string_to_search):
-    res = set()
-    pattern = re.compile('(AR|ar)(COG|cog)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
-
-def find_tigrfam(string_to_search):
-    res = set()
-    pattern = re.compile('(?<![A-Za-z])(TIGR)\d{3,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
-
-def find_go(string_to_search):
-    res = set()
-    pattern = re.compile('(?<![A-Za-z])GO\d{3,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
-    return res
-
 
 def get_seqs_count(target_sample):
     total_seqs = 0
@@ -321,11 +64,6 @@ def get_seqs_count(target_sample):
             if line[0] == '>': total_seqs += 1
             line = file.readline()
     return total_seqs
-
-
-def get_folder(file_path):
-    return SPLITTER.join(file_path.split(SPLITTER)[0:-1]) + SPLITTER
-
 
 def read_profile(hmm_file):
     res = []
@@ -340,7 +78,7 @@ def read_profile(hmm_file):
 
 def get_ref_in_folder(folder_path):
     temp_path = add_slash(folder_path)
-    if file_exists(temp_path):
+    if os.path.exists(temp_path):
         if temp_path[0:2] != 'NA':
             files = os.listdir(temp_path)
             for f in files:
@@ -367,13 +105,14 @@ def get_hmm_profile_count(hmm_path, stdout=None):
     return res
 
 
-def get_chunks_path(hmm_path):
+def get_chunks_path(hmm_path: str) -> list:
     # this will check if the hmm have been split into chunks, if so it will retrieve the chunks instead
     res = []
-    hmm_folder = get_folder(hmm_path)
+    hmm_folder = os.path.dirname(hmm_path)
     if 'chunks' in os.listdir(hmm_folder):
-        for chunk_file in os.listdir(add_slash(hmm_folder) + 'chunks/'):
-            if chunk_file[-4:] == '.hmm': res.append(add_slash(hmm_folder) + 'chunks/' + chunk_file)
+        for chunk_file in os.listdir(os.path.join(hmm_folder, 'chunks')):
+            if chunk_file.endswith('.hmm'):
+                res.append(os.path.join(hmm_folder, 'chunks', chunk_file))
         return res
     else:
         return [hmm_path]
@@ -387,7 +126,7 @@ def round_to_digit(number):
         if int(number_str[1]) >= 5:
             to_add += 1
             res += '5'
-    for i in range(len(number_str) - to_add):
+    for _ in range(len(number_str) - to_add):
         res += '0'
     return int(res)
 
@@ -616,157 +355,8 @@ def timeit_class(f):
     return wrapper
 
 
-def uncompress_archive(source_filepath, extract_path=None, block_size=65536, remove_source=False, stdout_file=None):
-    file_name = source_filepath.split(SPLITTER)[-1]
-    dir_path = SPLITTER.join(source_filepath.split(SPLITTER)[0:-1])
-    if not extract_path:
-        extract_path = dir_path
-    if '.tar' in file_name:
-        unpack_archive(source_file=source_filepath,
-                       extract_dir=extract_path,
-                       remove_source=remove_source,
-                       stdout_file=None)
-    # only for files
-    elif '.gz' in file_name:
-        gunzip(source_filepath=source_filepath,
-               dest_filepath=extract_path,
-               block_size=block_size,
-               remove_source=remove_source,
-               stdout_file=stdout_file)
-    elif '.zip' in file_name:
-        unzip_archive(source_file=source_filepath,
-                      extract_dir=extract_path,
-                      remove_source=remove_source,
-                      stdout_file=None)
-    else:
-        print('Incorrect format! ', source_filepath, flush=True, file=stdout_file)
 
 
-# this unzips to the same directory!
-def gunzip(source_filepath, dest_filepath=None, block_size=65536, remove_source=False, stdout_file=None):
-    if not dest_filepath:
-        dest_filepath = source_filepath.strip('.gz')
-    if os.path.isdir(dest_filepath):
-        file_name = source_filepath.split(SPLITTER)[-1].replace('.gz', '')
-        dest_filepath = add_slash(dest_filepath) + file_name
-    print('Gunzipping ', source_filepath, 'to', dest_filepath, flush=True, file=stdout_file)
-    with gzip_open(source_filepath, 'rb') as s_file, \
-            open(dest_filepath, 'wb') as d_file:
-        while True:
-            block = s_file.read(block_size)
-            if not block:
-                break
-            else:
-                d_file.write(block)
-        d_file.write(block)
-    if remove_source: os.remove(source_filepath)
-
-
-def unpack_archive(source_file, extract_dir, remove_source=False, stdout_file=None):
-    print('Unpacking', source_file, 'to', extract_dir, flush=True, file=stdout_file)
-    shutil.unpack_archive(source_file, extract_dir=extract_dir)
-    if remove_source:
-        os.remove(source_file)
-
-
-def unzip_archive(source_file, extract_dir, remove_source=False, stdout_file=None):
-    print('Unzipping', source_file, 'to', extract_dir, flush=True, file=stdout_file)
-    with ZipFile(source_file, 'r') as zip_ref:
-        zip_ref.extractall(extract_dir)
-    if remove_source: os.remove(source_file)
-
-
-def download_file_http(url, file_path, c, ctx):
-    if c > 5:
-        download_file_http_failsafe(url, file_path, ctx)
-    else:
-        if ctx:
-            with requests.get(url, stream=True, verify=False) as r:
-                with open(file_path, 'wb') as f:
-                    shutil.copyfileobj(r.raw, f)
-        else:
-            with requests.get(url, stream=True) as r:
-                with open(file_path, 'wb') as f:
-                    shutil.copyfileobj(r.raw, f)
-
-
-# slower but safer
-def download_file_http_failsafe(url, file_path, ctx):
-    with requests.Session() as session:
-        if ctx: session.verify = False
-        get = session.get(url, stream=True)
-        if get.status_code == 200:
-            with open(file_path, 'wb') as f:
-                for chunk in get.iter_content(chunk_size=1024):
-                    f.write(chunk)
-
-
-def download_file_ftp(url, file_path, ctx):
-    with closing(request.urlopen(url, context=ctx)) as r:
-        with open(file_path, 'wb') as f:
-            shutil.copyfileobj(r, f)
-
-
-def download_file(url, output_folder='', stdout_file=None, retry_limit=10):
-    file_path = output_folder + url.split('/')[-1]
-    ctx = None
-    try:
-        target_file = request.urlopen(url)
-    except:
-        try:
-            import ssl
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            target_file = request.urlopen(url, context=ctx)
-        except:
-            print('Cannot download target url', url)
-            return
-    target_size = target_file.info()['Content-Length']
-    transfer_encoding = target_file.info()['Transfer-Encoding']
-    print(file_path)
-    if target_size: target_size = int(target_size)
-    if file_exists(file_path):
-        if transfer_encoding == 'chunked':
-            return
-        elif os.stat(file_path).st_size == target_size:
-            print('Not downloading from ' + url + ' since file was already found!', flush=True, file=stdout_file)
-            return
-        else:
-            os.remove(file_path)
-    print('Downloading from ' + url + '. The file will be kept in ' + output_folder, flush=True, file=stdout_file)
-    c = 0
-    while c <= retry_limit:
-        if 'ftp' in url:
-            try:
-                download_file_ftp(url, file_path, ctx)
-            except:
-                try:
-                    download_file_http(url, file_path, c, ctx)
-                except:
-                    pass
-        else:
-            try:
-                download_file_http(url, file_path, c, ctx)
-            except:
-                pass
-        if transfer_encoding == 'chunked': return
-        if file_exists(file_path):
-            if os.stat(file_path).st_size == target_size: return
-        c += 1
-    print('Did not manage to download the following url correctly:\n' + url)
-    raise Exception
-
-
-def concat_files(output_file, list_file_paths, stdout_file=None):
-    print('Concatenating files into ', output_file, flush=True, file=stdout_file)
-    with open(output_file, 'wb') as wfd:
-        for f in list_file_paths:
-            with open(f, 'rb') as fd:
-                shutil.copyfileobj(fd, wfd)
-            # forcing disk write
-            wfd.flush()
-            os.fsync(wfd.fileno())
 
 
 def merge_profiles(folder_path, output_file, stdout_file=None):
@@ -779,7 +369,7 @@ def merge_profiles(folder_path, output_file, stdout_file=None):
     list_dir = os.listdir(folder_path)
     profiles = [folder_path + SPLITTER + i for i in list_dir if '.hmm' in i.lower()]
     concat_files(output_file, profiles, stdout_file=stdout_file)
-    if file_exists(folder_path):      shutil.rmtree(folder_path)
+    if os.path.exists(folder_path):      shutil.rmtree(folder_path)
 
 
 def merge_redundant_profiles(output_file, list_file_paths, stdout_file=None):
@@ -818,24 +408,6 @@ def merge_redundant_sql_annotations(output_file, list_file_paths, stdout_file=No
                         outfile.write(line)
                     line = infile.readline()
 
-
-def move_file(source_file, dest_file):
-    if not os.path.isdir(dest_file):
-        if file_exists(dest_file): os.remove(dest_file)
-    try:
-        os.rename(source_file, dest_file)
-    except:
-        shutil.move(source_file, dest_file)
-
-
-def copy_file(source_file, dest_file):
-    if not os.path.isdir(dest_file):
-        if file_exists(dest_file): os.remove(dest_file)
-    shutil.copyfile(source_file, dest_file)
-
-
-def remove_file(source_file):
-    if file_exists(source_file): os.remove(source_file)
 
 
 def get_available_ram_percentage(worker_status, user_memory=None):
@@ -1033,27 +605,27 @@ def run_command_managed(command, master_pid, get_output=False, stdout_file=None,
     return process
 
 
-def run_command_simple(command, get_output=False, stdout_file=None, shell=False, join_command=False):
-    if join_command:        command = ' '.join(command)
+def run_command_simple(command, get_output=False, shell=False, join_command=False):
+    if join_command:
+        command = ' '.join(command)
+    # TODO add console output redirection to output
     if get_output:
         # run launches popen and waits for finish
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=shell)
-    elif stdout_file:
-        process = subprocess.run(command, stdout=stdout_file, stderr=stdout_file, shell=shell)
     else:
         process = subprocess.run(command, shell=shell)
     return process
 
 
-def run_command(command, get_output=False, stdout_file=None, master_pid=None, wanted_child=None, user_memory=None,
+def run_command(command, get_output=False, master_pid=None, wanted_child=None, user_memory=None,
                 shell=False, join_command=False):
     command_list = command.split()
     if master_pid:
-        return run_command_managed(command=command_list, get_output=get_output, stdout_file=stdout_file,
+        return run_command_managed(command=command_list, get_output=get_output,
                                    master_pid=master_pid, wanted_child=wanted_child, user_memory=user_memory,
                                    shell=shell, join_command=join_command)
     else:
-        return run_command_simple(command=command_list, get_output=get_output, stdout_file=stdout_file, shell=shell,
+        return run_command_simple(command=command_list, get_output=get_output, shell=shell,
                                   join_command=join_command)
 
 
@@ -1066,19 +638,6 @@ def yield_file(list_of_files):
         c += 1
 
 
-def download_unifunc():
-    unifunc_folder = MANTIS_FOLDER + 'Resources' + SPLITTER + 'UniFunc/'
-    unifunc_url = 'https://github.com/PedroMTQ/UniFunc.git'
-    Path(unifunc_folder).mkdir(parents=True, exist_ok=True)
-    run_command('git clone ' + unifunc_url + ' ' + unifunc_folder)
-
-
-def unifunc_downloaded():
-    unifunc_folder = MANTIS_FOLDER + 'Resources' + SPLITTER + 'UniFunc/'
-    if not file_exists(unifunc_folder): return False
-    return True
-
-
 def compile_cython():
     for f in os.listdir(CYTHON_FOLDER):
         if 'get_non_overlapping_hits.c' in f:
@@ -1087,15 +646,10 @@ def compile_cython():
 
 
 def cython_compiled():
-    if not file_exists(CYTHON_FOLDER + 'get_non_overlapping_hits.c'): return False
+    if not os.path.exists(CYTHON_FOLDER + 'get_non_overlapping_hits.c'): return False
     return True
 
 
-def file_exists(target_file):
-    if not target_file: return False
-    if os.path.exists(target_file):
-        return True
-    return False
 
 
 def get_combination_ranges(ranges):
@@ -1106,7 +660,8 @@ def get_combination_ranges(ranges):
 
 
 def min_max_scale(X, minX, maxX):
-    if minX == maxX: return 1
+    if minX == maxX:
+        return 1
     return (X - minX) / (maxX - minX)
 
 
@@ -1123,7 +678,7 @@ def save_metrics(pickle_path, to_pickle):
 
 
 def load_metrics(pickle_path):
-    if file_exists(pickle_path):
+    if os.path.exists(pickle_path):
         with open(pickle_path, 'rb') as handle:
             pickled_results = pickle_load(handle)
             return pickled_results
@@ -1240,8 +795,3 @@ def count_residues(sample_path):
                 res += len(line)
             line = file.readline()
     return res
-
-
-if __name__ == '__main__':
-    if not cython_compiled():
-        compile_cython()

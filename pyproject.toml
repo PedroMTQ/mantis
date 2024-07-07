@@ -1,8 +1,41 @@
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
-    "python>=3.7",
-]
-build-backend = "setuptools.build_meta"
+[tool.poetry]
+name = "mantis"
+version = "1.5.5"
+description = "Mantis is protein function annotation, that dynamically integrates multiple reference databases to produce consensus-driven annotations."
+authors = ["Pedro Queiros <pdqueiros@gmail.com>"]
+maintainers = ["Pedro Queiros <pdqueiros@gmail.com>"]
+readme = "README.md"
+license = "LICENSE"
+repository = "https://github.com/PedroMTQ/mantis.git"
 
+[tool.poetry.dependencies]
+python = "^3.12"
+psutil = "^5.9.0"
+pytest = "^8"
+prettytable = "^3.8.0"
+tqdm = "^4.64.1"
+nltk = "^3.8"
+cython = "^3.0"
+ruff = "^0.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+mantis = "mantis.__main__:main"
+
+
+[tool.wheels]
+remote_server_wheels_path = ""
+remote_server_address = ""
+remote_server_port = ""
+
+[tool.ruff]
+line-length = 150
+select = ["E",  "W",  "F",  "I", "B"]
+ignore=["E501"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["E402"]

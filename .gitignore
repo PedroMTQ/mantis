@@ -128,3 +128,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# files created at runtime
+diamond*
+get_non_overlapping_hits.c
+get_non_overlapping_hits.o

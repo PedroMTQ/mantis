@@ -1,22 +1,22 @@
-try:
-    import argparse
-    import os
-    from datetime import datetime
-    import sys
-    import uuid
-    from mantis.mantis import run_mantis, run_mantis_test, print_citation_mantis, print_version
-    from mantis.unifunc_wrapper import test_nlp
-    from mantis.assembler import add_slash, get_path_level, check_installation, setup_databases
-    from mantis.utils import MANTIS_FOLDER,SPLITTER
+import argparse
+import os
+import sys
+import uuid
+from datetime import datetime
 
-except ImportError as e:
-    import signal
-    master_pid = os.getpid()
-    print('Import Error:\n',e)
-    os.kill(master_pid, signal.SIGKILL)
+from mantis.src.entry import (
+    check_installation,
+    print_citation_mantis,
+    print_version,
+    run_mantis,
+    run_mantis_test,
+    setup_databases,
+)
+from mantis.src.settings import DEFAULT_CONFIG
+from mantis.src.utils.utils import compile_cython, cython_compiled, get_path_level
+
 
 def main():
-    default_config_path=f'{MANTIS_FOLDER}config{SPLITTER}MANTIS.cfg'
     print('Executing command:\n', ' '.join(sys.argv))
     parser = argparse.ArgumentParser(description='___  ___               _    _      \n'
                                                  '|  \\/  |              | |  (_)     \n'
@@ -29,13 +29,13 @@ def main():
     # run mantis
     parser.add_argument('execution_type',
                         help='[required]\tExecution mode',
-                        choices=['run', 'setup', 'check', 'run_test','citation','version','test_nlp', 'check_sql'])
+                        choices=['run', 'setup', 'check', 'run_test','citation','version','compile_cython', 'check_sql'])
     parser.add_argument('-i', '--input',
                         help='[required]\tInput file path. Required when using <run>.')
     parser.add_argument('-o', '--output_folder',
                         help='[optional]\tOutput folder path')
     parser.add_argument('-mc', '--mantis_config',
-                        help=f'Custom MANTIS.cfg file. Default is in:{default_config_path}')
+                        help=f'Custom MANTIS.cfg file. Default is in:{DEFAULT_CONFIG}')
     parser.add_argument('-et', '--evalue_threshold',
                         help='[optional]\tCustom e-value threshold. Default is 1e-3.')
     parser.add_argument('-ov', '--overlap_value',
@@ -210,8 +210,9 @@ def main():
     elif args.execution_type == 'version':
         print_version('pedromtq', 'mantis')
 
-    elif args.execution_type == 'test_nlp':
-        test_nlp()
+    elif args.execution_type == 'compile_cython':
+        if not cython_compiled():
+            compile_cython()
     elif args.execution_type == 'check_sql':
         mantis_config = args.mantis_config
         no_taxonomy = args.no_taxonomy

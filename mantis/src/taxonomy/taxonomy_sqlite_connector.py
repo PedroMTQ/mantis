@@ -1,16 +1,23 @@
-try:
-    from mantis.utils import *
-except:
-    from utils import *
+import os
+import re
+import shutil
+import sqlite3
+from pathlib import Path
+
+import requests
+
+from mantis.src.settings import SQLITE_INFO_SPLITTER
+from mantis.src.utils.downloader import download_file
+from mantis.src.utils.file_processer import uncompress_archive
+from mantis.src.utils.logger import logger
 
 
-class Taxonomy_SQLITE_Connector():
+class TaxonomySqliteConnector():
 
     def __init__(self, resources_folder):
-        self.info_splitter = '##'
         self.insert_step = 50000
         self.resources_folder = resources_folder
-        self.taxonomy_db_file = f'{self.resources_folder}Taxonomy.db'
+        self.taxonomy_db_file = f'{self.resources_folder}taxonomy.db'
         Path(self.resources_folder).mkdir(parents=True, exist_ok=True)
 
     '''
@@ -29,10 +36,6 @@ class Taxonomy_SQLITE_Connector():
     def close_taxonomy_connection(self):
         self.sqlite_connection.close()
 
-    def check_table(self):
-        self.cursor.execute("SELECT * FROM GTDB2NCBI limit 10")
-        res_fetch = self.cursor.fetchall()
-        print(res_fetch)
 
     def process_gtdb_taxonomy(self, gtdb_lineage):
         res = None
@@ -44,7 +47,7 @@ class Taxonomy_SQLITE_Connector():
                 current_str = [i for i in current_str if len(i) > 1]
                 temp[i] = '_'.join(current_str)
 
-        lineage_str = self.info_splitter.join(temp)
+        lineage_str = SQLITE_INFO_SPLITTER.join(temp)
         while temp and not res:
             res = temp.pop(-1).strip()
         return res, lineage_str
@@ -65,7 +68,7 @@ class Taxonomy_SQLITE_Connector():
                 ncbi_id = line[ncbi_id_index]
 
                 most_resolved, lineage_str = self.process_gtdb_taxonomy(gtdb_taxonomy)
-                yield_str = self.info_splitter.join([most_resolved, ncbi_id])
+                yield_str = SQLITE_INFO_SPLITTER.join([most_resolved, ncbi_id])
                 if yield_str not in already_added:
                     yield most_resolved, lineage_str, ncbi_id
                 already_added.add(yield_str)
@@ -74,13 +77,13 @@ class Taxonomy_SQLITE_Connector():
         url = 'https://data.gtdb.ecogenomic.org/releases/latest/'
         req = requests.get(url)
         webpage = req.text
-        bac_file = re.compile('bac\d+_metadata.tar.gz')
+        bac_file = re.compile(r'bac\d+_metadata.tar.gz')
         bac_metadata_string = bac_file.search(webpage)
         if bac_metadata_string:
             bac_metadata_string = bac_metadata_string.group()
         else:
             bac_metadata_string = None
-        ar_file = re.compile('ar\d+_metadata.tar.gz')
+        ar_file = re.compile(r'ar\d+_metadata.tar.gz')
         ar_metadata_string = ar_file.search(webpage)
         if ar_metadata_string:
             ar_metadata_string = ar_metadata_string.group()
@@ -101,50 +104,51 @@ class Taxonomy_SQLITE_Connector():
         bac_metadata_string, bac_url, ar_metadata_string, ar_url = self.get_metadata_files_gtdb()
 
         if bac_metadata_string:
-            bac_file = f'{self.temp_folder}{bac_metadata_string}'
+            bac_file = os.path.join(self.temp_folder, bac_metadata_string)
             try:
-                bac_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('bac') and i.endswith('.tsv')][
-                    0]
-                bac_file_unc = f'{self.temp_folder}{bac_file_unc}'
-            except:
+                bac_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('bac') and i.endswith('.tsv')][0]
+                bac_file_unc = os.path.join(self.temp_folder, bac_file_unc)
+            except Exception:
                 bac_file_unc = None
-            if file_exists(bac_file) or file_exists(bac_file_unc):
+            if os.path.exists(bac_file) or os.path.exists(bac_file_unc):
                 pass
             else:
                 download_file(bac_url, output_folder=self.temp_folder)
 
-            if file_exists(bac_file):        uncompress_archive(bac_file, remove_source=True)
+            if os.path.exists(bac_file):
+                uncompress_archive(bac_file, remove_source=True)
             self.bac_file = [i for i in os.listdir(self.temp_folder) if i.startswith('bac') and i.endswith('.tsv')][0]
-            self.bac_file = f'{self.temp_folder}{self.bac_file}'
+            self.bac_file = os.path.join(self.temp_folder, self.bac_file)
         else:
             self.bac_file = None
 
         if ar_metadata_string:
-            ar_file = f'{self.temp_folder}{ar_metadata_string}'
+            ar_file = os.path.join(self.temp_folder, ar_metadata_string)
             try:
                 ar_file_unc = [i for i in os.listdir(self.temp_folder) if i.startswith('ar') and i.endswith('.tsv')][0]
-                ar_file_unc = f'{self.temp_folder}{ar_file_unc}'
-            except:
+                ar_file_unc = os.path.join(self.temp_folder, ar_file_unc)
+            except Exception:
                 ar_file_unc = None
-            if file_exists(ar_file) or file_exists(ar_file_unc):
+            if os.path.exists(ar_file) or os.path.exists(ar_file_unc):
                 pass
             else:
                 download_file(ar_url, output_folder=self.temp_folder)
-            if file_exists(ar_file):         uncompress_archive(ar_file, remove_source=True)
+            if os.path.exists(ar_file):
+                uncompress_archive(ar_file, remove_source=True)
             self.ar_file = [i for i in os.listdir(self.temp_folder) if i.startswith('ar') and i.endswith('.tsv')][0]
-            self.ar_file = f'{self.temp_folder}{self.ar_file}'
+            self.ar_file = os.path.join(self.temp_folder, self.ar_file)
         else:
             self.ar_file = None
 
         taxonomy_file = f'{self.temp_folder}new_taxdump.tar.gz'
         taxonomy_url = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/new_taxdump.tar.gz'
         download_file(taxonomy_url, output_folder=self.temp_folder)
-        if file_exists(taxonomy_file):        uncompress_archive(taxonomy_file, remove_source=True)
+        if os.path.exists(taxonomy_file):
+            uncompress_archive(taxonomy_file, remove_source=True)
 
     def create_taxonomy_db(self):
         if not os.path.exists(self.taxonomy_db_file):
-            self.temp_folder = f'{self.resources_folder}Taxonomy_temp{SPLITTER}'
-
+            self.temp_folder = os.path.join(self.resources_folder, 'taxonomy_temp')
             Path(self.temp_folder).mkdir(parents=True, exist_ok=True)
             self.download_data()
             # this will probably need to be changed to an output_folder provided by the user
@@ -153,19 +157,19 @@ class Taxonomy_SQLITE_Connector():
             self.sqlite_connection = sqlite3.connect(self.taxonomy_db_file)
             self.cursor = self.sqlite_connection.cursor()
 
-            create_table_command = f'CREATE TABLE GTDB2NCBI (' \
-                                   f'GTDB TEXT,' \
-                                   f'GTDBLINEAGE TEXT,' \
-                                   f'NCBI  INTEGER )'
+            create_table_command = 'CREATE TABLE GTDB2NCBI (' \
+                                   'GTDB TEXT,' \
+                                   'GTDBLINEAGE TEXT,' \
+                                   'NCBI  INTEGER )'
             self.cursor.execute(create_table_command)
-            create_index_command = f'CREATE INDEX GTDB2NCBI_IDX ON GTDB2NCBI (GTDB,GTDBLINEAGE,NCBI)'
+            create_index_command = 'CREATE INDEX GTDB2NCBI_IDX ON GTDB2NCBI (GTDB,GTDBLINEAGE,NCBI)'
             self.cursor.execute(create_index_command)
 
-            create_table_command = f'CREATE TABLE NCBILINEAGE (' \
-                                   f'NCBI INTEGER,' \
-                                   f'LINEAGE  TEXT )'
+            create_table_command = 'CREATE TABLE NCBILINEAGE (' \
+                                   'NCBI INTEGER,' \
+                                   'LINEAGE  TEXT )'
             self.cursor.execute(create_table_command)
-            create_index_command = f'CREATE INDEX NCBILINEAGEI_IDX ON NCBILINEAGE (NCBI)'
+            create_index_command = 'CREATE INDEX NCBILINEAGEI_IDX ON NCBILINEAGE (NCBI)'
             self.cursor.execute(create_index_command)
             self.sqlite_connection.commit()
             self.store_gtdb2ncbi()
@@ -194,12 +198,12 @@ class Taxonomy_SQLITE_Connector():
         gtdb2ncbi = self.chain_generators()
         generator_insert = self.generate_inserts(gtdb2ncbi)
         for table_chunk in generator_insert:
-            insert_command = f'INSERT INTO GTDB2NCBI (GTDB,GTDBLINEAGE, NCBI) values (?,?,?)'
+            insert_command = 'INSERT INTO GTDB2NCBI (GTDB,GTDBLINEAGE, NCBI) values (?,?,?)'
             self.cursor.executemany(insert_command, table_chunk)
         self.sqlite_connection.commit()
 
     def read_ncbi_lineage(self):
-        with open(f'{self.temp_folder}taxidlineage.dmp') as file:
+        with open(os.path.join(self.temp_folder, 'taxidlineage.dmp')) as file:
             for line in file:
                 line = line.strip('\n').replace('|', '')
                 line = line.split()
@@ -211,7 +215,7 @@ class Taxonomy_SQLITE_Connector():
         ncbi_lineage = self.read_ncbi_lineage()
         generator_insert = self.generate_inserts(ncbi_lineage)
         for table_chunk in generator_insert:
-            insert_command = f'INSERT INTO NCBILINEAGE (NCBI, LINEAGE) values (?,?)'
+            insert_command = 'INSERT INTO NCBILINEAGE (NCBI, LINEAGE) values (?,?)'
             self.cursor.executemany(insert_command, table_chunk)
         self.sqlite_connection.commit()
 
@@ -243,8 +247,8 @@ class Taxonomy_SQLITE_Connector():
         # if the ncbi matches with more than one gtdb id
         elif len(res) > 1:
             all_lineages = []
-            for gtdb_id, lineage, ncbi_id in res:
-                lineage = lineage.split(self.info_splitter)
+            for _, lineage, _ in res:
+                lineage = lineage.split(SQLITE_INFO_SPLITTER)
                 all_lineages.append(lineage)
             lca = self.get_lowest_common_ancestor_gtdb(all_lineages)
             res = lca
@@ -265,19 +269,21 @@ class Taxonomy_SQLITE_Connector():
             self.start_taxonomy_connection()
             return True
         else:
-            print(f'Database file {self.taxonomy_db_file} does not exist')
+            logger.error(f'Database file {self.taxonomy_db_file} does not exist')
             return False
 
     def get_lowest_common_ancestor_ncbi(self, list_taxons):
-        print('Retrieved multiple NCBI entries, retrieving lowest common ancestry NCBI ID')
+        logger.info('Retrieved multiple NCBI entries, retrieving lowest common ancestry NCBI ID')
         all_lineages = []
         min_size = None
         for taxon_id in list_taxons:
             taxon_lineage = self.fetch_ncbi_lineage(taxon_id)
             if taxon_lineage:
                 all_lineages.append(taxon_lineage)
-                if not min_size: min_size = len(taxon_lineage)
-                if len(taxon_lineage) < min_size: min_size = len(taxon_lineage)
+                if not min_size:
+                    min_size = len(taxon_lineage)
+                if len(taxon_lineage) < min_size:
+                    min_size = len(taxon_lineage)
         i = 0
         for i in range(min_size):
             temp = set()
@@ -289,11 +295,13 @@ class Taxonomy_SQLITE_Connector():
         return lca[-1]
 
     def get_lowest_common_ancestor_gtdb(self, list_taxon_lineages):
-        print('Retrieved multiple GTDB entries, retrieving lowest common ancestry GTDB ID')
+        logger.info('Retrieved multiple GTDB entries, retrieving lowest common ancestry GTDB ID')
         min_size = None
         for taxon_lineage in list_taxon_lineages:
-            if not min_size: min_size = len(taxon_lineage)
-            if len(taxon_lineage) < min_size: min_size = len(taxon_lineage)
+            if not min_size:
+                min_size = len(taxon_lineage)
+            if len(taxon_lineage) < min_size:
+                min_size = len(taxon_lineage)
         i = 0
         for i in range(min_size):
             temp = set()
@@ -311,34 +319,22 @@ class Taxonomy_SQLITE_Connector():
             req = requests.get(url)
             try:
                 webpage = req.text
-                taxa_id = re.search('<Id>\d+</Id>', webpage)
-                return re.search('\d+', taxa_id.group()).group()
-            except:
-                print('Could not get a response from NCBI, trying again')
+                taxa_id = re.search(r'<Id>\d+</Id>', webpage)
+                return re.search(r'\d+', taxa_id.group()).group()
+            except Exception:
+                logger.warning('Could not get a response from NCBI, trying again')
                 c += 1
 
     def get_taxa_ncbi(self, organism_name):
         taxa_id = self.fetch_ncbi_id(organism_name)
-        if taxa_id: return str(taxa_id)
+        if taxa_id:
+            return str(taxa_id)
         url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term={organism_name}'
         taxa_id = self.get_taxa_ncbi_url(url)
         if not taxa_id:
             url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=candidatus+{organism_name}'
             taxa_id = self.get_taxa_ncbi_url(url)
-        if not taxa_id:    print(f'Could not find taxa ID for {organism_name}')
+        if not taxa_id:
+            logger.error(f'Could not find taxa ID for {organism_name}')
         return str(taxa_id)
 
-
-if __name__ == '__main__':
-    gtdb_connector = Taxonomy_SQLITE_Connector(resources_folder='/home/pedroq/Desktop/test_cr/')
-    gtdb_connector.launch_taxonomy_connector()
-    # gtdb_connector.create_taxonomy_db()
-    a = gtdb_connector.fetch_ncbi_id(
-        'd__Archaea;p__Halobacteriota;c__Methanosarcinia;o__Methanosarcinales;f__Methanosarcinaceae;g__Methanolobus;s__Methanolobus psychrophilus')
-    print(a)
-    a = gtdb_connector.fetch_ncbi_id('Clostridium_P perfringens')
-    print(a)
-    a = gtdb_connector.fetch_ncbi_id('s__Bacillus subtilis')
-    print(a)
-    a = gtdb_connector.fetch_gtdb_id('1423')
-    print(a)

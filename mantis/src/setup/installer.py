@@ -1,33 +1,11 @@
-try:
-    from mantis.database_generator import *
-    from mantis.taxonomy_sqlite_connector import Taxonomy_SQLITE_Connector
-    from mantis.metadata_sqlite_connector import Metadata_SQLITE_Connector
-except:
-    from database_generator import *
-    from taxonomy_sqlite_connector import Taxonomy_SQLITE_Connector
-    from metadata_sqlite_connector import Metadata_SQLITE_Connector
+import os
+
+from mantis.src.metadata.metadata_sqlite_connector import MetadataSqliteConnector
+from mantis.src.taxonomy.taxonomy_sqlite_connector import TaxonomySqliteConnector
+from mantis.src.utils.logger import logger
 
 
-def setup_databases(chunk_size=None, no_taxonomy=False, mantis_config=None, cores=None):
-    print_cyan('Setting up databases')
-    if chunk_size:
-        chunk_size = int(chunk_size)
-    if cores:
-        cores = int(cores)
-    mantis = Assembler(hmm_chunk_size=chunk_size,
-                       mantis_config=mantis_config,
-                       user_cores=cores,
-                       no_taxonomy=no_taxonomy)
-    mantis.setup_databases()
-
-
-def check_installation(mantis_config=None, no_taxonomy=False, check_sql=False):
-    yellow('Checking installation')
-    mantis = Assembler(mantis_config=mantis_config, no_taxonomy=no_taxonomy)
-    mantis.check_installation(check_sql=check_sql)
-
-
-class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
+class MantisInstaller(MetadataSqliteConnector, TaxonomySqliteConnector):
     def __init__(self, verbose=True,
                  redirect_verbose=None,
                  no_taxonomy=False,
@@ -61,204 +39,22 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
         self.manager = Manager()
         self.queue = self.manager.list()
 
-    def __str__(self):
-        custom_refs = self.get_custom_refs_paths(folder=True)
-        custom_refs_str = ''
-        custom_res = ''
-        for cref in custom_refs:
-            custom_refs_str += cref + '\n'
-        if custom_refs_str:
-            custom_res = f'# Custom references:\n{custom_refs_str}'
 
-        res = []
-        if hasattr(self, 'output_folder'):
-            res.append(f'Output folder:\nself.output_folder')
-        res.append(f'Default references folder:\n{self.mantis_paths["default"]}')
-        res.append(f'Resources folder:\n{self.mantis_paths["resources"]}')
-        res.append(f'Custom references folder:\n{self.mantis_paths["custom"]}')
-        if self.mantis_paths['NOG'][0:2] != 'NA':
-            res.append(f'TAX NOG references folder:\n{self.mantis_paths["NOG"]}')
-        if self.mantis_paths['NCBI'][0:2] != 'NA':
-            res.append(f'TAX NCBI references folder:\n{self.mantis_paths["NCBI"]}')
-        if self.mantis_paths['pfam'][0:2] != 'NA':
-            res.append(f'Pfam reference folder:\n{self.mantis_paths["pfam"]}')
-        if self.mantis_paths['kofam'][0:2] != 'NA':
-            res.append(f'KOfam reference folder:\n{self.mantis_paths["kofam"]}')
-        if self.mantis_paths['tcdb'][0:2] != 'NA':
-            res.append(f'TCDB reference folder:\n{self.mantis_paths["tcdb"]}')
-        res.append('------------------------------------------')
-        res = '\n'.join(res)
-        if custom_res: res += '\n' + custom_res
-        ref_weights = ', '.join([f'{i}:{self.mantis_ref_weights[i]}' for i in self.mantis_ref_weights if i != 'else'])
-        if ref_weights:
-            res += f'#  Weights:\n{ref_weights}\n'
-        nog_tax = ', '.join([i for i in self.mantis_nogt_tax])
-        if nog_tax:
-            res += f'\n#  NOG tax IDs:\n{nog_tax}\n'
 
-        return res
-
-    def check_internet_connection(self):
-        try:
-            requests.get("http://www.google.com")
-            return True
-        except requests.ConnectionError:
-            print(
-                "Could not connect to internet!\nIf you would like to run offline make sure you introduce organism NCBI IDs instead of synonyms!")
-            return False
-
-    def set_nogt_line(self, line_path):
-        if line_path:
-            res = set()
-            tax_ids = [i for i in line_path.split(',')]
-            if tax_ids:
-                for t_id in tax_ids:
-                    try:
-                        ncbi_taxon_id = int(t_id)
-                        organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id)
-                        res.update(organism_lineage)
-                    except:
-                        ncbi_taxon_id = self.get_taxa_ncbi(t_id)
-                        if ncbi_taxon_id:
-                            organism_lineage = self.fetch_ncbi_lineage(ncbi_taxon_id)
-                            res.update(organism_lineage)
-            for i in res:
-                self.mantis_nogt_tax.add(str(i))
 
     def setup_paths_config_file(self):
-        self.mantis_paths = {'default': None,
-                             'resources': None,
-                             'custom': None,
-                             'NOG': None,
-                             'pfam': None,
-                             'kofam': None,
-                             'NCBI': None,
-                             'tcdb': None,
-                             }
-
-        self.nog_db = 'dmnd'
-        nogt_line = None
-        with open(self.config_file) as file:
-            for line in file:
-                line = line.strip('\n')
-                if not line.startswith('#') and line:
-                    # data sources configuration
-                    if line.startswith('default_ref_folder='):
-                        line_path = add_slash(line.replace('default_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['default'] = line_path
-
-                    elif line.startswith('resources_folder='):
-                        line_path = add_slash(line.replace('resources_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['resources'] = line_path
-
-                    elif line.startswith('custom_ref_folder='):
-                        line_path = add_slash(line.replace('custom_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['custom'] = line_path
-
-                    elif line.startswith('nog_ref_folder='):
-                        line_path = add_slash(line.replace('nog_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['NOG'] = line_path
-
-                    # taxa ids list for only downloading nogt specific to lineage
-                    elif line.startswith('nog_tax='):
-                        nogt_line = line.replace('nog_tax=', '')
-
-                    elif line.startswith('pfam_ref_folder='):
-                        line_path = add_slash(line.replace('pfam_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['pfam'] = line_path
-
-                    elif line.startswith('kofam_ref_folder='):
-                        line_path = add_slash(line.replace('kofam_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['kofam'] = line_path
-
-                    elif line.startswith('ncbi_ref_folder='):
-                        line_path = add_slash(line.replace('ncbi_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['NCBI'] = line_path
-
-                    elif line.startswith('tcdb_ref_folder='):
-                        line_path = add_slash(line.replace('tcdb_ref_folder=', ''))
-                        if line_path:
-                            self.mantis_paths['tcdb'] = line_path
-
-                    elif '_weight=' in line:
-                        ref_source, weight = line.split('_weight=')
-                        self.mantis_ref_weights[ref_source] = float(weight)
-
-                    elif line.startswith('nog_ref='):
-                        nog_db = line.replace('nog_ref=', '').split()[0]
-                        if nog_db.lower() not in ['dmnd', 'hmm']:
-                            kill_switch(InvalidNOGType)
-                        else:
-                            self.nog_db = nog_db
-        if not self.mantis_paths['default']:
-            self.mantis_paths['default'] = add_slash(MANTIS_FOLDER + 'References')
-        default_ref_path = self.mantis_paths['default']
-
-        if not self.mantis_paths['resources']:
-            self.mantis_paths['resources'] = add_slash(MANTIS_FOLDER + 'Resources')
-
-        if not self.mantis_paths['custom']:
-            self.mantis_paths['custom'] = add_slash(default_ref_path + 'Custom_references')
-
-        if not self.mantis_paths['NOG']:
-            self.mantis_paths['NOG'] = add_slash(default_ref_path + 'NOG')
-
-        if not self.mantis_paths['pfam']:
-            self.mantis_paths['pfam'] = add_slash(default_ref_path + 'pfam')
-
-        if not self.mantis_paths['kofam']:
-            self.mantis_paths['kofam'] = add_slash(default_ref_path + 'kofam')
-
-        if not self.mantis_paths['NCBI']:
-            self.mantis_paths['NCBI'] = add_slash(default_ref_path + 'NCBI')
-
-        if not self.mantis_paths['tcdb']:
-            self.mantis_paths['tcdb'] = add_slash(default_ref_path + 'tcdb')
-
+        mantis_config = MantisConfig(config_file=self.config_file)
+        self.mantis_paths = mantis_config.mantis_paths
+        self.nog_db = mantis_config.nog_db
         # setting up which taxa we need to have references for
         Taxonomy_SQLITE_Connector.__init__(self, resources_folder=self.mantis_paths['resources'])
         if self.use_taxonomy:
-            if nogt_line:
+            if mantis_config.nogt_line:
                 if self.launch_taxonomy_connector():
-                    self.set_nogt_line(nogt_line)
+                    self.set_nogt_line(mantis_config.nogt_line)
 
-    def read_config_file(self):
-        self.mantis_ref_weights = {'else': 0.7}
-        self.mantis_nogt_tax = set()
 
-        if self.mantis_config:
-            green(f'Using custom MANTIS.cfg: {self.mantis_config}', flush=True, file=self.redirect_verbose)
-            self.config_file = self.mantis_config
-        else:
-            if not os.path.isdir(MANTIS_FOLDER):
-                print(
-                    'Make sure you are calling the folder to run this package, like so:\n python mantis/ <command>\n ',
-                    flush=True, file=self.redirect_verbose)
-                raise FileNotFoundError
-            self.config_file = f'{MANTIS_FOLDER}config{SPLITTER}MANTIS.cfg'
-            green(f'Using default MANTIS.cfg: {self.config_file}', flush=True, file=self.redirect_verbose)
 
-        try:
-            open(self.config_file, 'r')
-        except:
-            red('MANTIS.cfg file has been deleted or moved, make sure you keep it in the root of the project!',
-                flush=True, file=self.redirect_verbose)
-            raise FileNotFoundError
-
-        self.setup_paths_config_file()
-        if not self.use_taxonomy:
-            self.mantis_paths['NOG'] = f'NA{SPLITTER}'
-            self.mantis_paths['NCBI'] = f'NA{SPLITTER}'
-        if not os.path.isdir(self.mantis_paths['custom']):
-            Path(self.mantis_paths['custom']).mkdir(parents=True, exist_ok=True)
-        if self.verbose: print(self, flush=True, file=self.redirect_verbose)
 
     def order_by_size_descending(self, refs_list):
         res = {}
@@ -311,50 +107,18 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
             target_file = get_ref_in_folder(self.mantis_paths['NCBI'] + taxon_id)
         return target_file
 
-    def check_reference_exists(self, database, taxon_id=None):
-        ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
-
-        if database == 'ncbi_res':
-            if file_exists(ncbi_resources + 'gc.prt') and \
-                    file_exists(ncbi_resources + 'gc.prt'):
-                return True
-        elif database == 'taxonomy':
-            taxonomy_db = self.mantis_paths['resources'] + 'Taxonomy.db'
-            if file_exists(taxonomy_db):
-                return True
-        elif database == 'NOGSQL':
-            if file_exists(self.mantis_paths['NOG'] + 'eggnog.db'):
-                return True
-        elif database == 'tcdb':
-            if file_exists(self.mantis_paths['tcdb'] + 'tcdb.dmnd'):
-                return True
-        elif database == 'NOG_DMND':
-            if file_exists(self.mantis_paths['NOG'] + 'eggnog_proteins.dmnd'):
-                return True
-        target_file = self.get_path_default_ref(database, taxon_id)
-        if target_file:
-            if target_file.endswith('.dmnd'):
-                if not file_exists(target_file):
-                    return False
-            else:
-                for extension in ['', '.h3f', '.h3i', '.h3m', '.h3p']:
-                    if not file_exists(target_file + extension):
-                        return False
-        else:
-            return False
-        return True
 
     #####LISTING HMMS DATABASE#####
 
     def check_installation_extras(self, res, verbose=True):
         ncbi_resources = add_slash(self.mantis_paths['resources'] + 'NCBI')
         essential_genes = f'{MANTIS_FOLDER}Resources{SPLITTER}essential_genes/essential_genes.txt'
-        taxonomy_db = self.mantis_paths['resources'] + 'Taxonomy.db'
+        taxonomy_db = self.mantis_paths['resources'] + 'taxonomy.db'
 
         if verbose:
             yellow('Checking extra files', flush=True, file=self.redirect_verbose)
 
-        if not file_exists(essential_genes):
+        if not os.path.exists(essential_genes):
             red('Essential genes list is missing, it should be in the github repo!')
             if verbose:
                 red(f'Failed installation check on [files missing]: {essential_genes}',
@@ -366,7 +130,7 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                 green(f'Passed installation check on: {self.mantis_paths["resources"]}essential_genes',
                       flush=True, file=self.redirect_verbose)
 
-        if not file_exists(ncbi_resources + 'gc.prt'):
+        if not os.path.exists(ncbi_resources + 'gc.prt'):
             if verbose:
                 red(f'Failed installation check on [files missing]: {ncbi_resources}gc.prt.dmp',
                     flush=True,
@@ -379,7 +143,7 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                       file=self.redirect_verbose)
 
         if self.use_taxonomy:
-            if not file_exists(taxonomy_db):
+            if not os.path.exists(taxonomy_db):
                 if verbose:
                     red(f'Failed installation check on [files missing]: {taxonomy_db}',
                         flush=True,
@@ -512,8 +276,8 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                 all_files.add(metadata_file)
         for metadata_file in all_files:
 
-            if not file_exists(metadata_file.replace('.tsv', '.db')):
-                cursor = Metadata_SQLITE_Connector(metadata_file)
+            if not os.path.exists(metadata_file.replace('.tsv', '.db')):
+                cursor = MetadataSqliteConnector(metadata_file)
                 cursor.close_sql_connection()
 
     def check_sql_databases(self, ref_dbs):
@@ -521,7 +285,7 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
         broken_ids = {}
         for db in ref_dbs:
             yellow(f'Checking {db}metadata.db', flush=True, file=self.redirect_verbose)
-            cursor = Metadata_SQLITE_Connector(f'{db}metadata.tsv')
+            cursor = MetadataSqliteConnector(f'{db}metadata.tsv')
             db_res = cursor.test_database()
             if db_res: broken_refs.add(db)
             if db_res: broken_ids[db] = db_res
@@ -584,7 +348,7 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
             tax_refs = self.get_taxon_refs(db='NCBI', folder=True)
             if not tax_refs:
                 if verbose:
-                    red(F'Failed installation check on [path unavailable]: self.mantis_paths["NCBI"]',
+                    red('Failed installation check on [path unavailable]: self.mantis_paths["NCBI"]',
                         flush=True,
                         file=self.redirect_verbose)
                 res.append(self.mantis_paths['NCBI'])
@@ -611,72 +375,13 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
             if verbose:
                 red(f'Installation check failed on:\n{fail_res}', flush=True, file=self.redirect_verbose)
         if self.passed_check:
-            if verbose:
-                green('------------------------------------------', flush=True, file=self.redirect_verbose)
-                green('--------INSTALLATION CHECK PASSED!--------', flush=True, file=self.redirect_verbose)
-                green('------------------------------------------', flush=True, file=self.redirect_verbose)
-            else:
-                print_cyan('Installation check passed', flush=True, file=self.redirect_verbose)
+            logger.info('Installation check passed', flush=True, file=self.redirect_verbose)
 
         else:
-            if verbose:
-                yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
-                red('--------INSTALLATION CHECK FAILED!--------', flush=True, file=self.redirect_verbose)
-                yellow('------------------------------------------', flush=True, file=self.redirect_verbose)
-            else:
-                print_cyan('Installation check failed', flush=True, file=self.redirect_verbose)
+            logger.error('Installation check failed', flush=True, file=self.redirect_verbose)
             raise InstallationCheckNotPassed
         if check_sql: self.check_sql_databases(ref_dbs)
 
-    def get_custom_refs_paths(self, folder=False):
-        try:
-            custom_refs_folders = os.listdir(self.mantis_paths['custom'])
-            for potential_ref_folder in custom_refs_folders:
-                try:
-                    files = os.listdir(self.mantis_paths['custom'] + potential_ref_folder)
-                    for potential_file in files:
-                        if potential_file.endswith('.hmm') or potential_file.endswith('.dmnd'):
-                            if folder:
-                                try:
-                                    yield add_slash(self.mantis_paths['custom'] + potential_ref_folder)
-                                except GeneratorExit:
-                                    return ''
-                            else:
-                                try:
-                                    yield add_slash(self.mantis_paths['custom'] + potential_ref_folder) + potential_file
-                                except GeneratorExit:
-                                    return ''
-                except:
-                    pass
-        except:
-            print(
-                'Custom references folder is missing, did you correctly set the path? If path is not set make sure you didn\'t delete the custom_ref folder!',
-                flush=True, file=self.redirect_verbose)
-            self.passed_check = False
-            return
-        with open(self.config_file, 'r') as file:
-            line = file.readline()
-            while line:
-                if line[0] != '#':
-                    if 'custom_ref=' in line:
-                        line = line.strip('\n')
-                        ref_path = line.replace('custom_ref=', '')
-                        if not (ref_path.endswith('.hmm') or ref_path.endswith('.dmnd')):
-                            if os.path.isdir(ref_path):
-                                for inner_file in os.listdir(ref_path):
-                                    if inner_file.endswith('.hmm') or inner_file.endswith('.dmnd'):
-                                        ref_path = add_slash(ref_path) + inner_file
-                        if folder:
-                            try:
-                                yield add_slash(SPLITTER.join(ref_path.split(SPLITTER)[:-1]))
-                            except GeneratorExit:
-                                return ''
-                        else:
-                            try:
-                                yield ref_path
-                            except GeneratorExit:
-                                return ''
-                line = file.readline()
 
     def get_taxon_ref_path(self, taxon_id, db):
         tax_refs = self.get_local_ref_taxon_ids(db=db)
@@ -690,7 +395,7 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
 
     def get_ref_taxon_ids(self, db):
         res = set()
-        if not file_exists(self.mantis_paths[db]): return res
+        if not os.path.exists(self.mantis_paths[db]): return res
         if db == 'NOG':
             available_taxon_ids = self.get_taxon_ids_eggNOG()
             if self.mantis_nogt_tax:
@@ -702,18 +407,18 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                 return set(available_taxon_ids)
         else:
             for i in os.listdir(self.mantis_paths[db]):
-                if re.search('\d+', i): res.add(i)
+                if re.search(r'\d+', i): res.add(i)
             return res
 
     def get_local_ref_taxon_ids(self, db):
         res = set()
-        if file_exists(self.mantis_paths[db]):
+        if os.path.exists(self.mantis_paths[db]):
             if db == 'NOG':
                 if self.mantis_nogt_tax:
                     for i in self.mantis_nogt_tax:
                         res.add(i)
             for i in os.listdir(self.mantis_paths[db]):
-                if re.search('\d+', i): res.add(i)
+                if re.search(r'\d+', i): res.add(i)
         return res
 
     def get_taxon_refs(self, db, folder=False):
@@ -733,14 +438,14 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                         res.append(add_slash(self.mantis_paths[db] + t) + f'{t}_merged.dmnd')
         global_folder = add_slash(self.mantis_paths[db] + db + 'G')
         if folder:
-            if file_exists(global_folder):
+            if os.path.exists(global_folder):
                 res.append(global_folder)
         else:
             if self.nog_db == 'hmm':
-                if file_exists(f'{global_folder}{db}G_merged.hmm'):
+                if os.path.exists(f'{global_folder}{db}G_merged.hmm'):
                     res.append(f'{global_folder}{db}G_merged.hmm')
             else:
-                if file_exists(f'{global_folder}{db}G_merged.dmnd'):
+                if os.path.exists(f'{global_folder}{db}G_merged.dmnd'):
                     res.append(f'{global_folder}{db}G_merged.dmnd')
 
         return res
@@ -767,6 +472,3 @@ class Assembler(Database_generator, Taxonomy_SQLITE_Connector):
                 print('Ran into an issue, check the log for details. Exitting!')
                 os._exit(1)
 
-
-if __name__ == '__main__':
-    p = Assembler(mantis_config='/media/HDD/data/mantis_references/MANTIS.cfg')
