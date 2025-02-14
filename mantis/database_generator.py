@@ -35,14 +35,15 @@ def validate_ec_numbers(ec_field):
 def validate_go_terms(go_field):
     """
     Given a comma-separated GO terms field, returns only terms matching
-    the pattern: GO:<digits>.
+    the pattern: GO:<digits>, but stripped of the 'GO:' prefix.
     """
     pattern = re.compile(r'^GO:\d+$')
     valid = []
     for item in go_field.split(','):
         item = item.strip()
         if item and pattern.match(item):
-            valid.append(item)
+            # Strip the "GO:" prefix so that the returned term matches old output.
+            valid.append(item.replace("GO:", ""))
         else:
             print(f"Warning: Invalid GO term format: '{item}'")
     return valid
