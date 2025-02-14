@@ -16,6 +16,36 @@ except:
 if not unifunc_downloaded():
     download_unifunc()
 
+def validate_ec_numbers(ec_field):
+    """
+    Given a comma-separated EC field, returns only values matching
+    the pattern: <digit>.<digit>.<digit>.<digit> or dash in the fourth field.
+    """
+    pattern = re.compile(r'^\d+\.\d+\.\d+\.(\d+|-)$')
+    valid = []
+    for item in ec_field.split(','):
+        item = item.strip()
+        if item and pattern.match(item):
+            valid.append(item)
+        else:
+            # Log a warning (or optionally remove the entry)
+            print(f"Warning: Invalid EC format: '{item}'")
+    return valid
+
+def validate_go_terms(go_field):
+    """
+    Given a comma-separated GO terms field, returns only terms matching
+    the pattern: GO:<digits>.
+    """
+    pattern = re.compile(r'^GO:\d+$')
+    valid = []
+    for item in go_field.split(','):
+        item = item.strip()
+        if item and pattern.match(item):
+            valid.append(item)
+        else:
+            print(f"Warning: Invalid GO term format: '{item}'")
+    return valid
 
 class Database_generator(UniFunc_wrapper):
 
@@ -617,41 +647,44 @@ class Database_generator(UniFunc_wrapper):
             '28384',  # Others
             '12908',  # Unclassified
         ]
+    
+    def parse_ncbi_metadata_row(self, row, header_map):
+        """
+        Given a row (as a list) and a header_map (column name -> index),
+        returns a dict mapping header names to the cell values.
+        """
+        return {header: row[idx] for header, idx in header_map.items() if idx < len(row)}
 
     def sort_hmms_NCBI(self):
         general_taxon_ids = self.get_ncbi_domains()
         res = {'NCBIG': []}
         already_added_NCBIG = set()
-        metadata = self.mantis_paths['NCBI'] + 'hmm_PGAP.tsv'
+        metadata = os.path.join(self.mantis_paths['NCBI'], 'hmm_PGAP.tsv')
         with open(metadata) as file:
-            line = file.readline()
-            line = file.readline()
-            while line:
-                line = line.strip('\n')
-                line = line.split('\t')
-                hmm, hmm_label, description, enzyme_ec, go_terms, taxa_id = line[0], line[2], line[10], line[12], line[
-                    13], line[15]
+            header_line = file.readline().strip('\n')
+            headers = header_line.strip('#').split('\t')
+            header_map = {name: idx for idx, name in enumerate(headers)}
+            # Read subsequent lines
+            for line in file:
+                row = line.strip('\n').split('\t')
+                row_data = self.parse_ncbi_metadata_row(row, header_map)
                 common_links = {}
-                get_common_links_metadata(description, common_links)
-                for db in common_links:
-                    for db_id in common_links[db]:
-                        description = description.replace(db_id, '').strip()
-                description = description.replace('(Provisional)', '')
-                description = description.strip()
-                enzyme_ec = [i for i in enzyme_ec.split(',') if i]
-                go_terms = [i.replace('GO:', '') for i in go_terms.split(',') if i]
-                line = file.readline()
+                get_common_links_metadata(row_data.get("product_name", ""), common_links)
+                description = row_data.get("product_name", "").replace('(Provisional)', '').strip()
+                # Validate EC numbers and GO terms using our helper functions
+                enzyme_ec = validate_ec_numbers(row_data.get("ec_numbers", ""))
+                go_terms = validate_go_terms(row_data.get("go_terms", ""))
+                taxa_id = row_data.get("taxonomic_range")
+                entry = [row_data.get("ncbi_accession"), row_data.get("label"), description, enzyme_ec, go_terms, common_links]
                 if taxa_id:
-                    if taxa_id not in res: res[taxa_id] = []
-                    res[taxa_id].append([hmm, hmm_label, description, enzyme_ec, go_terms, common_links])
-                    if taxa_id in general_taxon_ids:
-                        if hmm not in already_added_NCBIG:
-                            res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec, go_terms, common_links])
-                            already_added_NCBIG.add(hmm)
+                    res.setdefault(taxa_id, []).append(entry)
+                    if taxa_id in general_taxon_ids and row_data.get("ncbi_accession") not in already_added_NCBIG:
+                        res['NCBIG'].append(entry)
+                        already_added_NCBIG.add(row_data.get("ncbi_accession"))
                 else:
-                    if hmm not in already_added_NCBIG:
-                        res['NCBIG'].append([hmm, hmm_label, description, enzyme_ec, go_terms, common_links])
-                        already_added_NCBIG.add(hmm)
+                    if row_data.get("ncbi_accession") not in already_added_NCBIG:
+                        res['NCBIG'].append(entry)
+                        already_added_NCBIG.add(row_data.get("ncbi_accession"))
         return res
 
     #####################   TCDB
