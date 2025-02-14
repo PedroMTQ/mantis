@@ -303,15 +303,19 @@ def find_tigrfam(string_to_search):
         res.add(i.group())
     return res
 
-
 def find_go(string_to_search):
+    """
+    Find GO terms in the given string.
+    
+    This function looks for patterns matching 'GO' optionally followed by a colon,
+    and then at least three digits. It returns a set of the digits only (without the 'GO' or colon),
+    so that downstream processing can safely prepend 'go:'.
+    """
     res = set()
-    pattern = re.compile('(?<![A-Za-z])GO\d{3,}')
-    search = re.finditer(pattern, string_to_search)
-    for i in search:
-        res.add(i.group())
+    pattern = re.compile(r'(?<![A-Za-z])GO:?(\d{3,})')
+    for match in re.finditer(pattern, string_to_search):
+        res.add(match.group(1))
     return res
-
 
 def get_seqs_count(target_sample):
     total_seqs = 0
