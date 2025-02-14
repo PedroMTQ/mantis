@@ -19,9 +19,9 @@ if not unifunc_downloaded():
 def validate_ec_numbers(ec_field):
     """
     Given a comma-separated EC field, returns only values matching
-    the pattern: <digit>.<digit>.<digit>.<digit> or dash in the fourth field.
+    the pattern: <digit>.<digit>.<digit>.<digit> or dashes.
     """
-    pattern = re.compile(r'^\d+\.\d+\.\d+\.(\d+|-)$')
+    pattern = re.compile(r'^(\d+|-)\.(\d+|-)\.(\d+|-)\.(\d+|-)$')
     valid = []
     for item in ec_field.split(','):
         item = item.strip()
