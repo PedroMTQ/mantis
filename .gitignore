@@ -133,3 +133,4 @@ dmypy.json
 diamond*
 get_non_overlapping_hits.c
 get_non_overlapping_hits.o
+MANTIS_DATA/*

@@ -4,10 +4,10 @@ from pathlib import Path
 
 from mantis.src.metadata.utils import get_common_links_metadata
 from mantis.src.setup.ncbi import SetupNcbi
+from mantis.src.setup.pfam import SetupPfam
 from mantis.src.setup.resources_ncbi import SetupResourcesNcbi
 from mantis.src.setup.resources_taxonomy import SetupResourcesTaxonomy
 from mantis.src.setup.tcdb import SetupTcdb
-from mantis.src.setup.pfam import SetupPfam
 from mantis.src.utils import estimate_number_workers_setup_database, print_cyan, remove_file
 from mantis.src.utils.logger import logger
 

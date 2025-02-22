@@ -1,13 +1,16 @@
 import os
 import re
 
-from mantis.src.metadata.metadata_sqlite_connector import MetadataSqliteConnector
+from io.clients.metadata_sqlite_client import MetadataSqliteClient
 from mantis.src.metadata.utils import find_arcog, find_cog, find_ecs, find_go, find_ko, find_pfam, find_tcdb, find_tigrfam
 from mantis.src.settings import ROOT
 from mantis.src.utils import load_metrics
 
 
 class Metadata():
+    def __init__(self):
+        self.__metadata_clientt = MetadataSqliteClient
+
 
     def get_target_custom_ref_paths(self, target, folder):
         for custom_ref in self.get_custom_refs_paths(folder=folder):
@@ -46,7 +49,7 @@ class Metadata():
         cursor = MetadataSqliteConnector(ref_file_path)
         for hit in dict_hits:
             hit_dict = dict_hits[hit]
-            hit_info = cursor.fetch_metadata(hit)
+            hit_info = cursor.get_metadata(hit)
             for db in hit_info:
                 if db not in hit_dict['link']:  hit_dict['link'][db] = set()
                 hit_dict['link'][db].update(hit_info[db])

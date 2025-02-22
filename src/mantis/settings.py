@@ -1,12 +1,15 @@
 import os
 from multiprocessing import cpu_count
-
+from pathlib import Path
 import psutil
 
 SERVICE_NAME = 'mantis_pfa'
 DEBUG = int(os.environ.get('DEBUG', '0'))
 PSUTIL_EXCEPTIONS = (psutil.NoSuchProcess, AttributeError, FileNotFoundError)
-ROOT = os.path.dirname(os.path.abspath(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+STATIC_DATA = os.path.join(ROOT, 'src', 'data')
+DATA = os.getenv(os.path.join(ROOT,  'data'), 'MANTIS_DATA')
+Path(DATA).mkdir(parents=True, exist_ok=True)
 
 def check_environment_cores():
     res = cpu_count()
@@ -38,7 +41,6 @@ PERCENTAGE_ALLOWED_OVERHEARD = float(os.environ.get('MANTIS__PERCENTAGE_ALLOWED_
 MINIMUM_JOBS_PER_WORKER = float(os.environ.get('MANTIS__MINIMUM_JOBS_PER_WORKER', '1'))
 
 
-ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-DEFAULT_CONFIG = os.path.join(ROOT, 'config', 'MANTIS.cfg')
-CYTHON_FOLDER = os.path.join(ROOT, 'mantis', 'cython_src')
-SQLITE_INFO_SPLITTER = '##'
+DEFAULT_CONFIG = os.path.join(STATIC_DATA, 'config', 'MANTIS.cfg')
+CYTHON_FOLDER = os.path.join(ROOT, 'src', 'cython_src')
+INSERTION_BATCH_SIZE = 5000

@@ -5,8 +5,8 @@ from contextlib import closing
 
 import requests
 
-from mantis.src.utils.exceptions import DownloadFailed
-from mantis.src.utils.logger import logger
+from mantis.utils.exceptions import DownloadFailed
+from mantis.io.logger import logger
 
 
 def download_file_http(url, file_path, c, ctx):

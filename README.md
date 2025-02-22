@@ -156,3 +156,12 @@ This project is available under the [MIT license](https://github.com/PedroMTQ/ma
 > Fast genome-wide functional annotation through orthology assignment by eggNOG-mapper. Jaime Huerta-Cepas, Kristoffer Forslund, Luis Pedro Coelho, Damian Szklarczyk, Lars Juhl Jensen, Christian von Mering and Peer Bork. Mol Biol Evol (2017). [doi:10.1093/molbev/msx148](https://doi.org/10.1093/molbev/msx148)
 >
 > Saier MH, Reddy VS, Moreno-Hagelsieb G, Hendargo KJ, Zhang Y, Iddamsetty V, Lam KJK, Tian N, Russum S, Wang J, Medrano-Soto A. The Transporter Classification Database (TCDB): 2021 update. Nucleic Acids Res. 2021 Jan 8;49(D1):D461-D467. doi: 10.1093/nar/gkaa1004. PMID: 33170213; PMCID: PMC7778945.
+
+
+# Development
+
+```bash
+uv venv ~/uv_envs/mantis --python 3.12
+source ~/uv_envs/mantis/bin/activate
+uv pip install -e .
+```

@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from mantis.src.settings import DEBUG, SERVICE_NAME
+from mantis.settings import DEBUG, SERVICE_NAME
 
 
 class ColorFormatter(logging.Formatter):
