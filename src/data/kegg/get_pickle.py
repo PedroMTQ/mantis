@@ -1,15 +1,13 @@
 
 import copy
 import json
-import os
-import pickle
 import re
-
 import requests
+import pickle
 
 
 #this class is based on https://github.com/merenlab/anvio
-class anvio_kegg_paths():
+class KeggTreeGenerator():
 
     def split_path(self, step):
         """This function handles compound steps that should be split into multiple alternative paths.
@@ -170,97 +168,84 @@ class anvio_kegg_paths():
         return paths_list
 
 
+    def remove_non_essential_kos(self, ko_str):
+        res=[]
+        re_pattern=re.compile(r'-K\d{5}')
+        for step in ko_str:
+            temp=step
+            search=re.findall(re_pattern,step)
+            for s in search:
+                temp=temp.replace(s,'')
+            res.append(temp)
+        return res
 
-def save_metrics(pickle_path,to_pickle):
-    with open(pickle_path, 'wb') as handle:
-        pickle.dump(to_pickle, handle)
-
-def load_metrics(pickle_path):
-    if os.path.exists(pickle_path):
-        with open(pickle_path, 'rb') as handle:
-            pickled_results= pickle.load(handle)
-            return pickled_results
-
-
-def remove_non_essential_kos(ko_str):
-    res=[]
-    re_pattern=re.compile(r'-K\d{5}')
-    for step in ko_str:
-        temp=step
-        search=re.findall(re_pattern,step)
-        for s in search:
-            temp=temp.replace(s,'')
-        res.append(temp)
-    return res
-
-def get_sets_module(string_to_search):
-    module_str=string_to_search.split('hidden">')[-1].split('<br>')[0].strip().replace('<wbr>','')
-    res=[]
-    all_paths= anvio_instance.recursive_definition_unroller(module_str)
-    for i in range(len(all_paths)):
-        only_essentials=remove_non_essential_kos(all_paths[i])
-        temp=set()
-        for step in only_essentials:
-            step_modules=step.split('+')
-            temp.update(step_modules)
-        res.append(temp)
-    return res
+    def get_sets_module(self, string_to_search):
+        module_str=string_to_search.split('hidden">')[-1].split('<br>')[0].strip().replace('<wbr>','')
+        res=[]
+        all_paths= self.recursive_definition_unroller(module_str)
+        for i in range(len(all_paths)):
+            only_essentials=self.remove_non_essential_kos(all_paths[i])
+            temp=set()
+            for step in only_essentials:
+                step_modules=step.split('+')
+                temp.update(step_modules)
+            res.append(temp)
+        return res
 
 
-
-def get_ko_from_module(module_id):
-    url = 'https://www.genome.jp/dbget-bin/www_bget?md:' + module_id
-    print(f'Getting module {module_id}')
-    webpage = None
-    c = 0
-    while not webpage and c <= 10:
-        req = requests.get(url)
-        try:
-            webpage = req.text
-        except:
-            c += 1
-        start=re.search('<nobr>Definition</nobr>',webpage).span()[1]
-        webpage=webpage[start:]
-        end=re.search('</div></div></td></tr>',webpage).span()[0]
-        webpage=webpage[:end]
-        ko_str=get_sets_module(webpage)
-    return ko_str
-
-
-
-def read_modules(file_path):
-    with open(file_path) as file: json_modules= json.load(file)['children'][0]['children']
-    tree_modules={}
-    for main_path in json_modules:
-        main_path_name=main_path['name']
-        if main_path_name not in tree_modules: tree_modules[main_path_name]={}
-        sub_pathways=main_path['children']
-        for sub_path in sub_pathways:
-            sub_path_name=sub_path['name']
-            if sub_path_name not in tree_modules[main_path_name]: tree_modules[main_path_name][sub_path_name] = {}
-            modules=sub_path['children']
-            for module in modules:
-                module_name=module['name'].split('[')[0]
-                module_id=module_name.split()[0]
-                module_name=module_name.replace(module_id,'').strip()
-                tree_modules[main_path_name][sub_path_name][module_id]=[module_name,get_ko_from_module(module_id)]
-
-    return tree_modules
+    def get_ko_from_module(self, module_id):
+        url = f'https://www.genome.jp/dbget-bin/www_bget?md:{module_id}'
+        print(f'Getting module {module_id}')
+        webpage = None
+        c = 0
+        while not webpage and c <= 10:
+            req = requests.get(url)
+            try:
+                webpage = req.text
+            except Exception:
+                c += 1
+                continue
+            print(webpage)
+            start=re.search('>Definition<',webpage).span()[1]
+            webpage=webpage[start:]
+            end=re.search('</div></div></td></tr>',webpage).span()[0]
+            webpage=webpage[:end]
+            ko_str=self.get_sets_module(webpage)
+        return ko_str
 
 
+    def read_modules(self, modules_dict):
+        tree_modules={}
+        for main_path in modules_dict:
+            main_path_name=main_path['name']
+            if main_path_name not in tree_modules:
+                tree_modules[main_path_name]={}
+            sub_pathways=main_path['children']
+            for sub_path in sub_pathways:
+                sub_path_name=sub_path['name']
+                if sub_path_name not in tree_modules[main_path_name]:
+                    tree_modules[main_path_name][sub_path_name] = {}
+                modules=sub_path['children']
+                for module in modules:
+                    module_name=module['name'].split('[')[0]
+                    module_id=module_name.split()[0]
+                    module_name=module_name.replace(module_id,'').strip()
+                    tree_modules[main_path_name][sub_path_name][module_id]=[module_name,self.get_ko_from_module(module_id)]
+        return tree_modules
 
 
-
-
-def main(kegg_module,pickle_path):
-    modules=read_modules(kegg_module)
-    save_metrics(pickle_path,modules)
-
+    def run(self, modules_json_path: str, kegg_tree_path: str):
+        modules_dict= json.load(open(modules_json_path))['children'][0]['children']
+        tree_modules = self.read_modules(modules_dict=modules_dict)
+        with open(kegg_tree_path, 'wb') as handle:
+            pickle.dump(tree_modules, handle)
 
 
 if __name__ == '__main__':
     # from https://www.genome.jp/kegg-bin/show_brite?ko00002.keg
     kegg_module = 'modules.json'
     pickle_path = 'modules.pickle'
-    anvio_instance = anvio_kegg_paths()
-    main(kegg_module,pickle_path)
+    kegg_tree_generator = KeggTreeGenerator()
+    kegg_tree_generator.run(modules_json_path=kegg_module,
+                            kegg_tree_path='kegg_tree.json')
+

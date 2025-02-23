@@ -5,8 +5,7 @@ import subprocess
 from datetime import datetime
 from functools import wraps
 from math import ceil
-from pickle import dump as pickle_dump
-from pickle import load as pickle_load
+import pickle
 from time import sleep, time
 
 import psutil
@@ -684,18 +683,6 @@ def get_hmm_chunk_size(total_profiles, current_chunk_size, max_chunks):
     if n_chunks < max_chunks: return current_chunk_size
     target_chunk_size = round_to_digit(total_profiles / max_chunks)
     return target_chunk_size
-
-
-def save_metrics(pickle_path, to_pickle):
-    with open(pickle_path, 'wb') as handle:
-        pickle_dump(to_pickle, handle)
-
-
-def load_metrics(pickle_path):
-    if os.path.exists(pickle_path):
-        with open(pickle_path, 'rb') as handle:
-            pickled_results = pickle_load(handle)
-            return pickled_results
 
 
 def recalculate_coordinates(env_from, env_to, overlap_value):

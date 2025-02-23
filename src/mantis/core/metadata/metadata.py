@@ -2,18 +2,16 @@ import os
 import json
 import re
 from typing import Iterator
+import pickle
 
 from mantis.io.clients.metadata_sqlite_client import MetadataSqliteClient
 from mantis.core.metadata.metadata_document import BaseMetadataDocument
-from mantis.core.metadata.line_document import LineDocument
+from mantis.core.metadata.metadata_line_document import MetadataLineDocument
+from mantis.core.metadata.metadata_file_writers import MetadataFileWriter, MetadataGffFileWriter
 from mantis.io.logger import logger
 from mantis.settings import STATIC_DATA
-from mantis.src.metadata.utils import find_arcog, find_cog, find_ecs, find_go, find_ko, find_pfam, find_tcdb, find_tigrfam
-from mantis.src.settings import ROOT
-from mantis.src.utils import load_metrics
-from mantis.core.utils.utils import batch_yielder, BATCH_SIZE
+from mantis.core.utils.utils import BATCH_SIZE
 from mantis.io.config_reader import ConfigReader
-
 
 class Metadata():
     def __init__(self):
@@ -41,7 +39,7 @@ class Metadata():
             if target in custom_reference:
                 return custom_reference
 
-    def set_is_essential(self, line_documents: list[LineDocument]):
+    def set_is_essential(self, line_documents: list[MetadataLineDocument]):
         for line_document in line_documents:
             metadata: BaseMetadataDocument = line_document.metadata
             valid_ids = set()
@@ -57,26 +55,28 @@ class Metadata():
                 taxon_id = 'NOGG'
             else:
                 taxon_id = re.search(r'NOGT\d+', reference_file).group().replace('NOGT', '')
-            metadata_file = os.path.join(self.mantis_paths['NOG'] + taxon_id, 'metadata.tsv')
+            metadata_file = f"{self.mantis_paths['NOG']}{taxon_id}"
         elif re.search('NCBI[GT]', reference_file):
             if 'NCBIG' in reference_file:
                 taxon_id = 'NCBIG'
             else:
                 taxon_id = re.search(r'NCBIT\d+', reference_file).group().replace('NCBIT', '')
-            metadata_file = os.path.join(self.mantis_paths['NCBI'] + taxon_id, 'metadata.tsv')
+            metadata_file = f"{self.mantis_paths['NCBI']}{taxon_id}"
         elif reference_file == 'Pfam-A':
-            metadata_file = os.path.join(self.mantis_paths['pfam'], 'metadata.tsv')
+            metadata_file = self.mantis_paths['pfam']
         elif reference_file == 'kofam_merged':
-            metadata_file = os.path.join(self.mantis_paths['kofam'], 'metadata.tsv')
+            metadata_file = self.mantis_paths['kofam']
         elif reference_file == 'tcdb':
-            metadata_file = os.path.join(self.mantis_paths['tcdb'], 'metadata.tsv')
+            reference_path = self.mantis_paths['tcdb']
         else:
-            custom_reference_path = self.get_custom_reference_path(reference_file=reference_file, folder=True)
-            if custom_reference_path:
-                metadata_file = os.path.join(custom_reference_path, 'metadata.tsv')
+            reference_path = self.get_custom_reference_path(reference_file=reference_file, folder=True)
+        metadata_file = os.path.join(reference_path, 'metadata.tsv')
+        if not os.path.exists(reference_path):
+            logger.debug(f'Metadata file does not exist, skipping... {metadata_file}')
+            return None
         return metadata_file
 
-    def get_lines_metadata(self, reference_file: str, line_documents: list[LineDocument]):
+    def get_lines_metadata(self, reference_file: str, line_documents: list[MetadataLineDocument]):
         metadata_file = self.get_metadata_file(reference_file=reference_file)
         if not metadata_file:
             return
@@ -95,7 +95,7 @@ class Metadata():
         reference_ids_to_metadata_documents: dict[str, BaseMetadataDocument] = metadata_client.get_metadata_batch(reference_ids=reference_ids_to_lines.keys())
         # and then we simply assign the same metadata document to each line that shares the same reference id
         for reference_id, metdata_document in reference_ids_to_metadata_documents.items():
-            line_document: LineDocument
+            line_document: MetadataLineDocument
             for line_document in reference_ids_to_lines[reference_id]:
                 line_document.metadata_documents.append(metdata_document)
         # we also extract metadata from the reference ids or accession numbers
@@ -109,21 +109,21 @@ class Metadata():
         # and we finally check if the line has an essential gene or not
         self.set_is_essential(line_documents=line_documents)
 
-    def yield_output_annotation(self, output_annotation_tsv: str) -> Iterator[LineDocument]:
-        with open(output_annotation_tsv) as file:
+    def yield_output_annotation(self, input_file: str) -> Iterator[MetadataLineDocument]:
+        with open(input_file) as file:
             file.readline()
             for line_idx, line in enumerate(file):
                 line = line.strip('\n').split('\t')
                 line.insert(0, line_idx)
-                line_document = LineDocument(*line)
+                line_document = MetadataLineDocument(*line)
                 if self.nog_db == 'hmm' and 'NOG' in line_document.reference_file:
                     line_document.reference_id = line.reference_id.split('.')[0]
                 yield line_document
 
-    def yield_output_annotation_by_reference_file(self, output_annotation_tsv: str) -> Iterator[str, list[LineDocument]]:
+    def yield_output_annotation_by_reference_file(self, input_file: str) -> Iterator[str, list[MetadataLineDocument]]:
         res = {}
-        line_document: LineDocument
-        for line_document in self.yield_output_annotation(output_annotation_tsv=output_annotation_tsv):
+        line_document: MetadataLineDocument
+        for line_document in self.yield_output_annotation(input_file=input_file):
             if line_document.reference_file not in res:
                 res[line_document.reference_file] = []
             if res[line_document.reference_file] > BATCH_SIZE:
@@ -133,18 +133,26 @@ class Metadata():
         for reference_file, line_documents in res.items():
             yield reference_file, line_documents
 
-    def read_and_interpret_output_annotation(self, output_annotation_tsv) -> Iterator[LineDocument]:
-        for reference_file, line_documents in self.yield_output_annotation_by_reference_file(output_annotation_tsv=output_annotation_tsv):
+    def yield_annotated_lines(self, input_file) -> Iterator[MetadataLineDocument]:
+        for reference_file, line_documents in self.yield_output_annotation_by_reference_file(input_file=input_file):
             self.get_lines_metadata(reference_file=reference_file,
                                     line_documents=line_documents)
-            line_document: LineDocument
+            line_document: MetadataLineDocument
             for line_document in line_documents:
                 yield line_document.to_file()
 
+    def generate_integrated_output(self, input_file, output_file):
+        file_writer = MetadataFileWriter(file_path=output_file)
+        if self.output_gff:
+            gff_file_writer = MetadataGffFileWriter(file_path=output_file)
+        line_document: MetadataLineDocument
+        for line_document in self.yield_annotated_lines(input_file=input_file):
+            file_writer.write(line_document=line_document)
+            if self.output_gff:
+                gff_file_writer.write(line_document=line_document)
+
 
     ##### TODO continue here
-
-
 
     # TODO check if this is necessary
     def remove_ids_text(self, sorted_keys, temp_link, target_removal):
@@ -161,97 +169,6 @@ class Metadata():
 
 
 
-    def generate_gff_line_integrated(self, integrated_line):
-        # https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md
-        # verified with http://genometools.org/cgi-bin/gff3validator.cgi
-        line_split = integrated_line.index('|')
-        line_data, annotation_data = integrated_line[:line_split], integrated_line[line_split + 1:]
-        query, ref_file, hit, hit_accession, evalue, bitscore, direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line_data
-        # attributes of gff line:
-
-        if hit_accession != '-':
-            attributes = f'Name={hit};Target={hit} {ref_start} {ref_end};Alias={hit_accession}'
-        else:
-            attributes = f'Name={hit};Target={hit} {ref_start} {ref_end}'
-        notes = f'Note=ref_file:{ref_file},ref_len:{ref_len}'
-        dbxref = []
-        ontology_terms = []
-        descriptions = []
-
-        for i in annotation_data:
-            if not i.startswith('go:'):
-                dbxref.append(i)
-            elif i.startswith('description:'):
-                descriptions.append(i)
-            else:
-                ontology_terms.append(i)
-        if descriptions:
-            notes += ',' + ','.join(descriptions)
-        all_annotations = None
-        if dbxref and ontology_terms:
-            all_annotations = 'Dbxref=' + ','.join(dbxref) + ';' + 'Ontology_term=' + ','.join(ontology_terms)
-        elif dbxref and not ontology_terms:
-            all_annotations = 'Dbxref=' + ','.join(dbxref)
-        elif not dbxref and ontology_terms:
-            all_annotations = 'Ontology_term=' + ','.join(ontology_terms)
-        gff_line = '\t'.join([query, 'Mantis', 'CDS', query_start, query_end, evalue, direction, '0']) + '\t'
-        if all_annotations:
-            gff_line += ';'.join([attributes, notes, all_annotations])
-        else:
-            gff_line += ';'.join([attributes, notes])
-        sequence_region_line = f'##sequence-region {query} 1 {query_len}'
-        return query, sequence_region_line, gff_line
-
-    def generate_integrated_output(self, output_annotation_tsv, interpreted_annotation_tsv):
-        first_line = ['Query',
-                      'Ref_file',
-                      'Ref_hit',
-                      'Ref_hit_accession',
-                      'evalue',
-                      'bitscore',
-                      'Direction',
-                      'Query_length',
-                      'Query_hit_start',
-                      'Query_hit_end',
-                      'Ref_hit_start',
-                      'Ref_hit_end',
-                      'Ref_length',
-                      '|',
-                      'Links']
-        first_line = '\t'.join(first_line)
-        output_file = open(interpreted_annotation_tsv, 'w+')
-        output_file.write(first_line + '\n')
-
-        gff_file = None
-        gff_file_path = interpreted_annotation_tsv.replace('.tsv', '.gff')
-        gff_dict = {}
-        if self.output_gff:
-            gff_file = open(gff_file_path, 'w+')
-            gff_file.write('##gff-version 3' + '\n')
-
-        # generating output
-        output_annotation = self.read_and_interpret_output_annotation(output_annotation_tsv)
-        for line in range(len(output_annotation)):
-            current_output_line = output_annotation[line]
-            if current_output_line:
-                out_line = '\t'.join(current_output_line)
-                output_file.write(out_line + '\n')
-
-                if gff_file:
-                    seq_id, sequence_region_line, gff_line = self.generate_gff_line_integrated(current_output_line)
-                    if seq_id not in gff_dict:
-                        gff_dict[seq_id] = {'seq_region': sequence_region_line, 'lines': []}
-                    gff_dict[seq_id]['lines'].append(gff_line)
-        # writing gff
-        for seq_id in gff_dict:
-            gff_file.write(gff_dict[seq_id]['seq_region'] + '\n')
-        for seq_id in gff_dict:
-            for annot_line in gff_dict[seq_id]['lines']:
-                gff_file.write(annot_line + '\n')
-
-        if gff_file:
-            gff_file.close()
-        output_file.close()
 
     ######for KEGG module matrix#####
     def generate_module_col(self, tree_modules):
@@ -377,10 +294,10 @@ class Metadata():
             sample_paths.append(os.path.join(sample_output_path, 'consensus_annotation.tsv'))
 
         samples_info = [self.get_sample_kos(i) for i in sample_paths]
-        tree = load_metrics(os.path.join(self.mantis_paths['resources'] + 'KEGG'), 'modules.pickle')
+        modules_tree = pickle.load(open(os.path.join(self.mantis_paths['resources'], 'kegg', 'modules.json'), 'rb'))
         self.export_sample_kos(sample_paths)
-        if tree:
-            module_col = self.generate_module_col(tree)
+        if modules_tree:
+            module_col = self.generate_module_col(modules_tree)
             with open(out_file, 'w+') as file:
                 if self.verbose_kegg_matrix:
                     top_line = [f'Completeness_score_{s["sample"]}\tKOs_{s["sample"]}\tMissing_KOs_{s["sample"]}' for s in samples_info]
