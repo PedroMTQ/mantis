@@ -19,6 +19,20 @@ from mantis.src.settings import (
     PSUTIL_EXCEPTIONS,
     WORKER_PER_CORE,
 )
+from mantis.settings import BATCH_SIZE
+
+
+def batch_yielder(data_yielder):
+    batch = []
+    for i in data_yielder:
+        if len(batch) < BATCH_SIZE:
+            batch.append(i)
+        else:
+            yield batch
+            batch = []
+            batch.append(i)
+    if batch:
+        yield batch
 
 
 def kill_switch(error_type, message='', flush=False, file=None):

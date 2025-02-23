@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, make_dataclass
+from dataclasses import dataclass, field, make_dataclass, fields
 import re
 import json
 from collections.abc import Iterable
@@ -36,8 +36,8 @@ class BaseMetadataDocument():
     def from_sql(cls, metadata_types: list[str], metadata_list: list[str]):
         metadata_dict = {}
         for metadata_idx, metadata_type in enumerate(metadata_types):
-            metadata_text = json.loads(metadata_list[metadata_idx]) 
-            metadata_dict[metadata_type] = set(metadata_text)
+            metadata = json.loads(metadata_list[metadata_idx])
+            metadata_dict[metadata_type] = set(metadata)
         document = cls(**metadata_dict)
         return document
 
@@ -46,6 +46,18 @@ class BaseMetadataDocument():
         for metadata_type in metadata_types:
             metadata_set = getattr(self, metadata_type)
             res.append(json.dumps(list(metadata_set)))
+        return res
+
+    def to_file(self):
+        res = []
+        sorted_metatadata_types = sorted([metadata_type.name for metadata_type in fields(self)])
+        sorted_metatadata_types.remove('description')
+        sorted_metatadata_types.append('description')
+        for metadata_type in sorted_metatadata_types:
+            metadata_set = getattr(self, metadata_type)
+            if metadata_set:
+                for metadata in metadata_set:
+                    res.append(f'{metadata_type}:{metadata}')
         return res
 
     def find_ecs(self, string_to_search, required_level=3) -> set:
@@ -123,16 +135,14 @@ class BaseMetadataDocument():
             res.add(i.group())
         return res
 
-    def add(self, metadata_type: str, metadata_text: str):
+    def add(self, metadata_type: str, metadata: str | Iterable):
         metadata_variable = getattr(self, metadata_type)
-        if isinstance(metadata_text, str):
-            metadata_variable.add(metadata_text)
-        elif isinstance(metadata_text, Iterable):
-            metadata_variable.update(metadata_text)
+        if isinstance(metadata, str):
+            metadata_variable.add(metadata)
+        elif isinstance(metadata, Iterable):
+            metadata_variable.update(metadata)
         else:
-            raise Exception(f'Invalid metadata_text type: {metadata_text} (type: {type(metadata_text)})')
-
-    # def get_available_metadata_types(self) -> set[str]:
+            raise Exception(f'Invalid metadata type: {metadata} (type: {type(metadata)})')
 
     def add_by_search(self, metadata_string: str):
         if not metadata_string:
@@ -148,9 +158,9 @@ class BaseMetadataDocument():
             'go': self.find_go,
             }
         for metadata_type, metadata_function in metadata_function_mapping.items():
-            metadata_text = metadata_function(metadata_string)
+            metadata = metadata_function(metadata_string)
             metadata_variable = getattr(self, metadata_type)
-            metadata_variable.update(metadata_text)
+            metadata_variable.update(metadata)
 
 
 def get_extended_metadata_document(metadata_types: set[str]):
@@ -162,15 +172,35 @@ def get_extended_metadata_document(metadata_types: set[str]):
     )
 
 
+def merge_metadata_documents(metadata_documents: list[BaseMetadataDocument]):
+    metadata_types = set()
+    for metadata_document in metadata_documents:
+        metadata_types.update(metadata_type.name for metadata_type in fields(metadata_document))
+    new_metadata_document: BaseMetadataDocument = get_extended_metadata_document(metadata_types=metadata_types)()
+    for metadata_document in metadata_documents:
+        for metadata_type in fields(metadata_document):
+            metadata = getattr(metadata_document, metadata_type.name)
+            new_metadata_document.add(metadata_type=metadata_type.name,
+                                      metadata=metadata)
+    return new_metadata_document
+
+
 if __name__ == '__main__':
     document = BaseMetadataDocument(enzyme_ec={'1.2.3.4'})
     print(document)
     document = BaseMetadataDocument.from_string('This string contains an enzyme EC 1.2.3.4')
     print(document)
-    extended_document_factory: BaseMetadataDocument = get_extended_metadata_document(annotation_types=['type_1', 'type_2'])
+    extended_document_factory: BaseMetadataDocument = get_extended_metadata_document(metadata_types=['type_1', 'type_2'])
     print(extended_document_factory)
     document = extended_document_factory.from_string('This string contains an enzyme EC 1.2.3.4')
     print(document)
     print('json', document.to_sql(['enzyme_ec']))
     print('doc', extended_document_factory.from_sql(metadata_types=['type_1', 'enzyme_ec'],
                                                     metadata_list=['["test"]', '["1.2.3.4"]']))
+    document_1 = BaseMetadataDocument(enzyme_ec={'1.2.3.4'})
+    extended_document_factory: BaseMetadataDocument = get_extended_metadata_document(metadata_types=['type_1', 'type_2'])
+    document_2 = extended_document_factory(type_1='type_1_test')
+    merged_document = merge_metadata_documents([document_1, document_2])
+    print(document_1)
+    print(document_2)
+    print(merged_document)

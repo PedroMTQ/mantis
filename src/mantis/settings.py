@@ -43,4 +43,4 @@ MINIMUM_JOBS_PER_WORKER = float(os.environ.get('MANTIS__MINIMUM_JOBS_PER_WORKER'
 
 DEFAULT_CONFIG = os.path.join(STATIC_DATA, 'config', 'MANTIS.cfg')
 CYTHON_FOLDER = os.path.join(ROOT, 'src', 'cython_src')
-INSERTION_BATCH_SIZE = 5000
+BATCH_SIZE = 5000

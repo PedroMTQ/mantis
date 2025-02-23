@@ -92,7 +92,7 @@ class ConfigReader():
 
 
     def __str__(self):
-        custom_refs = self.get_custom_refs_paths(folder=True)
+        custom_refs = self.get_custom_reference_paths(folder=True)
         custom_refs_str = ''
         custom_res = ''
         for cref in custom_refs:
@@ -139,7 +139,7 @@ class ConfigReader():
         logger.debug(self)
 
 
-    def get_custom_refs_paths(self, folder=False):
+    def get_custom_reference_paths(self, folder=False):
         try:
             custom_refs_folders = os.listdir(self.mantis_paths['custom'])
             for potential_ref_folder in custom_refs_folders:

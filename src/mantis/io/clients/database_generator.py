@@ -155,7 +155,7 @@ class DatabaseGenerator():
     def prepare_queue_press_custom_hmms(self):
         print('Checking which custom hmms need to be pressed', flush=True, file=self.redirect_verbose)
         hmms_list = []
-        for hmm_path in self.get_custom_refs_paths(folder=False):
+        for hmm_path in self.get_custom_reference_paths(folder=False):
             if hmm_path.endswith('.hmm'):
                 hmm_folder = add_slash(SPLITTER.join(hmm_path.split(SPLITTER)[:-1]))
                 hmm_name = hmm_path.split(SPLITTER)[-1]

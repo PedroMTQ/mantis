@@ -1,151 +1,152 @@
 import os
+import json
 import re
+from typing import Iterator
 
-from io.clients.metadata_sqlite_client import MetadataSqliteClient
+from mantis.io.clients.metadata_sqlite_client import MetadataSqliteClient
+from mantis.core.metadata.metadata_document import BaseMetadataDocument
+from mantis.core.metadata.line_document import LineDocument
+from mantis.io.logger import logger
+from mantis.settings import STATIC_DATA
 from mantis.src.metadata.utils import find_arcog, find_cog, find_ecs, find_go, find_ko, find_pfam, find_tcdb, find_tigrfam
 from mantis.src.settings import ROOT
 from mantis.src.utils import load_metrics
+from mantis.core.utils.utils import batch_yielder, BATCH_SIZE
+from mantis.io.config_reader import ConfigReader
 
 
 class Metadata():
     def __init__(self):
-        self.__metadata_clientt = MetadataSqliteClient
+        self.__metadata_clients = {}
+        self.__invalid_annotations = json.loads(open(os.path.join(STATIC_DATA, 'invalid_annotations.json')).read())
+        self.__metabolic_modules = json.loads(open(os.path.join(STATIC_DATA, 'metabolic_modules1.json')).read())
+        self.__essential_genes = json.loads(open(os.path.join(STATIC_DATA, 'essential_genes', 'essential_genes.json')).read())
+        self.__config = ConfigReader()
+
+    def get_metadata_client(self, metadata_file: str):
+        if metadata_file not in self.__metadata_clients:
+            self.__metadata_clients[metadata_file] = MetadataSqliteClient(metadata_file=metadata_file)
+        return self.__metadata_clients[metadata_file]
 
 
-    def get_target_custom_ref_paths(self, target, folder):
-        for custom_ref in self.get_custom_refs_paths(folder=folder):
-            if target in custom_ref:
-                return custom_ref
+    def is_invalid_metadata(self, metadata: str):
+        normalized_metadata = metadata.lower()
+        for invalid_str in self.__invalid_annotations:
+            if invalid_str in normalized_metadata:
+                return True
+        return False
 
-    def is_good_annotation(self, to_add):
-        if 'unknown' in to_add:
-            return False
-        elif 'hypothetical protein' in to_add:
-            return False
-        elif 'hypothetical enzyme' in to_add:
-            return False
-        elif 'putative protein' in to_add:
-            return False
-        elif 'putative enzyme' in to_add:
-            return False
-        return True
+    def get_custom_reference_path(self, target, folder):
+        for custom_reference in self.__config.get_custom_reference_paths(folder=folder):
+            if target in custom_reference:
+                return custom_reference
 
-    def add_to_dict(self, dict_hits, dict_key, to_add):
-        if not to_add: return
-        if dict_key not in dict_hits['link']:
-            dict_hits['link'][dict_key] = set()
-        if isinstance(to_add, str):
-            list_to_add = [to_add]
-        else:
-            list_to_add = to_add
-        for i in list_to_add:
-            if self.is_good_annotation(i.lower()):
-                if i not in dict_hits['link'][dict_key]:
-                    i = i.strip()
-                    if i:
-                        dict_hits['link'][dict_key].add(i)
+    def set_is_essential(self, line_documents: list[LineDocument]):
+        for line_document in line_documents:
+            metadata: BaseMetadataDocument = line_document.metadata
+            valid_ids = set()
+            valid_ids.update(metadata.tigrfam)
+            valid_ids.update(metadata.pfam)
+            if valid_ids.intersection(self.__essential_genes):
+                line_document.is_essential_gene = True
 
-    def get_link_compiled_metadata(self, dict_hits, ref_file_path):
-        cursor = MetadataSqliteConnector(ref_file_path)
-        for hit in dict_hits:
-            hit_dict = dict_hits[hit]
-            hit_info = cursor.get_metadata(hit)
-            for db in hit_info:
-                if db not in hit_dict['link']:  hit_dict['link'][db] = set()
-                hit_dict['link'][db].update(hit_info[db])
-        cursor.close_sql_connection()
-
-    def get_common_links(self, string, res={}):
-        ec = find_ecs(string)
-        if ec:
-            self.add_to_dict(res, 'enzyme_ec', ec)
-        tc = find_tcdb(string)
-        if tc:
-            self.add_to_dict(res, 'tcdb', tc)
-        tigr = find_tigrfam(string)
-        if tigr:
-            self.add_to_dict(res, 'tigrfam', tigr)
-        ko = find_ko(string)
-        if ko:
-            self.add_to_dict(res, 'kegg_ko', ko)
-        pfam = find_pfam(string)
-        if pfam:
-            self.add_to_dict(res, 'pfam', pfam)
-        cog = find_cog(string)
-        if cog:
-            self.add_to_dict(res, 'cog', cog)
-        arcog = find_arcog(string)
-        if arcog:
-            self.add_to_dict(res, 'arcog', arcog)
-        go = find_go(string)
-        if go:
-            self.add_to_dict(res, 'go', cog)
-        return res
-
-    def get_essential_genes(self):
-        essential_genes = os.path.join(ROOT, 'Resources', 'essential_genes', 'essential_genes.txt')
-        if os.path.exists(essential_genes):
-            with open(essential_genes) as file:
-                lines = file.readlines()
-            lines = [line.strip('\n') for line in lines]
-            return set(lines)
-
-    def is_essential(self, dict_hits):
-        essential_genes = self.get_essential_genes()
-        if essential_genes:
-            for hit in dict_hits:
-                valid_ids = set()
-                if 'pfam' in dict_hits[hit]['link']:
-                    valid_ids.update(dict_hits[hit]['link']['pfam'])
-                if 'tigrfam' in dict_hits[hit]['link']:
-                    valid_ids.update(dict_hits[hit]['link']['tigrfam'])
-                valid_ids.update(find_tigrfam(dict_hits[hit]['link']['hit']))
-                valid_ids.update(find_tigrfam(dict_hits[hit]['link']['accession']))
-                valid_ids.update(find_pfam(dict_hits[hit]['link']['hit']))
-                valid_ids.update(find_pfam(dict_hits[hit]['link']['accession']))
-                if valid_ids.intersection(essential_genes):
-                    self.add_to_dict(dict_hits[hit], 'is_essential_gene', 'True')
-
-    def get_hit_links(self, dict_hits, ref_file):
-        if re.search('NOG[GT]', ref_file):
-            if 'NOGG' in ref_file:
+    def get_metadata_file(self, reference_file: str):
+        metadata_file = None
+        if re.search('NOG[GT]', reference_file):
+            if 'NOGG' in reference_file:
                 taxon_id = 'NOGG'
             else:
-                taxon_id = re.search(r'NOGT\d+', ref_file).group().replace('NOGT', '')
+                taxon_id = re.search(r'NOGT\d+', reference_file).group().replace('NOGT', '')
             metadata_file = os.path.join(self.mantis_paths['NOG'] + taxon_id, 'metadata.tsv')
-            self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
-        elif re.search('NCBI[GT]', ref_file):
-            if 'NCBIG' in ref_file:
+        elif re.search('NCBI[GT]', reference_file):
+            if 'NCBIG' in reference_file:
                 taxon_id = 'NCBIG'
             else:
-                taxon_id = re.search(r'NCBIT\d+', ref_file).group().replace('NCBIT', '')
+                taxon_id = re.search(r'NCBIT\d+', reference_file).group().replace('NCBIT', '')
             metadata_file = os.path.join(self.mantis_paths['NCBI'] + taxon_id, 'metadata.tsv')
-            self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=metadata_file)
-            self.is_essential(dict_hits)
-
-        elif ref_file == 'Pfam-A':
-            self.get_link_compiled_metadata(dict_hits=dict_hits,
-                                            ref_file_path=self.mantis_paths['pfam'] + 'metadata.tsv')
-            self.is_essential(dict_hits)
-        elif ref_file == 'kofam_merged':
-            self.get_link_compiled_metadata(dict_hits=dict_hits,
-                                            ref_file_path=self.mantis_paths['kofam'] + 'metadata.tsv')
-        elif ref_file == 'tcdb':
-            self.get_link_compiled_metadata(dict_hits=dict_hits,
-                                            ref_file_path=self.mantis_paths['tcdb'] + 'metadata.tsv')
+        elif reference_file == 'Pfam-A':
+            metadata_file = os.path.join(self.mantis_paths['pfam'], 'metadata.tsv')
+        elif reference_file == 'kofam_merged':
+            metadata_file = os.path.join(self.mantis_paths['kofam'], 'metadata.tsv')
+        elif reference_file == 'tcdb':
+            metadata_file = os.path.join(self.mantis_paths['tcdb'], 'metadata.tsv')
         else:
-            custom_ref_path = self.get_target_custom_ref_paths(ref_file, folder=True)
-            if custom_ref_path:
-                file_path = os.path.join(custom_ref_path, 'metadata.tsv')
-                if os.path.exists(file_path):
-                    self.get_link_compiled_metadata(dict_hits=dict_hits, ref_file_path=file_path)
-        for hit in dict_hits:
-            self.get_common_links(hit, dict_hits[hit])
-            if 'accession' in dict_hits[hit]['link']:
-                self.get_common_links(dict_hits[hit]['link']['accession'],
-                                                                              dict_hits[hit])
-        return dict_hits
+            custom_reference_path = self.get_custom_reference_path(reference_file=reference_file, folder=True)
+            if custom_reference_path:
+                metadata_file = os.path.join(custom_reference_path, 'metadata.tsv')
+        return metadata_file
 
+    def get_lines_metadata(self, reference_file: str, line_documents: list[LineDocument]):
+        metadata_file = self.get_metadata_file(reference_file=reference_file)
+        if not metadata_file:
+            return
+        if not os.path.exists(metadata_file):
+            logger.info(f'Metadata file does not exist for {reference_file}. Skipping metadata imputating...')
+            return
+        metadata_client: MetadataSqliteClient = self.get_metadata_client(metadata_file)
+        # since multiple lines can share the same reference ID, we first map them by reference_id
+        reference_ids_to_lines = []
+        for line_document in line_documents:
+            if line_document.reference_id not in reference_ids_to_lines:
+                reference_ids_to_lines[line_document.reference_id] = []
+            reference_ids_to_lines[line_document.reference_id].append(line_document)
+
+        # now we get metadata by reference_id
+        reference_ids_to_metadata_documents: dict[str, BaseMetadataDocument] = metadata_client.get_metadata_batch(reference_ids=reference_ids_to_lines.keys())
+        # and then we simply assign the same metadata document to each line that shares the same reference id
+        for reference_id, metdata_document in reference_ids_to_metadata_documents.items():
+            line_document: LineDocument
+            for line_document in reference_ids_to_lines[reference_id]:
+                line_document.metadata_documents.append(metdata_document)
+        # we also extract metadata from the reference ids or accession numbers
+        for line_document in line_documents:
+            line_document.metadata.append(BaseMetadataDocument.from_string(line_document.reference_id))
+            if line_document.reference_id_accession:
+                line_document.metadata.append(BaseMetadataDocument.from_string(line_document.reference_id_accession))
+        # when all the metadata is extracted, we merge all the metadata documents
+        for line_document in line_documents:
+            line_document.merge_metadata()
+        # and we finally check if the line has an essential gene or not
+        self.set_is_essential(line_documents=line_documents)
+
+    def yield_output_annotation(self, output_annotation_tsv: str) -> Iterator[LineDocument]:
+        with open(output_annotation_tsv) as file:
+            file.readline()
+            for line_idx, line in enumerate(file):
+                line = line.strip('\n').split('\t')
+                line.insert(0, line_idx)
+                line_document = LineDocument(*line)
+                if self.nog_db == 'hmm' and 'NOG' in line_document.reference_file:
+                    line_document.reference_id = line.reference_id.split('.')[0]
+                yield line_document
+
+    def yield_output_annotation_by_reference_file(self, output_annotation_tsv: str) -> Iterator[str, list[LineDocument]]:
+        res = {}
+        line_document: LineDocument
+        for line_document in self.yield_output_annotation(output_annotation_tsv=output_annotation_tsv):
+            if line_document.reference_file not in res:
+                res[line_document.reference_file] = []
+            if res[line_document.reference_file] > BATCH_SIZE:
+                yield line_document.reference_file, res[line_document.reference_file]
+                res[line_document.reference_file] = []
+            res[line_document.reference_file].append(line_document)
+        for reference_file, line_documents in res.items():
+            yield reference_file, line_documents
+
+    def read_and_interpret_output_annotation(self, output_annotation_tsv) -> Iterator[LineDocument]:
+        for reference_file, line_documents in self.yield_output_annotation_by_reference_file(output_annotation_tsv=output_annotation_tsv):
+            self.get_lines_metadata(reference_file=reference_file,
+                                    line_documents=line_documents)
+            line_document: LineDocument
+            for line_document in line_documents:
+                yield line_document.to_file()
+
+
+    ##### TODO continue here
+
+
+
+    # TODO check if this is necessary
     def remove_ids_text(self, sorted_keys, temp_link, target_removal):
         for link_key in sorted_keys:
             if isinstance(temp_link[link_key], str): temp_link[link_key] = [temp_link[link_key]]
@@ -158,101 +159,7 @@ class Metadata():
                         for i in range(len(temp_link['kegg_map_lineage'])):
                             temp_link['kegg_map_lineage'][i] = temp_link['kegg_map_lineage'][i].replace(inner_l, '').replace('()', '').strip()
 
-    def generate_interpreted_line(self, query, ref_file, link, evalue, bitscore, direction, query_len, query_start,
-                                  query_end,
-                                  ref_start, ref_end, ref_len):
-        temp_link = dict(link)
-        hit = temp_link.pop('hit')
-        hit_accession = '-'
-        if 'accession' in temp_link:
-            hit_accession = temp_link.pop('accession')
-        row_start = [query,
-                     ref_file,
-                     hit,
-                     hit_accession,
-                     evalue,
-                     bitscore,
-                     direction,
-                     query_len,
-                     query_start,
-                     query_end,
-                     ref_start,
-                     ref_end,
-                     ref_len,
-                     '|']
-        res = []
-        sorted_keys = sorted(temp_link.keys())
-        if 'enzyme_ec' in sorted_keys:
-            sorted_keys.remove('enzyme_ec')
-            sorted_keys.insert(0, 'enzyme_ec')
-        # so that description always comes in the end
-        if 'kegg_map_lineage' in sorted_keys:
-            sorted_keys.remove('kegg_map_lineage')
-            self.remove_ids_text(sorted_keys=sorted_keys, temp_link=temp_link, target_removal='kegg_map_lineage')
-            sorted_keys.append('kegg_map_lineage')
-        if 'description' in sorted_keys:
-            sorted_keys.remove('description')
-            # self.remove_ids_text(sorted_keys, temp_link, target_removal='description')
-            sorted_keys.append('description')
-        for link_key in sorted_keys:
-            if isinstance(temp_link[link_key], str):
-                temp_link[link_key] = [temp_link[link_key]]
-            for inner_l in temp_link[link_key]:
-                res.append(link_key + ':' + inner_l)
-        res = sorted(res)
-        res = row_start + res
-        return res
 
-    def read_and_interpret_output_annotation(self, output_annotation_tsv):
-        c = 0
-        links_to_get = {}
-        lines_info = {}
-        with open(output_annotation_tsv) as file:
-            line = file.readline()
-            line = file.readline()
-            while line:
-                line = line.strip('\n').split('\t')
-                query, ref_file, ref_hit, ref_hit_accession, evalue, bitscore, direction, query_len, query_start, query_end, ref_start, ref_end, ref_len = line
-                if self.nog_db == 'hmm' and 'NOG' in ref_file:
-                    ref_hit = ref_hit.split('.')[0]
-                if ref_file not in links_to_get:
-                    links_to_get[ref_file] = {}
-                if ref_hit not in links_to_get[ref_file]:
-                    links_to_get[ref_file][ref_hit] = {'link': {'hit': ref_hit}, 'lines': []}
-                if ref_hit_accession != '-':
-                    links_to_get[ref_file][ref_hit]['link']['accession'] = ref_hit_accession
-                links_to_get[ref_file][ref_hit]['lines'].append(c)
-                lines_info[c] = {'query': query,
-                                 'evalue': evalue,
-                                 'bitscore': bitscore,
-                                 'direction': direction,
-                                 'query_len': query_len,
-                                 'query_start': query_start,
-                                 'query_end': query_end,
-                                 'ref_start': ref_start,
-                                 'ref_end': ref_end,
-                                 'ref_len': ref_len}
-                c += 1
-                line = file.readline()
-        res = {}
-        for ref_file in links_to_get:
-            ref_file_links = self.get_hit_links(links_to_get[ref_file], ref_file)
-            for ref_hit in ref_file_links:
-                for line in ref_file_links[ref_hit]['lines']:
-                    res[line] = self.generate_interpreted_line(query=lines_info[line]['query'],
-                                                               ref_file=ref_file,
-                                                               link=ref_file_links[ref_hit]['link'],
-                                                               evalue=lines_info[line]['evalue'],
-                                                               bitscore=lines_info[line]['bitscore'],
-                                                               direction=lines_info[line]['direction'],
-                                                               query_len=lines_info[line]['query_len'],
-                                                               query_start=lines_info[line]['query_start'],
-                                                               query_end=lines_info[line]['query_end'],
-                                                               ref_start=lines_info[line]['ref_start'],
-                                                               ref_end=lines_info[line]['ref_end'],
-                                                               ref_len=lines_info[line]['ref_len'],
-                                                               )
-        return res
 
     def generate_gff_line_integrated(self, integrated_line):
         # https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md
@@ -348,20 +255,8 @@ class Metadata():
 
     ######for KEGG module matrix#####
     def generate_module_col(self, tree_modules):
-        sorted_keys = [
-            'Carbohydrate metabolism',
-            'Energy metabolism',
-            'Lipid metabolism',
-            'Nucleotide metabolism',
-            'Amino acid metabolism',
-            'Glycan metabolism',
-            'Metabolism of cofactors and vitamins',
-            'Biosynthesis of terpenoids and polyketides',
-            'Biosynthesis of other secondary metabolites',
-            'Xenobiotics biodegradation',
-        ]
         res = []
-        for sk in sorted_keys:
+        for sk in self.__metabolic_modules:
             sorted_sub_paths = sorted(tree_modules[sk].keys())
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
@@ -393,20 +288,9 @@ class Metadata():
         return best_score, available, missing
 
     def generate_sample_col_verbose(self, sample_kos, tree_modules):
-        sorted_keys = [
-            'Carbohydrate metabolism',
-            'Energy metabolism',
-            'Lipid metabolism',
-            'Nucleotide metabolism',
-            'Amino acid metabolism',
-            'Glycan metabolism',
-            'Metabolism of cofactors and vitamins',
-            'Biosynthesis of terpenoids and polyketides',
-            'Biosynthesis of other secondary metabolites',
-            'Xenobiotics biodegradation',
-        ]
+
         res = {}
-        for sk in sorted_keys:
+        for sk in self.__metabolic_modules:
             sorted_sub_paths = sorted(tree_modules[sk].keys())
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
@@ -418,20 +302,8 @@ class Metadata():
         return res
 
     def generate_sample_col_non_verbose(self, sample_kos, tree_modules):
-        sorted_keys = [
-            'Carbohydrate metabolism',
-            'Energy metabolism',
-            'Lipid metabolism',
-            'Nucleotide metabolism',
-            'Amino acid metabolism',
-            'Glycan metabolism',
-            'Metabolism of cofactors and vitamins',
-            'Biosynthesis of terpenoids and polyketides',
-            'Biosynthesis of other secondary metabolites',
-            'Xenobiotics biodegradation',
-        ]
         res = {}
-        for sk in sorted_keys:
+        for sk in self.__metabolic_modules:
             sorted_sub_paths = sorted(tree_modules[sk].keys())
             for ssp in sorted_sub_paths:
                 sorted_modules = sorted(tree_modules[sk][ssp])
@@ -538,8 +410,7 @@ class Metadata():
                         module_line = '\t'.join(module_line) + '\n'
                     file.write(module_line)
         else:
-            print('KEGG modules pickle is not present, so Mantis cannot create the KEGG matrix', flush=True,
-                  file=self.redirect_verbose)
+            logger.error('KEGG modules pickle is not present, so Mantis cannot create the KEGG matrix')
 
 
 if __name__ == '__main__':

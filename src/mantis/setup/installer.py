@@ -81,7 +81,7 @@ class MantisInstaller(MetadataSqliteConnector, TaxonomySqliteConnector):
             get_ref_in_folder(self.mantis_paths['kofam']) if not folder else self.mantis_paths['kofam'],
             get_ref_in_folder(self.mantis_paths['tcdb']) if not folder else self.mantis_paths['tcdb'],
         ]
-        for ref_path in self.get_custom_refs_paths(folder):
+        for ref_path in self.get_custom_reference_paths(folder):
             if ref_path[0:2] != 'NA':
                 refs_list.append(ref_path)
         for ref_path in default_list:
